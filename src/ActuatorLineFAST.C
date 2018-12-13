@@ -263,7 +263,7 @@ ActuatorLineFAST::setup()
 
   double dtNalu = realm_.get_time_step_from_file();
   tStepRatio_ = dtNalu/fi.dtFAST ;
-  if (std::abs(dtNalu - tStepRatio_ * fi.dtFAST) < 0.001) {// TODO: Fix arbitrary number 0.001
+  if (static_cast<double>(tStepRatio_) == dtNalu/fi.dtFAST && tStepRaio_ > 0) {
     NaluEnv::self().naluOutputP0() << "Time step ratio  dtNalu/dtFAST: " << tStepRatio_ << std::endl ;
   } else {
     throw std::runtime_error("ActuatorLineFAST: Ratio of Nalu's time step is not an integral multiple of FAST time step");
