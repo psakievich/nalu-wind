@@ -1,9 +1,12 @@
-/*------------------------------------------------------------------------*/
-/*  Copyright 2014 Sandia Corporation.                                    */
-/*  This software is released under the license detailed                  */
-/*  in the file, LICENSE, which is located in the top-level Nalu          */
-/*  directory structure                                                   */
-/*------------------------------------------------------------------------*/
+// Copyright 2017 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS), National Renewable Energy Laboratory, University of Texas Austin,
+// Northwest Research Associates. Under the terms of Contract DE-NA0003525
+// with NTESS, the U.S. Government retains certain rights in this software.
+//
+// This software is released under the BSD 3-clause license. See LICENSE file
+// for more details.
+//
+
 
 
 #include <LowMachEquationSystem.h>
@@ -2080,16 +2083,15 @@ MomentumEquationSystem::register_symmetry_bc(
   stk::mesh::MetaData &meta_data = realm_.meta_data();
   const unsigned nDim = meta_data.spatial_dimension();
   AlgorithmType pickTheType = algType;
+  // non-solver; contribution to Gjui; allow for element-based shifted
+  if ( !managePNG_ ) {
+    nodalGradAlgDriver_.register_face_algorithm<
+      VectorNodalGradBndryElemAlg, AssembleNodalGradUBoundaryAlgorithm>(
+        algType, part, "momentum_nodal_grad", &velocityNp1, &dudxNone,
+        edgeNodalGradient_);
+  }
   switch(symmType){
    case SYMMTYPES::GENERAL_WEAK:
-     // non-solver; contribution to Gjui; allow for element-based shifted
-      if ( !managePNG_ ) {
-        nodalGradAlgDriver_.register_face_algorithm<
-          VectorNodalGradBndryElemAlg, AssembleNodalGradUBoundaryAlgorithm>(
-          algType, part, "momentum_nodal_grad", &velocityNp1, &dudxNone,
-          edgeNodalGradient_);
-      }
-
       if (!realm_.solutionOptions_->useConsolidatedBcSolverAlg_
           && !realm_.realmUsesEdges_) {
         // solver algs; lhs
@@ -2662,6 +2664,7 @@ MomentumEquationSystem::assemble_and_solve(
     auto ngpUdiag = realm_.ngp_field_manager().get_field<double>(
       Udiag_->mesh_meta_data_ordinal());
     ngpUdiag.set_all(realm_.ngp_mesh(), projTimeScale);
+    ngpUdiag.modify_on_device();
   }
 
   // Perform actual solve

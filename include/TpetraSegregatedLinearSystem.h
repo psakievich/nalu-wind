@@ -1,9 +1,12 @@
-/*------------------------------------------------------------------------*/
-/*  Copyright 2014 Sandia Corporation.                                    */
-/*  This software is released under the license detailed                  */
-/*  in the file, LICENSE, which is located in the top-level Nalu          */
-/*  directory structure                                                   */
-/*------------------------------------------------------------------------*/
+// Copyright 2017 National Technology & Engineering Solutions of Sandia, LLC
+// (NTESS), National Renewable Energy Laboratory, University of Texas Austin,
+// Northwest Research Associates. Under the terms of Contract DE-NA0003525
+// with NTESS, the U.S. Government retains certain rights in this software.
+//
+// This software is released under the BSD 3-clause license. See LICENSE file
+// for more details.
+//
+
 
 
 #ifndef TpetraSegregatedLinearSystem_h
@@ -164,9 +167,7 @@ public:
                              LinSys::LocalVector sharedNotOwnedLclRhs,
                              LinSys::EntityToLIDView entityLIDs,
                              LinSys::EntityToLIDView entityColLIDs,
-                             int maxOwnedRowId, int maxSharedNotOwnedRowId, unsigned numDof,
-                             bool extractDiagonal, NGPDoubleFieldType& diagField,
-                             const ngp::Mesh& ngpMesh)
+                             int maxOwnedRowId, int maxSharedNotOwnedRowId, unsigned numDof)
     : ownedLocalMatrix_(ownedLclMatrix),
       sharedNotOwnedLocalMatrix_(sharedNotOwnedLclMatrix),
       ownedLocalRhs_(ownedLclRhs),
@@ -174,8 +175,6 @@ public:
       entityToLID_(entityLIDs),
       entityToColLID_(entityColLIDs),
       maxOwnedRowId_(maxOwnedRowId), maxSharedNotOwnedRowId_(maxSharedNotOwnedRowId), numDof_(numDof),
-      extractDiagonal_(extractDiagonal), diagField_(diagField),
-      ngpMesh_(ngpMesh),
       devicePointer_(nullptr)
     {}
 
@@ -210,9 +209,6 @@ public:
     LinSys::EntityToLIDView entityToColLID_;
     int maxOwnedRowId_, maxSharedNotOwnedRowId_;
     unsigned numDof_;
-    bool extractDiagonal_;
-    NGPDoubleFieldType diagField_;
-    ngp::Mesh ngpMesh_;
     TpetraLinSysCoeffApplier* devicePointer_;
   };
 
