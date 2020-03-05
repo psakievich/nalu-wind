@@ -2,20 +2,20 @@
 #define MESHMOTIONALG_H
 
 #include "FrameMoving.h"
+#include "OpenfastFSI.h"
 
-namespace sierra{
-namespace nalu{
+namespace sierra {
+namespace nalu {
 
 class MeshMotionAlg
 {
 public:
   MeshMotionAlg(
     stk::mesh::BulkData& bulk,
-    const YAML::Node&);
+    const YAML::Node&,
+    OpenfastFSI* openfast = nullptr);
 
-  ~MeshMotionAlg()
-  {
-  }
+  ~MeshMotionAlg() {}
 
   void initialize(const double);
 
@@ -25,17 +25,14 @@ public:
 
   stk::mesh::PartVector get_partvec();
 
-  bool is_deforming(){ return isDeforming_; }
+  bool is_deforming() { return isDeforming_; }
 
 private:
   MeshMotionAlg() = delete;
   MeshMotionAlg(const MeshMotionAlg&) = delete;
 
   void load(
-    stk::mesh::BulkData&,
-    const YAML::Node&);
-
-  void set_deformation_flag();
+    stk::mesh::BulkData&, const YAML::Node&, OpenfastFSI* openfast = nullptr);
 
   /** Moving frame vector
    *
@@ -51,7 +48,7 @@ private:
   bool isDeforming_ = false;
 };
 
-} // nalu
-} // sierra
+} // namespace nalu
+} // namespace sierra
 
 #endif /* MESHMOTIONALG_H */
