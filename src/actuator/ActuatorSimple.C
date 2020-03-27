@@ -268,6 +268,119 @@ ActuatorSimple::load(const YAML::Node& y_node)
       throw std::runtime_error("Number of turbines <= 0 ");
     }
     FAST.setInputs(fi);
+
+    // --- Stuff to load the simple blade ---
+    get_required(y_actuator, "n_simpleblades", n_simpleblades_);
+    if (n_simpleblades_ > 0) {
+      for (int iBlade= 0; iBlade < n_simpleblades_; iBlade++) {
+
+	const YAML::Node cur_blade =
+	  y_actuator["Blade" + std::to_string(iBlade)];
+
+	actuatorInfo_.emplace_back(new ActuatorSimpleInfo());
+	auto actuatorSimpleInfo =
+	  dynamic_cast<ActuatorSimpleInfo*>(actuatorInfo_.back().get());
+
+	actuatorSimpleInfo->isSimpleBlade_ = true;
+
+	std::string bladeFileName;
+	get_if_present(cur_blade, "file_to_dump_turb_pts", bladeFileName);
+	if (!bladeFileName.empty()) {
+	  actuatorSimpleInfo->fileToDumpPoints_ = bladeFileName;
+	}
+
+          // The value epsilon / chord [non-dimensional]
+          // This is a vector containing the values for:
+          //   - chord aligned (x),
+          //   - tangential to chord (y),
+          //   - spanwise (z)
+          const YAML::Node epsilon_chord = cur_blade["epsilon_chord"];
+          const YAML::Node epsilon = cur_blade["epsilon"];
+          if(epsilon && epsilon_chord){
+            throw std::runtime_error("epsilon and epsilon_chord have both been specified for Turbine "
+              + std::to_string(iBlade) + "\nYou must pick one or the other.");
+          }
+          if(epsilon && actuatorSimpleInfo->fllt_correction_){
+            throw std::runtime_error("epsilon and fllt_correction have both been specified for Turbine "
+              +std::to_string(iBlade) + "\nepsilon_chord and epsilon_min should be used with fllt_correction.");
+          }
+
+	  // ** handle epsilon stuff **
+          // If epsilon/chord is given, store it,
+          // If it is not given, set it to zero, such
+          // that it is smaller than the standard epsilon and
+          // will not be used
+          if ( epsilon_chord )
+          {
+            // epsilon / chord
+            actuatorSimpleInfo->epsilon_chord_ = epsilon_chord.as<Coordinates>();
+
+            // Minimum epsilon allowed in simulation. This is required when
+            //   specifying epsilon/chord
+            get_required(cur_blade, "epsilon_min",
+              actuatorSimpleInfo->epsilon_min_);
+          }
+          // Set all unused epsilon values to zero
+          else
+          {
+            actuatorSimpleInfo->epsilon_chord_.x_ = 0.;
+            actuatorSimpleInfo->epsilon_chord_.y_ = 0.;
+            actuatorSimpleInfo->epsilon_chord_.z_ = 0.;
+            actuatorSimpleInfo->epsilon_min_.x_ = 0.;
+            actuatorSimpleInfo->epsilon_min_.y_ = 0.;
+            actuatorSimpleInfo->epsilon_min_.z_ = 0.;
+          }
+
+          // Check if epsilon is given and store it.
+          if ( epsilon ) {
+            // Store the minimum epsilon
+            actuatorSimpleInfo->epsilon_ = epsilon.as<Coordinates>();
+          }
+          // If epsilon/chord is given and not standard epsilon, then assign
+          //   the minimum epsilon as standard epsilon
+          else  if (epsilon_chord) {
+            // Get the minimum epsilon
+            actuatorSimpleInfo->epsilon_ = actuatorSimpleInfo->epsilon_min_;
+          }
+          // If none of the conditions are met, throw an error
+          else {
+            throw std::runtime_error(
+              "ActuatorLineFAST: lacking epsilon vector");
+          }
+
+	  // Handle blade properties
+          const YAML::Node p1 = cur_blade["p1"];
+	  if (p1) 
+	    actuatorSimpleInfo->p1_ = p1.as<sierra::nalu::Coordinates>() ;
+	  else
+	    std::runtime_error("ActuatorSimple: missing p1");
+          const YAML::Node p2 = cur_blade["p2"];
+	  if (p2) 
+	    actuatorSimpleInfo->p2_ = p2.as<sierra::nalu::Coordinates>() ;
+	  else
+	    std::runtime_error("ActuatorSimple: missing p2");
+	  // Handle polar tables
+          const YAML::Node aoa_table = cur_blade["aoa_table"];
+	  if (aoa_table)
+	    actuatorSimpleInfo->aoa_polartable_ = aoa_table.as<std::vector<double>>();
+	  else
+	    std::runtime_error("ActuatorSimple: missing aoa_table");
+          const YAML::Node cl_table = cur_blade["cl_table"];
+	  if (cl_table)
+	    actuatorSimpleInfo->cl_polartable_ = cl_table.as<std::vector<double>>();
+	  else
+	    std::runtime_error("ActuatorSimple: missing cl_table");
+          const YAML::Node cd_table = cur_blade["cd_table"];
+	  if (cd_table)
+	    actuatorSimpleInfo->cd_polartable_ = cd_table.as<std::vector<double>>();
+	  else
+	    std::runtime_error("ActuatorSimple: missing cd_table");
+
+      }
+    } else {
+      throw std::runtime_error("Number of simple blades <= 0 ");
+    }
+
   }
 }
 

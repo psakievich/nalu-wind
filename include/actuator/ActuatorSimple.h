@@ -64,6 +64,18 @@ public:
     bool fllt_correction_;
 
 
+    // Stuff needed for a simple blade
+    size_t      num_force_pts_blade_;
+    Coordinates p1_;                     // Start of the blade
+    Coordinates p2_;                     // End of the blade
+    //Coordinates epsilon_chord_;          // End of the blade
+    std::vector<double> chord_table_;
+    std::vector<double> twist_table_;
+    // For the polars
+    std::vector<double> aoa_polartable_;
+    std::vector<double> cl_polartable_;
+    std::vector<double> cd_polartable_;
+    bool isSimpleBlade_;
 };
 
 /** Class that holds all of the search action for each actuator point
@@ -100,6 +112,28 @@ public:
     //   force points for the tower i.e. i \in
     //   [0,numForcePnts-1]
     int forcePntIndex_; 
+};
+
+/** Class to hold all of the blade info
+ * 
+ */
+class ActuatorSimpleBladeInfo 
+{
+public:
+  ActuatorSimpleBladeInfo();
+
+  virtual ~ActuatorSimpleBladeInfo(); // destructor
+  
+  size_t      num_force_pts_blade;
+  Coordinates p1;                     // Start of the blade
+  Coordinates p2;                     // End of the blade
+  Coordinates epsilon_chord;          // End of the blade
+  std::vector<double> chord_table;
+  std::vector<double> twist_table;
+  // For the polars
+  std::vector<double> aoa_polartable;
+  std::vector<double> cl_polartable;
+  std::vector<double> cd_polartable;
 };
 
 // LCC: UPDATE THIS DOC
@@ -297,6 +331,8 @@ public:
     // This vector is
     std::vector<std::vector<std::vector<int>>> indexMap_;
 
+    // Stuff for the simple blade
+    std::size_t n_simpleblades_;
 
 };
 

@@ -74,6 +74,7 @@
 #include <actuator/Actuator.h>
 #include <actuator/ActuatorParsing.h>
 #include <actuator/ActuatorBulk.h>
+#include <actuator/ActuatorLineSimple.h>
 #ifdef NALU_USES_OPENFAST
 #include <actuator/ActuatorLineFAST.h>
 #include <actuator/ActuatorDiskFAST.h>
@@ -652,6 +653,18 @@ Realm::look_ahead_and_creation(const YAML::Node & node)
       case ActuatorType::ActDiskFAST : {
 #ifdef NALU_USES_OPENFAST
 	actuator_ =  new ActuatorDiskFAST(*this, *foundActuator[0]);
+	break;
+#else
+	throw std::runtime_error("look_ahead_and_create::error: Requested actuator type: " + ActuatorTypeName + ", but was not enabled at compile time");
+// Avoid nvcc unreachable statement warnings
+#ifndef __CUDACC__
+	break;
+#endif
+#endif
+      }
+      case ActuatorType::ActLineSimple : {
+#ifdef NALU_USES_OPENFAST
+	actuator_ =  new ActuatorLineSimple(*this, *foundActuator[0]);
 	break;
 #else
 	throw std::runtime_error("look_ahead_and_create::error: Requested actuator type: " + ActuatorTypeName + ", but was not enabled at compile time");

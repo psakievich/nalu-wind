@@ -257,6 +257,7 @@ enum ActuatorType {
   ActLineFAST = 1,
   ActDiskFAST = 2,
   ActLineFASTNGP = 3,
+  ActLineSimple = 4,
   ActuatorType_END
 };
 
@@ -264,7 +265,8 @@ enum ActuatorType {
      {"ActLinePointDrag",ActuatorType::ActLinePointDrag},
      {"ActLineFAST",ActuatorType::ActLineFAST},
      {"ActDiskFAST",ActuatorType::ActDiskFAST},
-     {"ActLineFASTNGP",ActuatorType::ActLineFASTNGP}
+     {"ActLineFASTNGP",ActuatorType::ActLineFASTNGP},
+     {"ActLineSimple",ActuatorType::ActLineSimple}
  };
 
 } // namespace nalu
