@@ -62,15 +62,17 @@ ActuatorSimpleInfo::~ActuatorSimpleInfo()
 // constructor
 ActuatorSimplePointInfo::ActuatorSimplePointInfo(
   size_t globTurbId,
+  size_t bladeId,
   Point centroidCoords,
   double searchRadius,
   Coordinates epsilon,
   Coordinates epsilon_opt,
-  fast::ActuatorNodeType nType,
+  int nType, //fast::ActuatorNodeType nType,
   int forceInd)
   : ActuatorPointInfo(
       centroidCoords, searchRadius, 1.0e16, stk::mesh::Entity()),
     globTurbId_(globTurbId),
+    bladeId_(bladeId),
     epsilon_(epsilon),
     epsilon_opt_(epsilon_opt),
     nodeType_(nType),
@@ -121,6 +123,7 @@ ActuatorSimple::load(const YAML::Node& y_node)
   // check for any data probes
   const YAML::Node y_actuator = y_node["actuator"];
   if (y_actuator) {
+    if (RUNFASTSTUFF) {
     // Populate object of inputs class to FAST
     fi.comm = NaluEnv::self().parallel_comm();
 
@@ -268,12 +271,13 @@ ActuatorSimple::load(const YAML::Node& y_node)
       throw std::runtime_error("Number of turbines <= 0 ");
     }
     FAST.setInputs(fi);
+    } // if (RUNFASTSTUFF)
 
     // --- Stuff to load the simple blade ---
     get_required(y_actuator, "n_simpleblades", n_simpleblades_);
     if (n_simpleblades_ > 0) {
       for (int iBlade= 0; iBlade < n_simpleblades_; iBlade++) {
-
+	NaluEnv::self().naluOutputP0() << "Reading blade: " << iBlade<< std::endl; //LCCOUT
 	const YAML::Node cur_blade =
 	  y_actuator["Blade" + std::to_string(iBlade)];
 
@@ -282,7 +286,17 @@ ActuatorSimple::load(const YAML::Node& y_node)
 	  dynamic_cast<ActuatorSimpleInfo*>(actuatorInfo_.back().get());
 
 	actuatorSimpleInfo->isSimpleBlade_ = true;
+	actuatorSimpleInfo->runOnProc_     = 0; // FIX THIS LATER
+	actuatorSimpleInfo->bladeId_       = iBlade;
 
+	const YAML::Node numbladepts = cur_blade["num_force_pts_blade"];
+	if (numbladepts) 
+	  actuatorSimpleInfo->num_force_pts_blade_ = numbladepts.as<size_t>() ;
+	else
+	  throw std::runtime_error("ActuatorSimple: missing num_force_pts_blade");
+	NaluEnv::self().naluOutputP0() << "Reading blade: " << iBlade
+				       << " num_force_pts_blade: "
+				       << actuatorSimpleInfo->num_force_pts_blade_ << std::endl; //LCCOUT
 	std::string bladeFileName;
 	get_if_present(cur_blade, "file_to_dump_turb_pts", bladeFileName);
 	if (!bladeFileName.empty()) {
@@ -345,7 +359,7 @@ ActuatorSimple::load(const YAML::Node& y_node)
           // If none of the conditions are met, throw an error
           else {
             throw std::runtime_error(
-              "ActuatorLineFAST: lacking epsilon vector");
+              "ActuatorLineSimple: lacking epsilon vector");
           }
 
 	  // Handle blade properties
@@ -353,33 +367,115 @@ ActuatorSimple::load(const YAML::Node& y_node)
 	  if (p1) 
 	    actuatorSimpleInfo->p1_ = p1.as<sierra::nalu::Coordinates>() ;
 	  else
-	    std::runtime_error("ActuatorSimple: missing p1");
+	    throw std::runtime_error("ActuatorSimple: missing p1");
           const YAML::Node p2 = cur_blade["p2"];
 	  if (p2) 
 	    actuatorSimpleInfo->p2_ = p2.as<sierra::nalu::Coordinates>() ;
 	  else
-	    std::runtime_error("ActuatorSimple: missing p2");
+	    throw std::runtime_error("ActuatorSimple: missing p2");
+          const YAML::Node p1zeroAOAnode = cur_blade["p1_zero_alpha_dir"];
+	  Coordinates p1zeroAOA;
+	  if (p1zeroAOAnode) {
+	    // Normalize and save p1zeroAOA
+	    p1zeroAOA = p1zeroAOAnode.as<sierra::nalu::Coordinates>();
+	    double norm = sqrt(p1zeroAOA.x_*p1zeroAOA.x_ + p1zeroAOA.y_*p1zeroAOA.y_ + p1zeroAOA.z_*p1zeroAOA.z_);
+	    p1zeroAOA.x_ = p1zeroAOA.x_/norm;
+	    p1zeroAOA.y_ = p1zeroAOA.y_/norm;
+	    p1zeroAOA.z_ = p1zeroAOA.z_/norm;
+	    actuatorSimpleInfo->p1zeroalphadir_ = p1zeroAOA;
+	  } else
+	    throw std::runtime_error("ActuatorSimple: missing p1_zero_alpha_dir");	    
+	  // Compute span and chord normal direction
+	  Coordinates spandir;
+	  spandir.x_ = actuatorSimpleInfo->p2_.x_ - actuatorSimpleInfo->p1_.x_;
+	  spandir.y_ = actuatorSimpleInfo->p2_.y_ - actuatorSimpleInfo->p1_.y_;
+	  spandir.z_ = actuatorSimpleInfo->p2_.z_ - actuatorSimpleInfo->p1_.z_;
+	  double norm = sqrt(spandir.x_*spandir.x_ + spandir.y_*spandir.y_ +
+			     spandir.z_*spandir.z_);
+	  spandir.x_ = spandir.x_/norm;
+	  spandir.y_ = spandir.y_/norm;
+	  spandir.z_ = spandir.z_/norm;
+	  actuatorSimpleInfo->spandir_ = spandir;
+
+	  Coordinates chordnormaldir;
+	  chordnormaldir.x_ = p1zeroAOA.y_*spandir.z_ - p1zeroAOA.z_*spandir.y_;
+	  chordnormaldir.y_ = p1zeroAOA.z_*spandir.x_ - p1zeroAOA.x_*spandir.z_;
+	  chordnormaldir.z_ = p1zeroAOA.x_*spandir.y_ - p1zeroAOA.y_*spandir.x_;
+	  actuatorSimpleInfo->chordnormaldir_ = chordnormaldir;
+
+	  // output directions
+	  NaluEnv::self().naluOutputP0() << "Blade: " << iBlade << " p1zeroAOA dir: "
+	    <<p1zeroAOA.x_<<" "<<p1zeroAOA.y_<<" "<<p1zeroAOA.z_<< std::endl; //LCCOUT
+	  NaluEnv::self().naluOutputP0() << "Blade: " << iBlade << " Span dir: "
+	    <<spandir.x_<<" "<<spandir.y_<<" "<<spandir.z_<< std::endl; //LCCOUT
+	  NaluEnv::self().naluOutputP0() << "Blade: " << iBlade 
+					 << " chord norm dir: "<<std::setprecision(5)
+	    <<chordnormaldir.x_<<" "<<chordnormaldir.y_<<" "<<chordnormaldir.z_<< std::endl; //LCCOUT
+
+	  // Chord definitions
+          const YAML::Node chord_table = cur_blade["chord_table"];
+	  std::vector<double> chordtemp;
+	  if (chord_table) 
+	    chordtemp = chord_table.as<std::vector<double>>();
+	  else 
+	    throw std::runtime_error("ActuatorSimple: missing chord_table");
+
+	  // twist definitions
+          const YAML::Node twist_table = cur_blade["twist_table"];
+	  std::vector<double> twisttemp;
+	  if (twist_table)
+	    twisttemp = twist_table.as<std::vector<double>>();
+	  else
+	    throw std::runtime_error("ActuatorSimple: missing twist_table");
+
+	  // Sanitize chord and twist tables
+	  actuatorSimpleInfo->chord_table_ = 
+	    extend_double_vector(chordtemp, actuatorSimpleInfo->num_force_pts_blade_);
+	  actuatorSimpleInfo->twist_table_ = 
+	    extend_double_vector(twisttemp, actuatorSimpleInfo->num_force_pts_blade_);
+	  
+
+	  // Get the element areas
+	  actuatorSimpleInfo->elem_area_ = 
+	    get_blade_area_elems(actuatorSimpleInfo->chord_table_ ,
+				 actuatorSimpleInfo->p1_,
+				 actuatorSimpleInfo->p2_,
+				 actuatorSimpleInfo->num_force_pts_blade_);
+
 	  // Handle polar tables
+	  // Get AOA
           const YAML::Node aoa_table = cur_blade["aoa_table"];
 	  if (aoa_table)
 	    actuatorSimpleInfo->aoa_polartable_ = aoa_table.as<std::vector<double>>();
 	  else
-	    std::runtime_error("ActuatorSimple: missing aoa_table");
+	    throw std::runtime_error("ActuatorSimple: missing aoa_table");
+	  size_t polartableN = actuatorSimpleInfo->aoa_polartable_.size();
+	  // Get CL
           const YAML::Node cl_table = cur_blade["cl_table"];
-	  if (cl_table)
-	    actuatorSimpleInfo->cl_polartable_ = cl_table.as<std::vector<double>>();
+	  if (cl_table) {
+	    std::vector<double> cltablevec = cl_table.as<std::vector<double>>();
+	    actuatorSimpleInfo->cl_polartable_ = 
+	      extend_double_vector(cltablevec, polartableN);
+	  }
 	  else
-	    std::runtime_error("ActuatorSimple: missing cl_table");
+	    throw std::runtime_error("ActuatorSimple: missing cl_table");
+	  // Get CD
           const YAML::Node cd_table = cur_blade["cd_table"];
-	  if (cd_table)
-	    actuatorSimpleInfo->cd_polartable_ = cd_table.as<std::vector<double>>();
+	  if (cd_table) {
+	    std::vector<double> cdtablevec = cd_table.as<std::vector<double>>();
+	    actuatorSimpleInfo->cd_polartable_ = 
+	      extend_double_vector(cdtablevec, polartableN);
+	  }
 	  else
-	    std::runtime_error("ActuatorSimple: missing cd_table");
+	    throw std::runtime_error("ActuatorSimple: missing cd_table");
+	  NaluEnv::self().naluOutputP0() << "ActuatorSimple::loaded blade "<<iBlade << std::endl;
 
       }
+      //LCCSTOP throw std::runtime_error("ActuatorSimple: done loading blades");
     } else {
       throw std::runtime_error("Number of simple blades <= 0 ");
     }
+
 
   }
 }
@@ -430,6 +526,7 @@ ActuatorSimple::setup()
   // objective: declare the part, register coordinates; must be before
   // populate_mesh()
 
+  if (RUNFASTSTUFF) {
   double dtNalu = realm_.get_time_step_from_file();
   tStepRatio_ = dtNalu / fi.dtFAST;
   if (std::abs(dtNalu - tStepRatio_ * fi.dtFAST) < 0.001) { // TODO: Fix
@@ -441,6 +538,7 @@ ActuatorSimple::setup()
     throw std::runtime_error("ActuatorSimple: Ratio of Nalu's time step is not "
                              "an integral multiple of FAST time step");
   }
+  }// -- RUNFASTSTUFF --
 }
 
 /** This function searches for the processor containing the hub point of each
@@ -450,6 +548,18 @@ ActuatorSimple::setup()
 void
 ActuatorSimple::allocateTurbinesToProcs()
 {
+  stk::mesh::MetaData& metaData = realm_.meta_data();
+  const int nDim = metaData.spatial_dimension();
+
+  // initialize thrust and torque
+  thrust.resize(n_simpleblades_);
+  torque.resize(n_simpleblades_);
+  for (size_t iBlade = 0; iBlade < n_simpleblades_; ++iBlade) {
+    thrust[iBlade].resize(nDim);
+    torque[iBlade].resize(nDim);
+  }
+
+  if (RUNFASTSTUFF) { // LCC DELETE LATER
   stk::mesh::MetaData& metaData = realm_.meta_data();
 
   // clear some of the search info
@@ -498,6 +608,7 @@ ActuatorSimple::allocateTurbinesToProcs()
     FAST.setTurbineProcNo(iTurb, box_proc);
     iTurb++;
   }
+  } // if (RUNFASTSTUFF)
 }
 
 /** This method allocates the turbines to processors, initializes the OpenFAST
@@ -511,7 +622,9 @@ ActuatorSimple::initialize()
 
   allocateTurbinesToProcs();
 
+  if (RUNFASTSTUFF) {  // --- vvv LCC DELETE LATER vvv -----
   FAST.init();
+  } // if  (RUNFASTSTUFF)
 
   //
   // This is done to create the actuator point info map once
@@ -548,6 +661,8 @@ ActuatorSimple::initialize()
   // create the ActuatorLineFASTPointInfo
   create_actuator_point_info_map();
 
+  //throw std::runtime_error("ActuatorSimple: create_actuator_point_info_map()");  //LCCSTOP
+
   create_point_info_map_class_specific();
 
   // coarse search
@@ -558,6 +673,8 @@ ActuatorSimple::initialize()
 
   // complete filling in the set of elements connected to the centroid
   complete_search();
+
+  //throw std::runtime_error("ActuatorSimple: done initialize()");  //LCCSTOP
 
 }
 
@@ -575,6 +692,8 @@ ActuatorSimple::initialize()
 void
 ActuatorSimple::update()
 {
+  if (RUNFASTSTUFF) { // LCC DELETE LATER
+
   stk::mesh::BulkData& bulkData = realm_.bulk_data();
 
   // initialize need to ghost and elems to ghost
@@ -602,7 +721,7 @@ ActuatorSimple::update()
   populate_candidate_elements();
 
   // create the ActuatorLineFASTPointInfo
-  update_actuator_point_info_map();
+  //LCC update_actuator_point_info_map(); //LCC Don't need for fixed blade
 
   // coarse search
   determine_elems_to_ghost();
@@ -612,6 +731,7 @@ ActuatorSimple::update()
 
   // complete filling in the set of elements connected to the centroid
   complete_search();
+  }
 
 }
 
@@ -622,6 +742,8 @@ ActuatorSimple::update()
 void
 ActuatorSimple::execute()
 {
+  //LCC throw std::runtime_error("ActuatorSimple: start execute()");  //LCCSTOP
+
   // meta/bulk data and nDim
   stk::mesh::MetaData& metaData = realm_.meta_data();
   stk::mesh::BulkData& bulkData = realm_.bulk_data();
@@ -746,14 +868,23 @@ ActuatorSimple::execute()
       ws_pointGasVelocity.data()[i] += infoObject -> du.data()[i];
     }
 
+    // Set properties at the point
+    infoObject->gasDensity_ = ws_pointGasDensity;
+    infoObject->windSpeed_.x_ = ws_pointGasVelocity[0];
+    infoObject->windSpeed_.y_ = ws_pointGasVelocity[1];
+    if (nDim>2) infoObject->windSpeed_.z_ = ws_pointGasVelocity[2];
+
+    if (RUNFASTSTUFF) {  // LCC DELETE THIS
     // Set the CFD velocity at the actuator node
     FAST.setVelocityForceNode(
     ws_pointGasVelocity, nNp, infoObject->globTurbId_);
-
+    }
   }
+
+  if (RUNFASTSTUFF) { // LCC vvvvv DELETE THIS LATER vvvvvv
  
   // Add the filtered lifting line correction
-  filtered_lifting_line();
+  //LCC filtered_lifting_line(); // LCC
 
   if (!FAST.isDryRun()) {
 
@@ -779,11 +910,33 @@ ActuatorSimple::execute()
       thrust[iTurb][j] = 0.0;
     }
   }
+  } // LCC ^^^ DELETE THIS LATER ^^^
+
+
+  // Reset thrust and torque
+  for (size_t iBlade = 0; iBlade < n_simpleblades_; ++iBlade) {
+    for (int j = 0; j < nDim; j++) {
+      torque[iBlade][j] = 0.0;
+      thrust[iBlade][j] = 0.0;
+    }
+  }
 
   // if disk average azimuthally
   // apply the forcing terms
   execute_class_specific(nDim, coordinates, actuator_source, dualNodalVolume);
 
+  // Write the thrust outputs
+  NaluEnv::self().naluOutput() << " -- BLADE force summary --" <<std::endl;
+  for (size_t iBlade =0; iBlade < n_simpleblades_; iBlade++) {
+      NaluEnv::self().naluOutput()
+	<< " Blade "<<iBlade<<" : "<< thrust[iBlade][0] << " "
+	<< thrust[iBlade][1] << " " << thrust[iBlade][2] << " " << std::endl;
+  }
+  NaluEnv::self().naluOutput() << " -- END summary --" <<std::endl;
+
+  //throw std::runtime_error("ActuatorSimple: done execute_class_specific()");  //LCCSTOP
+
+  const size_t nTurbinesGlob = 0;
   if (FAST.isDebug()) {
     for (size_t iTurb = 0; iTurb < nTurbinesGlob; iTurb++) {
       NaluEnv::self().naluOutput()
@@ -1260,6 +1413,7 @@ ActuatorSimple::create_actuator_point_info_map()
 
   size_t np = 0;
 
+  if (RUNFASTSTUFF) {
   for (size_t iTurb = 0; iTurb < actuatorInfo_.size(); ++iTurb) {
 
     const auto actuatorInfo =
@@ -1401,7 +1555,8 @@ ActuatorSimple::create_actuator_point_info_map()
           // This is where the actuator point object is created
           actuatorPointInfoMap_.insert(std::make_pair(
                          np, make_unique<ActuatorSimplePointInfo>(
-                           iTurb, 
+                           iTurb,
+			   iTurb,
                            centroidCoords, 
                            searchRadius, 
                            epsilon,
@@ -1430,6 +1585,132 @@ ActuatorSimple::create_actuator_point_info_map()
             << iTurb << std::endl;
       }
     }
+  }
+  } // if(RUNFASTSTUFF)
+
+  // Do simple blade stuff
+  for (size_t iBlade = 0; iBlade < actuatorInfo_.size(); ++iBlade) {
+    NaluEnv::self().naluOutputP0() << "create_actuator_point_info_map: " << iBlade<< std::endl; //LCCOUT        
+
+    const auto actuatorInfo =
+      dynamic_cast<ActuatorSimpleInfo*>(actuatorInfo_[iBlade].get());
+    if (actuatorInfo == NULL) {
+      throw std::runtime_error("Object in actuatorInfo is not the correct "
+                               "type.  It should be ActuatorSimpleInfo.");
+    }
+    if (!actuatorInfo->isSimpleBlade_) {
+      throw std::runtime_error("Object in actuatorInfo is not Simple Blade");
+    }
+    
+    int processorId = actuatorInfo->runOnProc_;
+    if (processorId == NaluEnv::self().parallel_rank()) {
+
+      // define a point that will hold the centroid
+      Point centroidCoords;
+
+      // scratch array for coordinates and dummy array for velocity
+      std::vector<double> currentCoords(3, 0.0);
+
+      // loop over all points for this turbine
+      const int numForcePts = actuatorInfo->num_force_pts_blade_;
+      for (int iNode = 0; iNode < numForcePts; iNode++) {
+	stk::search::IdentProc<uint64_t, int> theIdent(
+            np, NaluEnv::self().parallel_rank());
+	
+	// set model coordinates from FAST
+	// move the coordinates; set the velocity... may be better on the
+	// lineInfo object
+	//FAST.getForceNodeCoordinates(currentCoords, np, iTurb);
+	//getBladeCoordinates(currentCoords, iNode);
+	get_blade_coordinates(nDim, currentCoords, 
+			      actuatorInfo->p1_, actuatorInfo->p2_,
+			      actuatorInfo->num_force_pts_blade_, iNode);
+
+	// Get the chord from inside of FAST to compute epsilon
+	//double chord = FAST.getChord(np, iTurb);
+	double chord = get_blade_chord(actuatorInfo->chord_table_, iNode);
+
+	// create the point info and push back to map
+	Coordinates epsilon;
+	// This is the optimal epsilon
+	Coordinates epsilon_opt;
+
+	// Assume all points are BLADE type
+	// Define the optimal epsilon
+	epsilon_opt.x_ = actuatorInfo->epsilon_chord_.x_ * chord;
+	epsilon_opt.y_ = actuatorInfo->epsilon_chord_.y_ * chord;
+	epsilon_opt.z_ = actuatorInfo->epsilon_chord_.z_ * chord;
+	
+	// Use epsilon based on the maximum between
+	//   epsilon
+	//   optimal epsilon (epsilon/chord)
+	//   and the minimum epsilon because of grid resolution)
+	// x direction
+	epsilon.x_ = std::max(
+                           std::max(
+                               epsilon_opt.x_,
+                               actuatorInfo->epsilon_min_.x_),
+                               actuatorInfo->epsilon_.x_);
+	// y direction
+	epsilon.y_ = std::max(
+                           std::max(
+                               epsilon_opt.y_,
+                               actuatorInfo->epsilon_min_.y_),
+                               actuatorInfo->epsilon_.y_);
+
+	// z direction
+	epsilon.z_ = std::max(
+                           std::max(
+                               epsilon_opt.z_,
+                               actuatorInfo->epsilon_min_.z_),
+                               actuatorInfo->epsilon_.z_);
+
+	// The radius of the searching. This is given in terms of 
+	//   the maximum of epsilon.x/y/z/.
+	double searchRadius = 
+	  std::max(epsilon.x_, std::max(epsilon.y_, epsilon.z_))
+	  * sqrt(log(1.0/0.001));
+
+	for (int j = 0; j < nDim; ++j)
+	  centroidCoords[j] = currentCoords[j];
+
+	// create the bounding point sphere and push back
+	boundingSphere theSphere(
+		 Sphere(centroidCoords, searchRadius), theIdent);
+	boundingSphereVec_.push_back(theSphere);
+	
+	// Insert all the information related to this actuator point
+	// This is where the actuator point object is created
+	int NODETYPE=0;
+	actuatorPointInfoMap_.insert(std::make_pair(
+                     np, make_unique<ActuatorSimplePointInfo>(
+                           iBlade, 
+			   iBlade,
+                           centroidCoords, 
+                           searchRadius, 
+                           epsilon,
+                           epsilon_opt,
+                           NODETYPE, iNode)));
+
+	// Print the value of epsilon to the screen
+	NaluEnv::self().naluOutput()
+	  << "  Actuator point "
+	  << iNode
+	  << " : "
+	  << centroidCoords[0] << " "
+	  << centroidCoords[1] << " "
+	  << centroidCoords[2] << " eps: "	  
+	  << epsilon.x_ << " "
+	  << epsilon.y_ << " "
+	  << epsilon.z_ << " "
+	  << " " << std::endl;
+
+	// Counter for the number of blade points
+	np = np + 1;
+      } // Loop over iNode
+
+    }
+
   }
   numFastPoints_ = actuatorPointInfoMap_.size();
 
@@ -1612,6 +1893,75 @@ if (FAST.get_procNo(iTurb) != NaluEnv::self().parallel_rank()) continue;
 
 }  
 ////////////////////////////////////////////////////////////////////////////////
+
+// Get the (x,y,z) coordinates of that blade at node iNode
+void 
+ActuatorSimple::get_blade_coordinates(
+  const int& nDim, std::vector<double> &coord, 
+  const Coordinates &p1,  const Coordinates &p2, 
+  const int &Npts, const int &iNode)
+{
+  std::vector<double> dx(nDim, 0.0);
+  double denom = (double)Npts; //Npts - 1.0;
+  dx[0] = (p2.x_ - p1.x_)/denom; 
+  dx[1] = (p2.y_ - p1.y_)/denom; 
+  if (nDim>2) dx[2] = (p2.z_ - p1.z_)/denom; 
+  
+  coord[0] = p1.x_ + 0.5*dx[0] +  dx[0]*(float)iNode;
+  coord[1] = p1.y_ + 0.5*dx[1] + dx[1]*(float)iNode;
+  if (nDim>2) coord[2] = p1.z_ + 0.5*dx[2] + dx[2]*(float)iNode;
+
+}
+
+// Get the chord length at that location
+double 
+ActuatorSimple::get_blade_chord(
+        std::vector<double> &chord_table,
+	const int& iNode)
+{
+  return chord_table[iNode];
+}
+
+std::vector<double> 
+ActuatorSimple::extend_double_vector(std::vector<double> vec, const int N)
+{
+  if ((vec.size() != 1) && (vec.size() != N))
+    throw std::runtime_error("Vector is not of size 1 or "+std::to_string(N));
+  if (vec.size() == 1) 
+    { // Extend the vector to size N
+      std::vector<double> newvec(N, vec[0]);
+      return newvec;
+    }
+  if (vec.size() == N) 
+    return vec;
+  return vec;  // Should not get here
+}
+
+std::vector<double> 
+ActuatorSimple::get_blade_area_elems(
+   std::vector<double> chord_table, 
+   const Coordinates &p1,  
+   const Coordinates &p2,
+   const int &Npts)
+{
+  // stk::mesh::MetaData& metaData = realm_.meta_data();
+  // const int nDim = metaData.spatial_dimension();
+  const int nDim = 3;
+  std::vector<double> areas(Npts, 0.0);
+  double denom = (double)Npts; //Npts - 1.0;
+  std::vector<double> dx(nDim, 0.0);
+
+  dx[0] = (p2.x_ - p1.x_)/denom; 
+  dx[1] = (p2.y_ - p1.y_)/denom; 
+  if (nDim>2) dx[2] = (p2.z_ - p1.z_)/denom; 
+  // Assumes equal area spacing
+  double dx_norm = sqrt(dx[0]*dx[0] + dx[1]*dx[1] + dx[2]*dx[2]);
+  for (int i=0; i<chord_table.size(); i++) {
+    areas[i] = dx_norm*chord_table[i];
+  }
+  
+  return areas;
+}
 
 
 //--------------------------------------------------------------------------

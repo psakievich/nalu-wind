@@ -45,6 +45,24 @@ public:
     const stk::mesh::FieldBase* dual_nodal_volume) override;
 
   void create_point_info_map_class_specific() override;
+
+  void calculate_alpha(
+    Coordinates ws, 
+    Coordinates zeroalphadir, 
+    Coordinates spandir,
+    Coordinates chordnormaldir, 
+    double twist,
+    double &alpha,
+    Coordinates &ws2D);
+
+  void calculate_cl_cd(
+    double alpha,
+    std::vector<double> aoatable,
+    std::vector<double> cltable,
+    std::vector<double> cdtable,
+    double &cl,
+    double &cd);
+
 };
 
 } // namespace nalu

@@ -23,6 +23,10 @@
 // OpenFAST C++ API
 #include "OpenFAST.H"
 
+#ifndef RUNFASTSTUFF
+#define RUNFASTSTUFF false
+#endif
+
 namespace sierra {
 namespace nalu {
 
@@ -68,14 +72,20 @@ public:
     size_t      num_force_pts_blade_;
     Coordinates p1_;                     // Start of the blade
     Coordinates p2_;                     // End of the blade
-    //Coordinates epsilon_chord_;          // End of the blade
+    //Coordinates epsilon_chord_;          
     std::vector<double> chord_table_;
     std::vector<double> twist_table_;
+    std::vector<double> elem_area_;
+    Coordinates p1zeroalphadir_;         // Directon of zero alpha at p1
+    Coordinates chordnormaldir_;         // Direction normal to chord
+    Coordinates spandir_;                // Direction in the span
     // For the polars
     std::vector<double> aoa_polartable_;
     std::vector<double> cl_polartable_;
     std::vector<double> cd_polartable_;
     bool isSimpleBlade_;
+    size_t runOnProc_;
+    size_t bladeId_;
 };
 
 /** Class that holds all of the search action for each actuator point
@@ -88,11 +98,12 @@ class ActuatorSimplePointInfo : public ActuatorPointInfo
 public:
     ActuatorSimplePointInfo(
         size_t globTurbId,
+	size_t bladeId,
         Point centroidCoords,
         double searchRadius,
         Coordinates epsilon,
         Coordinates epsilon_opt,
-        fast::ActuatorNodeType nType,
+        int nType, //fast::ActuatorNodeType nType,
         int forceInd);
 
     virtual ~ActuatorSimplePointInfo();
@@ -106,35 +117,19 @@ public:
     Coordinates epsilon_opt_;
 
     ///< HUB, BLADE, or TOWER - Defined by an enum.
-    fast::ActuatorNodeType nodeType_;
+    //fast::ActuatorNodeType nodeType_;
+    int nodeType_;
 
     // The index this point resides in the total number of
     //   force points for the tower i.e. i \in
     //   [0,numForcePnts-1]
     int forcePntIndex_; 
+
+    size_t bladeId_;
+    double gasDensity_;
+    Coordinates windSpeed_;
 };
 
-/** Class to hold all of the blade info
- * 
- */
-class ActuatorSimpleBladeInfo 
-{
-public:
-  ActuatorSimpleBladeInfo();
-
-  virtual ~ActuatorSimpleBladeInfo(); // destructor
-  
-  size_t      num_force_pts_blade;
-  Coordinates p1;                     // Start of the blade
-  Coordinates p2;                     // End of the blade
-  Coordinates epsilon_chord;          // End of the blade
-  std::vector<double> chord_table;
-  std::vector<double> twist_table;
-  // For the polars
-  std::vector<double> aoa_polartable;
-  std::vector<double> cl_polartable;
-  std::vector<double> cd_polartable;
-};
 
 // LCC: UPDATE THIS DOC
 /** The ActuatorFAST class couples Nalu with the third party library OpenFAST
@@ -260,6 +255,30 @@ public:
         const stk::mesh::FieldBase* coordinates,
         stk::mesh::FieldBase* actuator_source,
         const stk::mesh::FieldBase* dual_nodal_volume) = 0;
+
+    // The the coordinates of individual points on the blade
+    void get_blade_coordinates(
+	 const int& nDim, 
+	 std::vector<double> &coord, 
+	 const Coordinates &p1,  
+	 const Coordinates &p2, 
+	 const int &Npts, const int &iNode);
+
+    // Make sure vec is of length N
+    std::vector<double> extend_double_vector(
+	std::vector<double> vec, const int N);
+
+    // The the coordinates of individual points on the blade
+    double get_blade_chord(
+        std::vector<double> &chord_table, 
+	const int& iNode);
+
+    // The the coordinates of individual points on the blade
+    std::vector<double> get_blade_area_elems(
+        std::vector<double> chord_table, 
+	const Coordinates &p1,  
+	const Coordinates &p2,
+	const int &Npts);
 
     // centroid of the element
     void compute_elem_centroid(
