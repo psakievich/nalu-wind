@@ -20,9 +20,6 @@
 #include <stk_util/parallel/ParallelVectorConcat.hpp>
 #include "Actuator.h"
 
-// OpenFAST C++ API
-// #include "OpenFAST.H"
-
 #ifndef RUNFASTSTUFF
 #define RUNFASTSTUFF false
 #endif
@@ -337,11 +334,6 @@ public:
     ///< on each processor
 
     virtual std::string get_class_name() override = 0;
-
-    /*
-    fast::fastInputs fi; ///< Object to hold input information for OpenFAST
-    fast::OpenFAST FAST; ///< OpenFAST C++ API handle
-    */
 
     std::size_t numFastPoints_;
 

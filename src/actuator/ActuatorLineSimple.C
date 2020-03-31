@@ -72,10 +72,6 @@ ActuatorLineSimple::execute_class_specific(
   const stk::mesh::FieldBase* dual_nodal_volume)
 {
 
-  // auto turbInfo =
-  //   dynamic_cast<ActuatorSimpleInfo*>(actuatorInfo_.at(0).get());
-  // throw std::runtime_error("ActuatorLineSimple: execute_class_specific()");  //LCCSTOP
-
   std::vector<double> ws_pointForce(nDim);
   // loop over map and assemble source terms
   for (auto&& iterPoint : actuatorPointInfoMap_) {
@@ -203,74 +199,6 @@ ActuatorLineSimple::execute_class_specific(
       infoObject->epsilon_, hubPos, hubShftVec, thrust[bladeId],
       torque[bladeId]);
 
-    /*
-    if (RUNFASTSTUFF) { // ----- vvvv DELETE THIS vvvv -----
-    // Get the force from FAST
-    FAST.getForce(ws_pointForce, np, infoObject->globTurbId_);
-
-    std::vector<double> hubPos(3);
-    std::vector<double> hubShftVec(3);
-    int iTurbGlob = infoObject->globTurbId_;
-    FAST.getHubPos(hubPos, iTurbGlob);
-    FAST.getHubShftDir(hubShftVec, iTurbGlob);
-
-    // get the vector of elements
-    std::set<stk::mesh::Entity> nodeVec = infoObject->nodeVec_;
-
-    // Declare the orientation matrix
-    // The ordering of this matrix is: xx, xy, xz, yx, yy, yz, zx, zy, zz
-    // The default value is a matrix which causes no rotation 
-    // This rotation takes into account the fact that the axes, x and y are
-    // inverted after the rotation is done inside the 
-    // spread_actuator_force_to_node_vec function.
-    std::vector<double> orientation_tensor
-        {0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0};
-
-    // Call the function to spread the node      
-    spread_actuator_force_to_node_vec(
-      nDim, nodeVec, ws_pointForce, 
-      orientation_tensor, // The tensor with the airfoil orientation
-      &(infoObject->centroidCoords_[0]),
-      *coordinates, *actuator_source, *dual_nodal_volume,
-      infoObject->epsilon_, hubPos, hubShftVec, thrust[iTurbGlob],
-      torque[iTurbGlob]);
-
-    switch (infoObject->nodeType_) {
-
-      case fast::HUB:
-
-        break;
-
-      case fast::BLADE:
-
-        // Obtain the orientation matrix of the coordinate system
-        // This rotation matrix will transform the standard x, y, z coordinate 
-        //   system to a coordinate system at the blade section reference frame
-        //   that is thicknes, chord, spanwise
-        FAST.getForceNodeOrientation(orientation_tensor, np, 
-          infoObject->globTurbId_);
-    
-        break;
-
-      case fast::TOWER:
-  
-        break;
-
-      case fast::ActuatorNodeType_END:
-
-        break;
-    }
-
-    // Call the function to spread the node      
-    spread_actuator_force_to_node_vec(
-      nDim, nodeVec, ws_pointForce, 
-      orientation_tensor, // The tensor with the airfoil orientation
-      &(infoObject->centroidCoords_[0]),
-      *coordinates, *actuator_source, *dual_nodal_volume,
-      infoObject->epsilon_, hubPos, hubShftVec, thrust[iTurbGlob],
-      torque[iTurbGlob]);
-    }// if (RUNFASTSTUFF) // ^^^^ DELETE THIS STUFF ^^^^
-    */
   }
 }
 
