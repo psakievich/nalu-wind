@@ -123,6 +123,7 @@ ActuatorSimple::load(const YAML::Node& y_node)
   // check for any data probes
   const YAML::Node y_actuator = y_node["actuator"];
   if (y_actuator) {
+    
     if (RUNFASTSTUFF) {
     // Populate object of inputs class to FAST
     fi.comm = NaluEnv::self().parallel_comm();
@@ -272,8 +273,14 @@ ActuatorSimple::load(const YAML::Node& y_node)
     }
     FAST.setInputs(fi);
     } // if (RUNFASTSTUFF)
-
+    
     // --- Stuff to load the simple blade ---
+    const YAML::Node debug_output = y_actuator["debug_output"];
+    if (debug_output) 
+      debug_output_ = debug_output.as<bool>();
+    else
+      debug_output_ = false;
+    
     get_required(y_actuator, "n_simpleblades", n_simpleblades_);
     if (n_simpleblades_ > 0) {
       for (int iBlade= 0; iBlade < n_simpleblades_; iBlade++) {
@@ -294,9 +301,12 @@ ActuatorSimple::load(const YAML::Node& y_node)
 	  actuatorSimpleInfo->num_force_pts_blade_ = numbladepts.as<size_t>() ;
 	else
 	  throw std::runtime_error("ActuatorSimple: missing num_force_pts_blade");
-	NaluEnv::self().naluOutputP0() << "Reading blade: " << iBlade
-				       << " num_force_pts_blade: "
-				       << actuatorSimpleInfo->num_force_pts_blade_ << std::endl; //LCCOUT
+	if (debug_output_)
+	  NaluEnv::self().naluOutputP0() 
+	    << "Reading blade: " << iBlade
+	    << " num_force_pts_blade: "
+	    << actuatorSimpleInfo->num_force_pts_blade_ << std::endl; //LCCOUT
+
 	std::string bladeFileName;
 	get_if_present(cur_blade, "file_to_dump_turb_pts", bladeFileName);
 	if (!bladeFileName.empty()) {
@@ -404,13 +414,18 @@ ActuatorSimple::load(const YAML::Node& y_node)
 	  actuatorSimpleInfo->chordnormaldir_ = chordnormaldir;
 
 	  // output directions
-	  NaluEnv::self().naluOutputP0() << "Blade: " << iBlade << " p1zeroAOA dir: "
-	    <<p1zeroAOA.x_<<" "<<p1zeroAOA.y_<<" "<<p1zeroAOA.z_<< std::endl; //LCCOUT
-	  NaluEnv::self().naluOutputP0() << "Blade: " << iBlade << " Span dir: "
-	    <<spandir.x_<<" "<<spandir.y_<<" "<<spandir.z_<< std::endl; //LCCOUT
-	  NaluEnv::self().naluOutputP0() << "Blade: " << iBlade 
-					 << " chord norm dir: "<<std::setprecision(5)
-	    <<chordnormaldir.x_<<" "<<chordnormaldir.y_<<" "<<chordnormaldir.z_<< std::endl; //LCCOUT
+	  if (debug_output_) {
+	    NaluEnv::self().naluOutputP0()  // LCCOUT
+	      << "Blade: " << iBlade << " p1zeroAOA dir: "
+	      <<p1zeroAOA.x_<<" "<<p1zeroAOA.y_<<" "<<p1zeroAOA.z_<< std::endl;
+	    NaluEnv::self().naluOutputP0()  // LCCOUT
+	      << "Blade: " << iBlade << " Span dir: "
+	      <<spandir.x_<<" "<<spandir.y_<<" "<<spandir.z_<< std::endl; 
+	    NaluEnv::self().naluOutputP0() // LCCOUT
+	      << "Blade: " << iBlade 
+	      << " chord norm dir: "<<std::setprecision(5)
+	      <<chordnormaldir.x_<<" "<<chordnormaldir.y_<<" "<<chordnormaldir.z_<< std::endl; 
+	  }
 
 	  // Chord definitions
           const YAML::Node chord_table = cur_blade["chord_table"];
@@ -558,6 +573,10 @@ ActuatorSimple::allocateTurbinesToProcs()
     thrust[iBlade].resize(nDim);
     torque[iBlade].resize(nDim);
   }
+
+  // initialize BladeTotalLift and BladeTotalDrag
+  BladeTotalLift.resize(n_simpleblades_);
+  BladeTotalDrag.resize(n_simpleblades_);
 
   if (RUNFASTSTUFF) { // LCC DELETE LATER
   stk::mesh::MetaData& metaData = realm_.meta_data();
@@ -915,6 +934,8 @@ ActuatorSimple::execute()
 
   // Reset thrust and torque
   for (size_t iBlade = 0; iBlade < n_simpleblades_; ++iBlade) {
+    BladeTotalLift[iBlade] = 0.0;
+    BladeTotalDrag[iBlade] = 0.0;
     for (int j = 0; j < nDim; j++) {
       torque[iBlade][j] = 0.0;
       thrust[iBlade][j] = 0.0;
@@ -926,13 +947,32 @@ ActuatorSimple::execute()
   execute_class_specific(nDim, coordinates, actuator_source, dualNodalVolume);
 
   // Write the thrust outputs
-  NaluEnv::self().naluOutput() << " -- BLADE force summary --" <<std::endl;
+  NaluEnv::self().naluOutputP0() << " -- START BLADE summary --" <<std::endl;
+  // Outputs from source terms
   for (size_t iBlade =0; iBlade < n_simpleblades_; iBlade++) {
+    auto bladeInfo =
+      dynamic_cast<ActuatorSimpleInfo*>(actuatorInfo_.at(iBlade).get());
+
+    if (NaluEnv::self().parallel_rank() == bladeInfo->runOnProc_) 
       NaluEnv::self().naluOutput()
-	<< " Blade "<<iBlade<<" : "<< thrust[iBlade][0] << " "
+	<< " Blade "<<iBlade<<" : "<<std::setprecision(8)
+	<< thrust[iBlade][0] << " "
 	<< thrust[iBlade][1] << " " << thrust[iBlade][2] << " " << std::endl;
   }
-  NaluEnv::self().naluOutput() << " -- END summary --" <<std::endl;
+  // Outputs from BEM theory
+  for (size_t iBlade =0; iBlade < n_simpleblades_; iBlade++) {
+    auto bladeInfo =
+      dynamic_cast<ActuatorSimpleInfo*>(actuatorInfo_.at(iBlade).get());
+    
+    if (NaluEnv::self().parallel_rank() == bladeInfo->runOnProc_) 
+
+      NaluEnv::self().naluOutput()
+	<< " BEM Blade "<<iBlade<<" Lift: "<<std::setprecision(8)
+	<< BladeTotalLift[iBlade]<<" Drag: "
+	<< BladeTotalDrag[iBlade]<<std::endl;
+  }
+  NaluEnv::self().naluOutputP0() << " -- END summary --" <<std::endl;
+
 
   //throw std::runtime_error("ActuatorSimple: done execute_class_specific()");  //LCCSTOP
 
@@ -1590,7 +1630,9 @@ ActuatorSimple::create_actuator_point_info_map()
 
   // Do simple blade stuff
   for (size_t iBlade = 0; iBlade < actuatorInfo_.size(); ++iBlade) {
-    NaluEnv::self().naluOutputP0() << "create_actuator_point_info_map: " << iBlade<< std::endl; //LCCOUT        
+    if (debug_output_)
+      NaluEnv::self().naluOutputP0()
+	<< "create_actuator_point_info_map: " << iBlade<< std::endl; //LCCOUT 
 
     const auto actuatorInfo =
       dynamic_cast<ActuatorSimpleInfo*>(actuatorInfo_[iBlade].get());
@@ -1693,18 +1735,19 @@ ActuatorSimple::create_actuator_point_info_map()
                            NODETYPE, iNode)));
 
 	// Print the value of epsilon to the screen
-	NaluEnv::self().naluOutput()
-	  << "  Actuator point "
-	  << iNode
-	  << " : "
-	  << centroidCoords[0] << " "
-	  << centroidCoords[1] << " "
-	  << centroidCoords[2] << " eps: "	  
-	  << epsilon.x_ << " "
-	  << epsilon.y_ << " "
-	  << epsilon.z_ << " "
-	  << " " << std::endl;
-
+	if (debug_output_)
+	  NaluEnv::self().naluOutput()
+	    << "  Actuator point "
+	    << iNode
+	    << " : "
+	    << centroidCoords[0] << " "
+	    << centroidCoords[1] << " "
+	    << centroidCoords[2] << " eps: "	  
+	    << epsilon.x_ << " "
+	    << epsilon.y_ << " "
+	    << epsilon.z_ << " "
+	    << " " << std::endl;
+	
 	// Counter for the number of blade points
 	np = np + 1;
       } // Loop over iNode

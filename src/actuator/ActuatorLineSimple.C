@@ -142,7 +142,10 @@ ActuatorLineSimple::execute_class_specific(
     double Q    = 0.5*rho*ws2Dnorm*ws2Dnorm;
     double lift = cl*Q*area;
     double drag = cd*Q*area;
-    
+
+    BladeTotalLift[bladeId] += lift;    
+    BladeTotalDrag[bladeId] += drag;    
+
     // Set the directions
     Coordinates ws2Ddir;  // Direction of drag force
     if (ws2Dnorm > 0.0) {
@@ -166,17 +169,18 @@ ActuatorLineSimple::execute_class_specific(
       liftdir.z_ = 0.0; 
     }
 
-    NaluEnv::self().naluOutputP0()
-      << "Blade: " <<bladeId<<" Node: "<<iNode<<" Alpha, Cl, Cd: "
-      <<alpha<<" "<<cl<<" "<<cd
-      <<" lift, drag = "<<lift<<" "<<drag
-      <<std::endl; //LCCOUT
-
+    if (debug_output_)
+      NaluEnv::self().naluOutputP0()
+	<< "Blade: " <<bladeId<<" Node: "<<iNode<<" Alpha, Cl, Cd: "
+	<<alpha<<" "<<cl<<" "<<cd
+	<<" lift, drag = "<<lift<<" "<<drag
+	<<std::endl; //LCCOUT
+    
     // set ws_pointForce
-    ws_pointForce[0] = lift*liftdir.x_ + drag*ws2Ddir.x_;
-    ws_pointForce[1] = lift*liftdir.y_ + drag*ws2Ddir.y_;
+    ws_pointForce[0] = -(lift*liftdir.x_ + drag*ws2Ddir.x_);
+    ws_pointForce[1] = -(lift*liftdir.y_ + drag*ws2Ddir.y_);
     if (nDim>2) 
-    ws_pointForce[2] = lift*liftdir.z_ + drag*ws2Ddir.z_;
+    ws_pointForce[2] = -(lift*liftdir.z_ + drag*ws2Ddir.z_);
 
     // Declare the orientation matrix
     // The ordering of this matrix is: xx, xy, xz, yx, yy, yz, zx, zy, zz

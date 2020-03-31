@@ -353,6 +353,11 @@ public:
     // Stuff for the simple blade
     std::size_t n_simpleblades_;
 
+    // Total forces as found by BEM theory
+    std::vector<double> BladeTotalLift;
+    std::vector<double> BladeTotalDrag;
+
+    bool debug_output_;
 };
 
 } // namespace nalu
