@@ -377,7 +377,11 @@ ActuatorSimple::allocateTurbinesToProcs()
   // initialize BladeTotalLift and BladeTotalDrag
   BladeTotalLift.resize(n_simpleblades_);
   BladeTotalDrag.resize(n_simpleblades_);
-
+  BladeAvgAlpha.resize(n_simpleblades_);
+  BladeAvgWS2D.resize(n_simpleblades_);
+  for (size_t iBlade = 0; iBlade < n_simpleblades_; ++iBlade) {
+    BladeAvgWS2D[iBlade].resize(nDim);
+  }
 }
 
 /** This method allocates the turbines to processors, initializes the OpenFAST
@@ -605,9 +609,11 @@ ActuatorSimple::execute()
   for (size_t iBlade = 0; iBlade < n_simpleblades_; ++iBlade) {
     BladeTotalLift[iBlade] = 0.0;
     BladeTotalDrag[iBlade] = 0.0;
+    BladeAvgAlpha[iBlade]  = 0.0;
     for (int j = 0; j < nDim; j++) {
       torque[iBlade][j] = 0.0;
       thrust[iBlade][j] = 0.0;
+      BladeAvgWS2D[iBlade][j] = 0.0;
     }
   }
 
@@ -624,7 +630,7 @@ ActuatorSimple::execute()
 
     if (NaluEnv::self().parallel_rank() == bladeInfo->runOnProc_) 
       NaluEnv::self().naluOutput()
-	<< " Blade "<<iBlade<<" : "<<std::setprecision(8)
+	<< " ALS Blade "<<iBlade<<" Force: "<<std::setprecision(8)
 	<< thrust[iBlade][0] << " "
 	<< thrust[iBlade][1] << " " << thrust[iBlade][2] << " " << std::endl;
   }
@@ -634,11 +640,28 @@ ActuatorSimple::execute()
       dynamic_cast<ActuatorSimpleInfo*>(actuatorInfo_.at(iBlade).get());
     
     if (NaluEnv::self().parallel_rank() == bladeInfo->runOnProc_) 
-
-      NaluEnv::self().naluOutput()
-	<< " BEM Blade "<<iBlade<<" Lift: "<<std::setprecision(8)
-	<< BladeTotalLift[iBlade]<<" Drag: "
-	<< BladeTotalDrag[iBlade]<<std::endl;
+      {
+	NaluEnv::self().naluOutput()
+	  << " BEM Blade "<<iBlade<<" Lift: "<<std::setprecision(8)
+	  << BladeTotalLift[iBlade]<<" Drag: "
+	  << BladeTotalDrag[iBlade]<<std::endl;
+      }
+  }
+  // AVG outputs
+  for (size_t iBlade =0; iBlade < n_simpleblades_; iBlade++) {
+    auto bladeInfo =
+      dynamic_cast<ActuatorSimpleInfo*>(actuatorInfo_.at(iBlade).get());
+    const size_t Npts = bladeInfo->num_force_pts_blade_;
+    if (NaluEnv::self().parallel_rank() == bladeInfo->runOnProc_) 
+      {
+	NaluEnv::self().naluOutput()
+	  << " AVG Blade "<<iBlade<<" Alpha: "<<std::setprecision(8)
+	  << BladeAvgAlpha[iBlade]/(float)Npts << " WS: "
+	  << BladeAvgWS2D[iBlade][0]/(float)Npts << " "
+	  << BladeAvgWS2D[iBlade][1]/(float)Npts << " "
+	  << BladeAvgWS2D[iBlade][2]/(float)Npts << " "
+	  << std::endl;
+      }
   }
   NaluEnv::self().naluOutputP0() << " -- END summary --" <<std::endl;
 

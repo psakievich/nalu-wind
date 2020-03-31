@@ -350,6 +350,8 @@ public:
     // Total forces as found by BEM theory
     std::vector<double> BladeTotalLift;
     std::vector<double> BladeTotalDrag;
+    std::vector<double> BladeAvgAlpha;
+    std::vector<std::vector<double>> BladeAvgWS2D;
 
     bool debug_output_;
 };

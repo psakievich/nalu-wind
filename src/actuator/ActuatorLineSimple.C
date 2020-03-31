@@ -141,6 +141,10 @@ ActuatorLineSimple::execute_class_specific(
 
     BladeTotalLift[bladeId] += lift;    
     BladeTotalDrag[bladeId] += drag;    
+    BladeAvgAlpha[bladeId]  += alpha;    
+    BladeAvgWS2D[bladeId][0] += ws2D.x_;    
+    BladeAvgWS2D[bladeId][1] += ws2D.y_;    
+    BladeAvgWS2D[bladeId][2] += ws2D.z_;    
 
     // Set the directions
     Coordinates ws2Ddir;  // Direction of drag force
