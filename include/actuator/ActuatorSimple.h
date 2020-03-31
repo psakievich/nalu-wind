@@ -21,7 +21,7 @@
 #include "Actuator.h"
 
 // OpenFAST C++ API
-#include "OpenFAST.H"
+// #include "OpenFAST.H"
 
 #ifndef RUNFASTSTUFF
 #define RUNFASTSTUFF false
@@ -210,7 +210,7 @@ public:
     void load(const YAML::Node& node) override;
 
     // load the options for each turbine
-    void readTurbineData(int iTurb, fast::fastInputs& fi, YAML::Node turbNode);
+    //void readTurbineData(int iTurb, fast::fastInputs& fi, YAML::Node turbNode);
 
     // setup part creation and nodal field registration (before populate_mesh())
     void setup() override;
@@ -338,8 +338,10 @@ public:
 
     virtual std::string get_class_name() override = 0;
 
+    /*
     fast::fastInputs fi; ///< Object to hold input information for OpenFAST
     fast::OpenFAST FAST; ///< OpenFAST C++ API handle
+    */
 
     std::size_t numFastPoints_;
 

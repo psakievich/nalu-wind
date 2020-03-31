@@ -101,7 +101,9 @@ ActuatorSimple::ActuatorSimple(Realm& realm, const YAML::Node& node)
 //--------------------------------------------------------------------------
 ActuatorSimple::~ActuatorSimple()
 {
+  /*
   FAST.end(); // Call destructors in FAST_cInterface
+  */
 }
 
 // Multiply the point force by the weight at this element location.
@@ -123,7 +125,7 @@ ActuatorSimple::load(const YAML::Node& y_node)
   // check for any data probes
   const YAML::Node y_actuator = y_node["actuator"];
   if (y_actuator) {
-    
+    /*    
     if (RUNFASTSTUFF) {
     // Populate object of inputs class to FAST
     fi.comm = NaluEnv::self().parallel_comm();
@@ -273,7 +275,7 @@ ActuatorSimple::load(const YAML::Node& y_node)
     }
     FAST.setInputs(fi);
     } // if (RUNFASTSTUFF)
-    
+    */    
     // --- Stuff to load the simple blade ---
     const YAML::Node debug_output = y_actuator["debug_output"];
     if (debug_output) 
@@ -494,7 +496,7 @@ ActuatorSimple::load(const YAML::Node& y_node)
 
   }
 }
-
+  /*
 void
 ActuatorSimple::readTurbineData(
   int iTurb, fast::fastInputs& fi, YAML::Node turbNode)
@@ -530,6 +532,7 @@ ActuatorSimple::readTurbineData(
   get_if_present(
     turbNode, "air_density", fi.globTurbineData[iTurb].air_density);
 }
+  */
 
 /** Called after load, but before initialize. The mesh isn't loaded yet. For
    now, this function only checks that the Nalu time step is an integral
@@ -541,6 +544,7 @@ ActuatorSimple::setup()
   // objective: declare the part, register coordinates; must be before
   // populate_mesh()
 
+  /*
   if (RUNFASTSTUFF) {
   double dtNalu = realm_.get_time_step_from_file();
   tStepRatio_ = dtNalu / fi.dtFAST;
@@ -554,6 +558,7 @@ ActuatorSimple::setup()
                              "an integral multiple of FAST time step");
   }
   }// -- RUNFASTSTUFF --
+  */
 }
 
 /** This function searches for the processor containing the hub point of each
@@ -578,6 +583,7 @@ ActuatorSimple::allocateTurbinesToProcs()
   BladeTotalLift.resize(n_simpleblades_);
   BladeTotalDrag.resize(n_simpleblades_);
 
+  /*
   if (RUNFASTSTUFF) { // LCC DELETE LATER
   stk::mesh::MetaData& metaData = realm_.meta_data();
 
@@ -628,6 +634,7 @@ ActuatorSimple::allocateTurbinesToProcs()
     iTurb++;
   }
   } // if (RUNFASTSTUFF)
+  */
 }
 
 /** This method allocates the turbines to processors, initializes the OpenFAST
@@ -641,10 +648,11 @@ ActuatorSimple::initialize()
 
   allocateTurbinesToProcs();
 
+  /*
   if (RUNFASTSTUFF) {  // --- vvv LCC DELETE LATER vvv -----
   FAST.init();
   } // if  (RUNFASTSTUFF)
-
+  */
   //
   // This is done to create the actuator point info map once
   //
@@ -711,6 +719,7 @@ ActuatorSimple::initialize()
 void
 ActuatorSimple::update()
 {
+  /*
   if (RUNFASTSTUFF) { // LCC DELETE LATER
 
   stk::mesh::BulkData& bulkData = realm_.bulk_data();
@@ -751,6 +760,7 @@ ActuatorSimple::update()
   // complete filling in the set of elements connected to the centroid
   complete_search();
   }
+  */
 
 }
 
@@ -893,13 +903,16 @@ ActuatorSimple::execute()
     infoObject->windSpeed_.y_ = ws_pointGasVelocity[1];
     if (nDim>2) infoObject->windSpeed_.z_ = ws_pointGasVelocity[2];
 
+    /*
     if (RUNFASTSTUFF) {  // LCC DELETE THIS
     // Set the CFD velocity at the actuator node
     FAST.setVelocityForceNode(
     ws_pointGasVelocity, nNp, infoObject->globTurbId_);
     }
+    */
   }
 
+  /*
   if (RUNFASTSTUFF) { // LCC vvvvv DELETE THIS LATER vvvvvv
  
   // Add the filtered lifting line correction
@@ -930,7 +943,7 @@ ActuatorSimple::execute()
     }
   }
   } // LCC ^^^ DELETE THIS LATER ^^^
-
+  */
 
   // Reset thrust and torque
   for (size_t iBlade = 0; iBlade < n_simpleblades_; ++iBlade) {
@@ -975,7 +988,7 @@ ActuatorSimple::execute()
 
 
   //throw std::runtime_error("ActuatorSimple: done execute_class_specific()");  //LCCSTOP
-
+  /*
   const size_t nTurbinesGlob = 0;
   if (FAST.isDebug()) {
     for (size_t iTurb = 0; iTurb < nTurbinesGlob; iTurb++) {
@@ -1006,6 +1019,7 @@ ActuatorSimple::execute()
       }
     }
   }
+  */
 
   // parallel assemble (contributions from ghosted and locally owned)
   const std::vector<const stk::mesh::FieldBase*> sumFieldVec(
@@ -1020,7 +1034,7 @@ ActuatorSimple::execute()
 // Copmute the filtered lifting line theory correction
 void ActuatorSimple::filtered_lifting_line()
 {
-
+  /*
 
   // The number of dimensions (assumes 3D)
   int nDim=3;
@@ -1359,7 +1373,7 @@ void ActuatorSimple::filtered_lifting_line()
         }
       }
     }
-  }  
+  } */  
 }
 
 // Creates bounding boxes around the subdomain of each processor
@@ -1452,7 +1466,7 @@ ActuatorSimple::create_actuator_point_info_map()
   const int nDim = metaData.spatial_dimension();
 
   size_t np = 0;
-
+  /*
   if (RUNFASTSTUFF) {
   for (size_t iTurb = 0; iTurb < actuatorInfo_.size(); ++iTurb) {
 
@@ -1627,6 +1641,7 @@ ActuatorSimple::create_actuator_point_info_map()
     }
   }
   } // if(RUNFASTSTUFF)
+*/
 
   // Do simple blade stuff
   for (size_t iBlade = 0; iBlade < actuatorInfo_.size(); ++iBlade) {
@@ -1763,7 +1778,7 @@ ActuatorSimple::create_actuator_point_info_map()
   // points)
   create_point_info_map_class_specific();
 
-  index_map();
+  //index_map();
   
 }
 
@@ -1778,7 +1793,7 @@ ActuatorSimple::update_actuator_point_info_map()
   const int nDim = metaData.spatial_dimension();
 
   size_t np = 0;
-
+  /*
   for (size_t iTurb = 0; iTurb < actuatorInfo_.size(); ++iTurb) {
 
     const auto actuatorInfo =
@@ -1842,6 +1857,7 @@ ActuatorSimple::update_actuator_point_info_map()
       }
     }
   }
+  */
 }
 
 /// This function computes the index map such that actuator points can be
@@ -1849,7 +1865,7 @@ ActuatorSimple::update_actuator_point_info_map()
 ///   (turbine number, blade number, actuator point number)
 void ActuatorSimple::index_map()
 {
-
+  /*
   //////////////////////////////////////////////////////////////////////////////
   // Loop and map the indices
   // This creates a mapping which allows you to access the actuator point index
@@ -1933,8 +1949,8 @@ if (FAST.get_procNo(iTurb) != NaluEnv::self().parallel_rank()) continue;
     indexMap_[it][ib][actPtrCounter] = np;
 
   }
-
-}  
+  */
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 // Get the (x,y,z) coordinates of that blade at node iNode
@@ -2199,7 +2215,7 @@ ActuatorSimple::dump_turbine_points_to_file(std::size_t turbNum)
   auto turbInfo =
     dynamic_cast<ActuatorSimpleInfo*>(actuatorInfo_.at(turbNum).get());
   std::string fileToDumpTo = turbInfo->fileToDumpPoints_;
-
+  /*
   if (
     !fileToDumpTo.empty() &&
     FAST.get_procNo(turbNum) == NaluEnv::self().parallel_rank()) {
@@ -2211,6 +2227,7 @@ ActuatorSimple::dump_turbine_points_to_file(std::size_t turbNum)
     csvOut << actOut;
     csvOut.close();
   }
+  */
 }
 
 } // namespace nalu

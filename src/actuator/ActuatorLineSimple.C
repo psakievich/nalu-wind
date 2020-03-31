@@ -203,6 +203,7 @@ ActuatorLineSimple::execute_class_specific(
       infoObject->epsilon_, hubPos, hubShftVec, thrust[bladeId],
       torque[bladeId]);
 
+    /*
     if (RUNFASTSTUFF) { // ----- vvvv DELETE THIS vvvv -----
     // Get the force from FAST
     FAST.getForce(ws_pointForce, np, infoObject->globTurbId_);
@@ -269,6 +270,7 @@ ActuatorLineSimple::execute_class_specific(
       infoObject->epsilon_, hubPos, hubShftVec, thrust[iTurbGlob],
       torque[iTurbGlob]);
     }// if (RUNFASTSTUFF) // ^^^^ DELETE THIS STUFF ^^^^
+    */
   }
 }
 
