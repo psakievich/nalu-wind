@@ -4,10 +4,6 @@ target_sources(nalu PRIVATE
    ${CMAKE_CURRENT_SOURCE_DIR}/ActuatorParsing.C
    ${CMAKE_CURRENT_SOURCE_DIR}/ActuatorSearch.C
    ${CMAKE_CURRENT_SOURCE_DIR}/ActuatorFunctors.C
-   ${CMAKE_CURRENT_SOURCE_DIR}/ActuatorSimple.C
-   ${CMAKE_CURRENT_SOURCE_DIR}/ActuatorBulkSimple.C
-   ${CMAKE_CURRENT_SOURCE_DIR}/ActuatorLineSimple.C
-   ${CMAKE_CURRENT_SOURCE_DIR}/ActuatorFunctorsSimple.C
    )
 
 if(ENABLE_OPENFAST)
@@ -19,7 +15,7 @@ if(ENABLE_OPENFAST)
       ${CMAKE_CURRENT_SOURCE_DIR}/ActuatorBulkFAST.C
       ${CMAKE_CURRENT_SOURCE_DIR}/ActuatorParsingFAST.C
       ${CMAKE_CURRENT_SOURCE_DIR}/ActuatorFunctorsFAST.C
-      ${CMAKE_CURRENT_SOURCE_DIR}/ActuatorLineFASTNgp.C
+      ${CMAKE_CURRENT_SOURCE_DIR}/ActuatorExecutorsFASTNgp.C
       ${CMAKE_CURRENT_SOURCE_DIR}/ActuatorBulkDiskFAST.C
    )
 endif()

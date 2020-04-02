@@ -7,32 +7,29 @@
 // for more details.
 //
 
-
 #ifndef INCLUDE_ACTUATOR_ACTUATORBULKDISKFAST_H_
 #define INCLUDE_ACTUATOR_ACTUATORBULKDISKFAST_H_
 
 #include <actuator/ActuatorBulkFAST.h>
 
-namespace sierra
-{
-namespace nalu
-{
+namespace sierra {
+namespace nalu {
 
-struct ActuatorBulkDiskFAST: public ActuatorBulkFAST
+struct ActuatorBulkDiskFAST : public ActuatorBulkFAST
 {
 public:
   ActuatorBulkDiskFAST(ActuatorMetaFAST& actMeta, double naluTimeStep);
 
-  ActFixArrayInt numSweptCount_; //TODO(psakiev) this is confusing maybe wrapper class
+  ActFixArrayInt numSweptCount_;
   ActFixArrayInt numSweptOffset_;
-  //TODO(psakiev) average forces and fill in values
-  void spread_forces_over_disk();
+  void spread_forces_over_disk(const ActuatorMetaFAST& actMeta);
+  void zero_open_fast_views() override;
+  bool searchExecuted_;
 
 private:
   void compute_swept_point_count(ActuatorMetaFAST& actMeta);
   void resize_arrays(const ActuatorMetaFAST& actMeta);
   void initialize_swept_points(const ActuatorMetaFAST& actMeta);
-
 };
 
 } /* namespace nalu */

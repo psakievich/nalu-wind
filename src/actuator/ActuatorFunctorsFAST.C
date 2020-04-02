@@ -17,214 +17,231 @@
 namespace sierra {
 namespace nalu {
 
-
-template<>
-ActFastZero::ActuatorFunctor(ActuatorBulkFAST& actBulk) : actBulk_(actBulk){
-  touch_dual_view(actBulk_.velocity_);
-  touch_dual_view(actBulk_.actuatorForce_);
-  touch_dual_view(actBulk_.pointCentroid_);
+ActFastUpdatePoints::ActFastUpdatePoints(ActuatorBulkFAST& actBulk)
+  : points_(helper_.get_local_view(actBulk.pointCentroid_)),
+    offsets_(helper_.get_local_view(actBulk.turbIdOffset_)),
+    turbId_(actBulk.localTurbineId_),
+    fast_(actBulk.openFast_)
+{
+  helper_.touch_dual_view(actBulk.pointCentroid_);
 }
 
-template<>
 void
-ActFastZero::operator()(const int& index) const{
-  auto vel = get_local_view(actBulk_.velocity_);
-  auto force = get_local_view(actBulk_.actuatorForce_);
-  auto point = get_local_view(actBulk_.pointCentroid_);
-  for(int i =0; i<3; i++){
-    vel(index, i)=0.0;
-    force(index, i)=0.0;
-    point(index, i)=0.0;
-  }
+ActFastUpdatePoints::operator()(int index) const
+{
+
+  ThrowAssert(turbId_ >= 0);
+  const int pointId = index - offsets_(turbId_);
+  auto point = Kokkos::subview(points_, index, Kokkos::ALL);
+
+  fast_.getForceNodeCoordinates(point.data(), pointId, turbId_);
 }
 
-template <>
-ActFastUpdatePoints::ActuatorFunctor(ActuatorBulkFAST& actBulk)
+ActFastAssignVel::ActFastAssignVel(ActuatorBulkFAST& actBulk)
+  : velocity_(helper_.get_local_view(actBulk.velocity_)),
+    offset_(helper_.get_local_view(actBulk.turbIdOffset_)),
+    turbId_(actBulk.localTurbineId_),
+    fast_(actBulk.openFast_)
+{
+}
+
+void
+ActFastAssignVel::operator()(int index) const
+{
+
+  const int pointId = index - offset_(turbId_);
+  auto vel = Kokkos::subview(velocity_, index, Kokkos::ALL);
+
+  fast_.setVelocityForceNode(vel.data(), pointId, turbId_);
+}
+
+ActFastComputeForce::ActFastComputeForce(ActuatorBulkFAST& actBulk)
+  : force_(helper_.get_local_view(actBulk.actuatorForce_)),
+    offset_(helper_.get_local_view(actBulk.turbIdOffset_)),
+    turbId_(actBulk.localTurbineId_),
+    fast_(actBulk.openFast_)
+{
+  helper_.touch_dual_view(actBulk.actuatorForce_);
+}
+
+void
+ActFastComputeForce::operator()(int index) const
+{
+
+  auto pointForce = Kokkos::subview(force_, index, Kokkos::ALL);
+  const int localId = index - offset_(turbId_);
+
+  fast_.getForce(pointForce.data(), localId, turbId_);
+}
+
+ActFastSetUpThrustCalc::ActFastSetUpThrustCalc(ActuatorBulkFAST& actBulk)
   : actBulk_(actBulk)
 {
-  touch_dual_view(actBulk_.pointCentroid_);
 }
 
-template <>
 void
-ActFastUpdatePoints::operator()(const int& index) const
+ActFastSetUpThrustCalc::operator()(int index) const
 {
-  fast::OpenFAST& FAST = actBulk_.openFast_;
-  auto points = get_local_view(actBulk_.pointCentroid_);
-  auto offsets = get_local_view(actBulk_.turbIdOffset_);
-
-  ThrowAssert(actBulk_.localTurbineId_>=0);
-  const int myId = index - offsets(actBulk_.localTurbineId_);
-  // compute location
-  std::vector<double> tempCoords(3, 0.0);
-  auto rank = actBulk_.localTurbineId_;
-  FAST.getForceNodeCoordinates(tempCoords, myId, rank);
-  for (int i = 0; i < 3; i++) {
-    points(index, i) = tempCoords[i];
-  }
-}
-
-template<>
-ActFastAssignVel::ActuatorFunctor(ActuatorBulkFAST& actBulk):actBulk_(actBulk){}
-
-template<>
-void ActFastAssignVel::operator ()(const int& index) const{
-  auto vel = get_local_view(actBulk_.velocity_);
-  auto offset = get_local_view(actBulk_.turbIdOffset_);
-
-  const int localId = index - offset(actBulk_.localTurbineId_);
-
-  std::vector<double> pointVel {vel(index,0), vel(index,1), vel(index,2)};
-
-  actBulk_.openFast_.setVelocityForceNode(pointVel, localId, actBulk_.localTurbineId_);
-}
-
-template<>
-ActFastComputeForce::ActuatorFunctor(ActuatorBulkFAST& actBulk):actBulk_(actBulk){
-  touch_dual_view(actBulk_.actuatorForce_);
-}
-
-template<>
-void ActFastComputeForce::operator()(const int& index) const{
-  auto force = get_local_view(actBulk_.actuatorForce_);
-  auto offset = get_local_view(actBulk_.turbIdOffset_);
-
-  std::vector<double> pointForce(3);
-
-  const int localId = index - offset(actBulk_.localTurbineId_);
-
-  actBulk_.openFast_.getForce(pointForce, localId, actBulk_.localTurbineId_);
-
-  for(int i = 0; i<3; i++){
-    force(index,i) = pointForce[i];
-  }
-}
-
-ActFastSetUpThrustCalc::ActFastSetUpThrustCalc(ActuatorBulkFAST& actBulk):
-    actBulk_(actBulk)
-{}
-
-void ActFastSetUpThrustCalc::operator ()(int index) const{
   auto hubLoc = Kokkos::subview(actBulk_.hubLocations_, index, Kokkos::ALL);
   auto hubOri = Kokkos::subview(actBulk_.hubOrientation_, index, Kokkos::ALL);
   auto thrust = Kokkos::subview(actBulk_.turbineThrust_, index, Kokkos::ALL);
   auto torque = Kokkos::subview(actBulk_.turbineTorque_, index, Kokkos::ALL);
 
-  for(int i=0; i<3; i++){
-    thrust(i)=0.0;
-    torque(i)=0.0;
+  for (int i = 0; i < 3; i++) {
+    thrust(i) = 0.0;
+    torque(i) = 0.0;
   }
 
-  if(actBulk_.localTurbineId_ == index){
-
-    std::vector<double> hubPos(3), hubShftDir(3);
-
-    actBulk_.openFast_.getHubPos(hubPos, index);
-    actBulk_.openFast_.getHubShftDir(hubShftDir, index);
-
-    for(int j=0; j<3; j++){
-      hubLoc(j) = hubPos[j];
-      hubOri(j) = hubShftDir[j];
-    }
-  }
-  else{
-    for(int j=0; j<3; j++){
+  if (actBulk_.localTurbineId_ == index) {
+    actBulk_.openFast_.getHubPos(hubLoc.data(), index);
+    actBulk_.openFast_.getHubShftDir(hubOri.data(), index);
+  } else {
+    for (int j = 0; j < 3; j++) {
       hubLoc(j) = 0.0;
       hubOri(j) = 0.0;
     }
   }
 }
 
-ActFastComputeThrust::ActFastComputeThrust(ActuatorBulkFAST& actBulk, stk::mesh::BulkData& stkBulk):
-    actBulk_(actBulk),stkBulk_(stkBulk)
-{}
-
-void ActFastComputeThrust::operator()(int index) const{
-
-  const stk::mesh::MetaData& stkMeta = stkBulk_.mesh_meta_data();
-
-  VectorFieldType* coordinates = stkMeta.get_field<VectorFieldType>(
-    stk::topology::NODE_RANK, "coordinates");
-
-  VectorFieldType* actuatorSource = stkMeta.get_field<VectorFieldType>(
-    stk::topology::NODE_RANK, "actuator_source");
-
- ScalarFieldType* dualNodalVolume = stkMeta.get_field<ScalarFieldType>(
-                                      stk::topology::NODE_RANK, "dual_nodal_volume");
+void
+ActFastComputeThrustInnerLoop::operator()(
+  const uint64_t pointId,
+  const double* nodeCoords,
+  double* sourceTerm,
+  const double,
+  const double scvIp) const
+{
 
   auto offsets = actBulk_.turbIdOffset_.view_host();
-  auto pointId = actBulk_.coarseSearchPointIds_.h_view(index);
-  auto elemId = actBulk_.coarseSearchElemIds_.h_view(index);
 
-  //determine turbine
-  // TODO(psakiev) shouldn't thrust and torque contribs only come from blades?
+  // shouldn't thrust and torque contribs only come from blades?
+  // probably not worth worrying about since this is just a debug calculation
+
+  // determine turbine
   int turbId = 0;
   const int nPointId = static_cast<int>(pointId);
-  for(;turbId<offsets.extent_int(0); turbId++){
-    if(nPointId >= offsets(turbId)){
+  for (; turbId < offsets.extent_int(0); turbId++) {
+    if (nPointId >= offsets(turbId)) {
       break;
     }
   }
 
-  auto hubLoc = Kokkos::subview(actBulk_.hubLocations_,turbId, Kokkos::ALL);
+  auto hubLoc = Kokkos::subview(actBulk_.hubLocations_, turbId, Kokkos::ALL);
   auto hubOri = Kokkos::subview(actBulk_.hubOrientation_, turbId, Kokkos::ALL);
   auto thrust = Kokkos::subview(actBulk_.turbineThrust_, turbId, Kokkos::ALL);
   auto torque = Kokkos::subview(actBulk_.turbineTorque_, turbId, Kokkos::ALL);
 
-  Kokkos::View<double[3], ActuatorFixedMemLayout, ActuatorFixedMemSpace> r("radius");
-  Kokkos::View<double[3], ActuatorFixedMemLayout, ActuatorFixedMemSpace> rPerpShaft("radiusShift");
-  Kokkos::View<double[3], ActuatorFixedMemLayout, ActuatorFixedMemSpace> forceTerm("forceTerm");
+  double r[3], rPerpShaft[3], forceTerm[3];
 
-  //loop over elem's nodes and contribute source terms
-  const stk::mesh::Entity elem = stkBulk_.get_entity(stk::topology::ELEMENT_RANK, elemId);
-  const stk::topology& elemTopo = stkBulk_.bucket(elem).topology();
-  MasterElement* meSCV = MasterElementRepo::get_volume_master_element(elemTopo);
+  for (int i = 0; i < 3; i++) {
+    forceTerm[i] = sourceTerm[i] * scvIp;
+    r[i] = nodeCoords[i] - hubLoc(i);
+    thrust(i) += forceTerm[i];
+  }
 
-  const int numScvIp = meSCV->num_integration_points();
-  const unsigned numNodes = stkBulk_.num_nodes(elem);
-  Kokkos::View<double*, ActuatorFixedMemLayout, ActuatorFixedMemSpace> scvElem("scvElem", numScvIp);
-  Kokkos::View<double*[3], ActuatorFixedMemLayout, ActuatorFixedMemSpace> elemCoords("elemCoords", numNodes);
-  stk::mesh::Entity const* elem_nod_rels = stkBulk_.begin_nodes(elem);
+  double rDotHubOri = 0;
+  for (int i = 0; i < 3; i++) {
+    rDotHubOri += r[i] * hubOri(i);
+  }
 
-  for(unsigned i = 0; i<numNodes; i++){
-    const double* coords = (double*) stk::mesh::field_data(*coordinates, elem_nod_rels[i]);
-    for(int j=0; j<3; j++){
-      elemCoords(i,j) = coords[j];
+  for (int i = 0; i < 3; i++) {
+    rPerpShaft[i] = r[i] - rDotHubOri * hubOri(i);
+  }
+
+  torque(0) += (rPerpShaft[1] * forceTerm[2] - rPerpShaft[2] * forceTerm[1]);
+  torque(1) += (rPerpShaft[2] * forceTerm[0] - rPerpShaft[0] * forceTerm[2]);
+  torque(2) += (rPerpShaft[0] * forceTerm[1] - rPerpShaft[1] * forceTerm[0]);
+}
+
+ActFastStashOrientationVectors::ActFastStashOrientationVectors(
+  ActuatorBulkFAST& actBulk)
+  : orientation_(helper_.get_local_view(actBulk.orientationTensor_)),
+    offset_(helper_.get_local_view(actBulk.turbIdOffset_)),
+    turbId_(actBulk.localTurbineId_),
+    fast_(actBulk.openFast_)
+{
+  helper_.touch_dual_view(actBulk.orientationTensor_);
+  actBulk.turbIdOffset_.sync_host();
+}
+
+void
+ActFastStashOrientationVectors::operator()(int index) const
+{
+  const int pointId = index - offset_(turbId_);
+  auto localOrientation = Kokkos::subview(orientation_, index, Kokkos::ALL);
+  //if (fast_.getForceNodeType(turbId_, pointId) == fast::BLADE) {
+  if(pointId>0){
+    fast_.getForceNodeOrientation(localOrientation.data(), pointId, turbId_);
+
+    // swap columns of matrix since openfast stores data
+    // as (thick, chord, span) and we want (chord, thick, span)
+    double colSwapTemp;
+    for (int i = 0; i < 9;i+=3) {
+      colSwapTemp = localOrientation(i);
+      localOrientation(i) = localOrientation(i+1);
+      localOrientation(i+1) = colSwapTemp;
+    }
+  } else {
+    // identity matrix
+    // (all other terms should have already been set to zero)
+    localOrientation(0) = 1.0;
+    localOrientation(3) = 1.0;
+    localOrientation(6) = 1.0;
+  }
+
+}
+
+void
+ActFastSpreadForceWhProjInnerLoop::preloop()
+{
+  actBulk_.actuatorForce_.sync_host();
+}
+
+void
+ActFastSpreadForceWhProjInnerLoop::operator()(
+  const uint64_t pointId,
+  const double* nodeCoords,
+  double* sourceTerm,
+  const double dual_vol,
+  const double scvIp) const
+{
+
+  auto pointCoords =
+    Kokkos::subview(actBulk_.pointCentroid_.view_host(), pointId, Kokkos::ALL);
+
+  auto pointForce =
+    Kokkos::subview(actBulk_.actuatorForce_.view_host(), pointId, Kokkos::ALL);
+
+  auto epsilon =
+    Kokkos::subview(actBulk_.epsilon_.view_host(), pointId, Kokkos::ALL);
+
+  auto orientation = Kokkos::subview(
+    actBulk_.orientationTensor_.view_host(), pointId, Kokkos::ALL);
+
+  double distance[3]={0, 0, 0};
+  double projectedDistance[3]={0, 0, 0};
+  double projectedForce[3]={0, 0, 0};
+
+  actuator_utils::compute_distance(
+    3, nodeCoords, pointCoords.data(), &distance[0]);
+
+  // transform distance from Cartesian to blade coordinate system
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) {
+      projectedDistance[i] += distance[j] * orientation(i+j*3);
     }
   }
 
-  double scvError =0.0;
-  meSCV->determinant(1, elemCoords.data(), scvElem.data(), &scvError);
+  const double gauss = actuator_utils::Gaussian_projection(
+    3, &projectedDistance[0], epsilon.data());
 
-  for(unsigned iNode=0; iNode<numNodes; iNode++){
-    stk::mesh::Entity node = elem_nod_rels[iNode];
-    const double* nodeCoords =
-        (double*) stk::mesh::field_data(*coordinates, node);
-    const double dual_vol = *(double*)stk::mesh::field_data(*dualNodalVolume, node);
-    double* sourceTerm = (double*) stk::mesh::field_data(*actuatorSource, node);
-
-    for(int i=0; i<3; i++){
-      // TODO(psakiev) I thought this should just be scvElem(iNode) since we are
-      // integrating but that is ~20x too high
-      forceTerm(i) = sourceTerm[i]*scvElem(iNode)/dual_vol;
-      r(i) = nodeCoords[i] - hubLoc(i);
-      thrust(i) += forceTerm(i);
-    }
-
-    double rDotHubOri=0;
-    for(int i=0; i<3; i++){
-      rDotHubOri += r(i)*hubOri(i);
-    }
-
-    for(int i=0; i<3; i++){
-      rPerpShaft(i) = r(i) - rDotHubOri*hubOri(i);
-    }
-
-    torque(0) += (rPerpShaft(1)*forceTerm(2) - rPerpShaft(2)*forceTerm(1));
-    torque(1) += (rPerpShaft(2)*forceTerm(0) - rPerpShaft(0)*forceTerm(2));
-    torque(2) += (rPerpShaft(0)*forceTerm(1) - rPerpShaft(1)*forceTerm(0));
+  for (int j = 0; j < 3; j++) {
+    projectedForce[j] = gauss * pointForce(j);
   }
 
+  for (int j = 0; j < 3; j++) {
+    sourceTerm[j] += projectedForce[j] * scvIp / dual_vol;
+  }
 }
 
 } /* namespace nalu */

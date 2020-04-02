@@ -10,7 +10,7 @@
 #ifndef ACTUATORFUNCTORSFAST_H_
 #define ACTUATORFUNCTORSFAST_H_
 
-#include <actuator/ActuatorNGP.h>
+#include <actuator/ActuatorTypes.h>
 #include <actuator/ActuatorBulkFAST.h>
 #include <actuator/ActuatorFunctors.h>
 #include <NaluEnv.h>
@@ -18,46 +18,50 @@
 namespace sierra {
 namespace nalu {
 
-namespace actfast {
-// tags
-struct ZeroArrays{};
-struct ComputeLocations{};
-struct AssignVelocities{};
-struct ComputeForces{};
-}
+struct ActFastUpdatePoints
+{
+  using execution_space = ActuatorFixedExecutionSpace;
 
-// typedefs
-using ActFastZero = ActuatorFunctor<ActuatorBulkFAST, actfast::ZeroArrays, ActuatorExecutionSpace>;
-using ActFastUpdatePoints = ActuatorFunctor<ActuatorBulkFAST, actfast::ComputeLocations, Kokkos::DefaultHostExecutionSpace>;
-using ActFastAssignVel = ActuatorFunctor<ActuatorBulkFAST, actfast::AssignVelocities, Kokkos::DefaultHostExecutionSpace>;
-using ActFastComputeForce = ActuatorFunctor<ActuatorBulkFAST,actfast::ComputeForces, Kokkos::DefaultHostExecutionSpace>;
+  ActFastUpdatePoints(ActuatorBulkFAST& actBulk);
+  void operator()(int index) const;
 
-// declarations
-template<>
-ActFastZero::ActuatorFunctor(ActuatorBulkFAST& actBulk);
+  ActDualViewHelper<ActuatorFixedMemSpace> helper_;
+  ActFixVectorDbl points_;
+  ActFixScalarInt offsets_;
+  const int turbId_;
+  fast::OpenFAST& fast_;
+};
 
-template<>
-void ActFastZero::operator()(const int& index) const;
+struct ActFastAssignVel
+{
+  using execution_space = ActuatorFixedExecutionSpace;
 
-template <>
-ActFastUpdatePoints::ActuatorFunctor(ActuatorBulkFAST& actBulk);
+  ActFastAssignVel(ActuatorBulkFAST& actBulk);
+  void operator()(int index) const;
 
-template<>
-void ActFastUpdatePoints::operator()(const int& index) const;
+  ActDualViewHelper<ActuatorFixedMemSpace> helper_;
+  ActFixVectorDbl velocity_;
+  ActFixScalarInt offset_;
+  const int turbId_;
+  fast::OpenFAST& fast_;
+};
 
-template<>
-ActFastAssignVel::ActuatorFunctor(ActuatorBulkFAST& actBulk);
+struct ActFastComputeForce
+{
+  using execution_space = ActuatorFixedExecutionSpace;
 
-template<>
-void ActFastAssignVel::operator()(const int& index) const;
+  ActFastComputeForce(ActuatorBulkFAST& actBulk);
+  void operator()(int index) const;
 
-template<>
-ActFastComputeForce::ActuatorFunctor(ActuatorBulkFAST& actBulk);
+  ActDualViewHelper<ActuatorFixedMemSpace> helper_;
+  ActFixVectorDbl force_;
+  ActFixScalarInt offset_;
+  const int turbId_;
+  fast::OpenFAST& fast_;
+};
 
-template<>
-void ActFastComputeForce::operator()(const int& index) const;
-
-struct ActFastSetUpThrustCalc{
+struct ActFastSetUpThrustCalc
+{
   using execution_space = ActuatorFixedExecutionSpace;
 
   ActFastSetUpThrustCalc(ActuatorBulkFAST& actBulk);
@@ -67,16 +71,63 @@ struct ActFastSetUpThrustCalc{
   ActuatorBulkFAST& actBulk_;
 };
 
-struct ActFastComputeThrust{
+struct ActFastStashOrientationVectors
+{
   using execution_space = ActuatorFixedExecutionSpace;
 
-  ActFastComputeThrust(ActuatorBulkFAST& actBulk, stk::mesh::BulkData& stkBulk);
+  ActFastStashOrientationVectors(ActuatorBulkFAST& actBulk);
 
   void operator()(int index) const;
 
-  ActuatorBulkFAST& actBulk_;
-  stk::mesh::BulkData& stkBulk_;
+  ActDualViewHelper<ActuatorFixedMemSpace> helper_;
+  ActFixTensorDbl orientation_;
+  ActFixScalarInt offset_;
+  const int turbId_;
+  fast::OpenFAST& fast_;
 };
+
+struct ActFastComputeThrustInnerLoop
+{
+
+  ActFastComputeThrustInnerLoop(ActuatorBulkFAST& actBulk) : actBulk_(actBulk)
+  {
+  }
+  void operator()(
+    const uint64_t pointId,
+    const double* nodeCoords,
+    double* sourceTerm,
+    const double dualNodalVolume,
+    const double scvIp) const;
+  void preloop() {}
+
+  ActuatorBulkFAST& actBulk_;
+};
+
+struct ActFastSpreadForceWhProjInnerLoop
+{
+  ActFastSpreadForceWhProjInnerLoop(ActuatorBulkFAST& actBulk)
+    : actBulk_(actBulk)
+  {
+  }
+
+  void operator()(
+    const uint64_t pointId,
+    const double* nodeCoords,
+    double* sourceTerm,
+    const double dualNodalVolume,
+    const double scvIp) const;
+  void preloop();
+
+  ActuatorBulkFAST& actBulk_;
+};
+
+using ActFastComputeThrust = GenericLoopOverCoarseSearchResults<
+  ActuatorBulkFAST,
+  ActFastComputeThrustInnerLoop>;
+
+using ActFastSpreadForceWhProjection = GenericLoopOverCoarseSearchResults<
+  ActuatorBulkFAST,
+  ActFastSpreadForceWhProjInnerLoop>;
 
 } /* namespace nalu */
 } /* namespace sierra */

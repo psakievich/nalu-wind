@@ -22,18 +22,19 @@ namespace {
 
 class ActuatorSearchTest : public ::testing::Test
 {
-protected:
+public:
   ActuatorSearchTest()
     : nProcs(NaluEnv::self().parallel_size()),
       myRank(NaluEnv::self().parallel_rank()),
       nPoints(nProcs * 4),
       partNames({"block_1"}),
       ioBroker(MPI_COMM_WORLD),
-      coarsePointIds("crsPointIds",0),
-      coarseElemIds("crsElemIds",0),
+      coarsePointIds("crsPointIds", 0),
+      coarseElemIds("crsElemIds", 0),
       points("points", nPoints),
       radii("radii", nPoints),
       isLocal("isLocal", nPoints),
+      localParallelRedundancy("localParallelRedundancy", nPoints),
       nx("nx"),
       slabSize(4)
   {
@@ -72,6 +73,7 @@ protected:
   ActFixVectorDbl points;
   ActFixScalarDbl radii;
   ActFixScalarBool isLocal;
+  ActFixScalarInt localParallelRedundancy;
   Kokkos::View<int[3], ActuatorFixedMemLayout, ActuatorFixedMemSpace> nx;
   const unsigned slabSize;
 };
@@ -130,12 +132,13 @@ TEST_F(ActuatorSearchTest, executeCoarseSearch)
   auto elemBoxes = CreateElementBoxes(stkBulk, partNames);
 
   try {
-    ExecuteCoarseSearch(spheres, elemBoxes, coarsePointIds, coarseElemIds, stk::search::KDTREE);
+    ExecuteCoarseSearch(
+      spheres, elemBoxes, coarsePointIds, coarseElemIds, stk::search::KDTREE);
     // Each search should find one slab of element/point pairs
     EXPECT_EQ(slabSize, coarsePointIds.view_host().extent_int(0))
-      << "Coarse Search result size: " << coarsePointIds.view_host().extent_int(0)
-      << " on rank: " << myRank;
-    for (unsigned i =0; i< coarsePointIds.extent(0); i++) {
+      << "Coarse Search result size: "
+      << coarsePointIds.view_host().extent_int(0) << " on rank: " << myRank;
+    for (unsigned i = 0; i < coarsePointIds.extent(0); i++) {
       const uint64_t thePt = coarsePointIds.h_view(i);
       const uint64_t theElem = coarseElemIds.h_view(i);
       EXPECT_EQ(thePt + 1, theElem)
@@ -157,12 +160,14 @@ TEST_F(ActuatorSearchTest, executeFineSearch)
   }
   auto spheres = CreateBoundingSpheres(points, radii2);
   auto elemBoxes = CreateElementBoxes(stkBulk, partNames);
-  ExecuteCoarseSearch(spheres, elemBoxes, coarsePointIds, coarseElemIds, stk::search::KDTREE);
+  ExecuteCoarseSearch(
+    spheres, elemBoxes, coarsePointIds, coarseElemIds, stk::search::KDTREE);
   ActFixElemIds matchElemIds("matchElemIds", nPoints);
   // this case should match coarse search
   try {
     ExecuteFineSearch(
-      stkBulk, coarsePointIds, coarseElemIds, points, matchElemIds, localCoords, isLocal);
+      stkBulk, coarsePointIds, coarseElemIds, points, matchElemIds, localCoords,
+      isLocal, localParallelRedundancy);
     int numLocal = 0;
     for (unsigned i = 0; i < points.extent(0); i++) {
       if (isLocal(i)) {

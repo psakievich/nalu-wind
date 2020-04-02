@@ -7,8 +7,8 @@
 // for more details.
 //
 
-#ifndef ACTUATORFIELDBULK_H_
-#define ACTUATORFIELDBULK_H_
+#ifndef ACTUATORBULK_H_
+#define ACTUATORBULK_H_
 
 #include <actuator/ActuatorTypes.h>
 #include <actuator/ActuatorSearch.h>
@@ -58,7 +58,8 @@ struct ActuatorBulk
 {
   ActuatorBulk(const ActuatorMeta& actMeta);
 
-  void stk_search_act_pnts(const ActuatorMeta& actMeta, stk::mesh::BulkData& stkBulk);
+  void stk_search_act_pnts(
+    const ActuatorMeta& actMeta, stk::mesh::BulkData& stkBulk);
   void zero_source_terms(stk::mesh::BulkData& stkBulk);
   void parallel_sum_source_term(stk::mesh::BulkData& stkBulk);
   void compute_offsets(const ActuatorMeta& actMeta);
@@ -76,6 +77,7 @@ struct ActuatorBulk
   // HOST ONLY DATA
   ActFixVectorDbl localCoords_;
   ActFixScalarBool pointIsLocal_;
+  ActFixScalarInt localParallelRedundancy_;
   ActFixElemIds elemContainingPoint_;
 };
 

@@ -10,21 +10,22 @@
 #ifndef ACTUATORFUNCTORS_H_
 #define ACTUATORFUNCTORS_H_
 
+#include <actuator/ActuatorGenericSearchFunctor.h>
 #include <actuator/ActuatorNGP.h>
 #include <actuator/ActuatorBulk.h>
+#include <FieldTypeDef.h>
 
-namespace stk{
-namespace mesh{
-  class BulkData;
+namespace stk {
+namespace mesh {
+class BulkData;
 }
-}
+} // namespace stk
 
-namespace sierra
-{
-namespace nalu
-{
+namespace sierra {
+namespace nalu {
 
-struct InterpActuatorVel{
+struct InterpActuatorVel
+{
   using execution_space = ActuatorFixedExecutionSpace;
 
   InterpActuatorVel(ActuatorBulk& actBulk, stk::mesh::BulkData& stkBulk);
@@ -33,18 +34,27 @@ struct InterpActuatorVel{
 
   ActuatorBulk& actBulk_;
   stk::mesh::BulkData& stkBulk_;
+  VectorFieldType* coordinates_;
+  VectorFieldType* velocity_;
 };
 
-struct SpreadActuatorForce{
-  using execution_space = ActuatorFixedExecutionSpace;
+struct SpreadForceInnerLoop
+{
+  SpreadForceInnerLoop(ActuatorBulk& actBulk) : actBulk_(actBulk) {}
 
-  SpreadActuatorForce(ActuatorBulk& actBulk, stk::mesh::BulkData& stkBulk);
-
-  void operator()(int index) const;
+  void operator()(
+    const uint64_t pointId,
+    const double* nodeCoords,
+    double* sourceTerm,
+    const double dualNodalVolume,
+    const double scvIp) const;
+  void preloop();
 
   ActuatorBulk& actBulk_;
-  stk::mesh::BulkData& stkBulk_;
 };
+
+using SpreadActuatorForce =
+  GenericLoopOverCoarseSearchResults<ActuatorBulk, SpreadForceInnerLoop>;
 
 } /* namespace nalu */
 } /* namespace sierra */
