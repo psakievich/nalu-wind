@@ -25,7 +25,13 @@ struct ActuatorMetaSimple : public ActuatorMeta
   std::vector<std::string> turbineNames_;
   std::vector<std::string> turbineOutputFileNames_;
   bool filterLiftLineCorrection_;
-  int get_fast_index(fast::ActuatorNodeType type, int turbId, int index=0, int bladeNum=0) const;
+  bool isotropicGaussian_;
+  bool is_disk();
+  int get_fast_index(
+    fast::ActuatorNodeType type,
+    int turbId,
+    int index = 0,
+    int bladeNum = 0) const;
 
   // TODO(SAKIEVICH) not certain all these need to be dual views
   int maxNumPntsPerBlade_;
@@ -35,15 +41,13 @@ struct ActuatorMetaSimple : public ActuatorMeta
   ActFixScalarBool useUniformAziSampling_;
   ActFixScalarInt nPointsSwept_;
   ActFixScalarInt nBlades_;
-
 };
 
 struct ActuatorBulkSimple : public ActuatorBulk
 {
-  ActuatorBulkSimple(
-    const ActuatorMetaSimple& actMeta, double naluTimeStep);
+  ActuatorBulkSimple(const ActuatorMetaSimple& actMeta, double naluTimeStep);
 
-  Kokkos::RangePolicy<Kokkos::DefaultHostExecutionSpace> local_range_policy(const ActuatorMeta& actMeta);
+  Kokkos::RangePolicy<Kokkos::DefaultHostExecutionSpace> local_range_policy();
 
   void interpolate_velocities_to_fast();
   void step_fast();
@@ -51,6 +55,7 @@ struct ActuatorBulkSimple : public ActuatorBulk
   void output_torque_info();
   void init_openfast(const ActuatorMetaSimple& actMeta, double naluTimeStep);
   void init_epsilon(const ActuatorMetaSimple& actMeta);
+  virtual void zero_open_fast_views();
 
   virtual ~ActuatorBulkSimple();
 
@@ -60,13 +65,28 @@ struct ActuatorBulkSimple : public ActuatorBulk
   ActFixVectorDbl hubOrientation_;
 
   ActVectorDblDv epsilonOpt_;
+  ActTensorDblDv orientationTensor_;
+
   // TODO(SAKIEVICH) this kill lambdas that are pass by value (KOKKOS_LAMBDA)
   // may need to rethink functor/bulk design.  Perhaps have an internal object
   // in bulk for gpu data and pass that into the actuatorFunctors.
   fast::OpenFAST openFast_;
   const int localTurbineId_;
   const int tStepRatio_;
+  ActDualViewHelper<ActuatorMemSpace> dvHelper_;
 };
+
+// helper functions to
+// squash calls to std::cout from TPL's aka OpenFAST
+inline
+void squash_fast_output(std::function<void()>func)
+{
+  std::stringstream buffer;
+  std::streambuf* sHoldCout = std::cout.rdbuf();
+  std::cout.rdbuf(buffer.rdbuf());
+  func();
+  std::cout.rdbuf(sHoldCout);
+}
 
 } // namespace nalu
 } // namespace sierra

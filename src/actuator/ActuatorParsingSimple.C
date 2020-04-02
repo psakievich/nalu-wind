@@ -17,9 +17,9 @@ namespace nalu {
 
 namespace {
 void
-readTurbineData(int iTurb, ActuatorMetaSimple& actMetaFAST, YAML::Node turbNode)
+readTurbineData(int iTurb, ActuatorMetaSimple& actMetaSimple, YAML::Node turbNode)
 {
-  fast::fastInputs& fi = actMetaFAST.fastInputs_;
+  fast::fastInputs& fi = actMetaSimple.fastInputs_;
   // Read turbine data for a given turbine using the YAML node
   get_required(turbNode, "turb_id", fi.globTurbineData[iTurb].TurbID);
   get_required(
@@ -31,62 +31,70 @@ readTurbineData(int iTurb, ActuatorMetaSimple& actMetaFAST, YAML::Node turbNode)
 
   get_required(
     turbNode, "turbine_base_pos", fi.globTurbineData[iTurb].TurbineBasePos);
-  if(turbNode["turbine_hub_pos"]){
-    NaluEnv::self().naluOutputP0() << "WARNING::turbine_hub_pos is not used. "<<
-        "The hub location is computed in OpenFAST and is controlled by the ElastoDyn input file.";
+  if (turbNode["turbine_hub_pos"]) {
+    NaluEnv::self().naluOutputP0()
+      << "WARNING::turbine_hub_pos is not used. "
+      << "The hub location is computed in OpenFAST and is controlled by the "
+         "ElastoDyn input file.";
   }
   get_required(
     turbNode, "num_force_pts_blade",
     fi.globTurbineData[iTurb].numForcePtsBlade);
 
-  actMetaFAST.maxNumPntsPerBlade_ = std::max(actMetaFAST.maxNumPntsPerBlade_, fi.globTurbineData[iTurb].numForcePtsBlade);
+  actMetaSimple.maxNumPntsPerBlade_ = std::max(
+    actMetaSimple.maxNumPntsPerBlade_,
+    fi.globTurbineData[iTurb].numForcePtsBlade);
 
   get_required(
     turbNode, "num_force_pts_tower", fi.globTurbineData[iTurb].numForcePtsTwr);
 
-  get_if_present_no_default(turbNode, "nacelle_cd", fi.globTurbineData[iTurb].nacelle_cd);
+  get_if_present_no_default(
+    turbNode, "nacelle_cd", fi.globTurbineData[iTurb].nacelle_cd);
   get_if_present_no_default(
     turbNode, "nacelle_area", fi.globTurbineData[iTurb].nacelle_area);
   get_if_present_no_default(
     turbNode, "air_density", fi.globTurbineData[iTurb].air_density);
 
-  int* numBlades = &(actMetaFAST.nBlades_(iTurb));
-  *numBlades=3;
+  int* numBlades = &(actMetaSimple.nBlades_(iTurb));
+  *numBlades = 3;
   get_if_present_no_default(turbNode, "num_blades", *numBlades);
-  ThrowErrorMsgIf(*numBlades!=3 && *numBlades!=2,"ERROR::ActuatorParsingFAST::Currently only 2 and 3 bladed turbines are supported.");
+  ThrowErrorMsgIf(
+    *numBlades != 3 && *numBlades != 2,
+    "ERROR::ActuatorParsingSimple::Currently only 2 and 3 bladed turbines are "
+    "supported.");
 
-  // TODO(psakiev) replace condition with a method
-  if(actMetaFAST.actuatorType_==2){
-    get_if_present_no_default(turbNode, "num_swept_pts", actMetaFAST.nPointsSwept_(iTurb));
-    actMetaFAST.useUniformAziSampling_(iTurb) = actMetaFAST.nPointsSwept_(iTurb) != 0;
-    ThrowErrorMsgIf(*numBlades!=3,"The ActuatorDisk model requires a base 3 bladed turbine, but a 2 bladed turbine was supplied.");
+  if (actMetaSimple.is_disk()) {
+    get_if_present_no_default(
+      turbNode, "num_swept_pts", actMetaSimple.nPointsSwept_(iTurb));
+    actMetaSimple.useUniformAziSampling_(iTurb) =
+      actMetaSimple.nPointsSwept_(iTurb) != 0;
+    ThrowErrorMsgIf(
+      *numBlades != 3, "The ActuatorDisk model requires a base 3 bladed "
+                       "turbine, but a 2 bladed turbine was supplied.");
   }
 
-  actMetaFAST.numPointsTurbine_.h_view(iTurb) =
+  actMetaSimple.numPointsTurbine_.h_view(iTurb) =
     1 // hub
     + fi.globTurbineData[iTurb].numForcePtsTwr +
-    fi.globTurbineData[iTurb].numForcePtsBlade *
-      (*numBlades);
-  actMetaFAST.numPointsTotal_+=actMetaFAST.numPointsTurbine_.h_view(iTurb);
+    fi.globTurbineData[iTurb].numForcePtsBlade * (*numBlades);
+  actMetaSimple.numPointsTotal_ += actMetaSimple.numPointsTurbine_.h_view(iTurb);
 }
 } // namespace
 
 ActuatorMetaSimple
 actuator_Simple_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
 {
-  ActuatorMetaSimple actMetaFAST(actMeta);
-  fast::fastInputs& fi = actMetaFAST.fastInputs_;
+  ActuatorMetaSimple actMetaSimple(actMeta);
+  fast::fastInputs& fi = actMetaSimple.fastInputs_;
   fi.comm = NaluEnv::self().parallel_comm();
-  fi.nTurbinesGlob = actMetaFAST.numberOfActuators_;
-
-
+  fi.nTurbinesGlob = actMetaSimple.numberOfActuators_;
 
   const YAML::Node y_actuator = y_node["actuator"];
   ThrowErrorMsgIf(
     !y_actuator, "actuator argument is "
                  "missing from yaml node passed to actuator_FAST_parse");
   if (fi.nTurbinesGlob > 0) {
-    get_if_present(y_actuator, "dry_run", fi.dryRun, false);
+    fi.dryRun = false;
     get_if_present(y_actuator, "debug", fi.debug, false);
     get_required(y_actuator, "t_start", fi.tStart);
     std::string simStartType = "na";
@@ -124,17 +132,21 @@ actuator_Simple_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
           y_actuator["Turbine" + std::to_string(iTurb)];
 
         get_required(
-          cur_turbine, "turbine_name", actMetaFAST.turbineNames_[iTurb]);
+          cur_turbine, "turbine_name", actMetaSimple.turbineNames_[iTurb]);
 
         std::string turbFileName;
         get_if_present(
           cur_turbine, "file_to_dump_turb_pts",
-          actMetaFAST.turbineOutputFileNames_[iTurb]);
+          actMetaSimple.turbineOutputFileNames_[iTurb]);
 
         get_if_present_no_default(
           cur_turbine, "fllt_correction",
-          actMetaFAST.filterLiftLineCorrection_);
+          actMetaSimple.filterLiftLineCorrection_);
 
+        ThrowErrorMsgIf(
+          actMetaSimple.filterLiftLineCorrection_,
+          "Filtered lifting line correction has not been implemented in the NGP"
+          " actuator models yet.  Please use ActLineFAST instead.");
         // The value epsilon / chord [non-dimensional]
         // This is a vector containing the values for:
         //   - chord aligned (x),
@@ -147,7 +159,7 @@ actuator_Simple_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
             "epsilon and epsilon_chord have both been specified for Turbine " +
             std::to_string(iTurb) + "\nYou must pick one or the other.");
         }
-        if (epsilon && actMetaFAST.filterLiftLineCorrection_) {
+        if (epsilon && actMetaSimple.filterLiftLineCorrection_) {
           throw std::runtime_error(
             "epsilon and fllt_correction have both been specified for "
             "Turbine " +
@@ -156,48 +168,60 @@ actuator_Simple_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
             "fllt_correction.");
         }
 
-        // If epsilon/chord is given, store it,
-        // If it is not given, set it to zero, such
-        // that it is smaller than the standard epsilon and
-        // will not be used
         std::vector<double> epsilonTemp(3);
-        if (epsilon_chord) {
-          // epsilon / chord
-          epsilonTemp = epsilon_chord.as<std::vector<double>>();
+        if (
+          actMeta.actuatorType_ == ActuatorType::ActLineFASTNGP ||
+          actMeta.actuatorType_ == ActuatorType::ActDiskFASTNGP) {
+          // only require epsilon
+          if (epsilon.Type() == YAML::NodeType::Scalar) {
+            double isotropicEpsilon;
+            get_required(cur_turbine, "epsilon", isotropicEpsilon);
+            actMetaSimple.isotropicGaussian_ = true;
+            for (int j = 0; j < 3; j++) {
+              actMetaSimple.epsilon_.h_view(iTurb, j) = isotropicEpsilon;
+            }
+          } else {
+            get_required(cur_turbine, "epsilon", epsilonTemp);
+            for (int j = 0; j < 3; j++) {
+              actMetaSimple.epsilon_.h_view(iTurb, j) = epsilonTemp[j];
+            }
+            if (
+              epsilonTemp[0] == epsilonTemp[1] &&
+              epsilonTemp[1] == epsilonTemp[2]) {
+              actMetaSimple.isotropicGaussian_ = true;
+            } else if (actMeta.actuatorType_ == ActuatorType::ActDiskFASTNGP) {
+              throw std::runtime_error("ActDiskFASTNGP does not currently "
+                                       "support anisotropic epsilons.");
+            }
+          }
+          // single value epsilon
+          // multi value epsilon
+        } else if (actMeta.actuatorType_ == ActuatorType::AdvActLineFASTNGP) {
+          // require epsilon chord and epsilon min
+          get_required(cur_turbine, "epsilon_chord", epsilonTemp);
           for (int j = 0; j < 3; j++) {
-            if(epsilonTemp[0]<=0.0){
+            if (epsilonTemp[j] <= 0.0) {
               throw std::runtime_error(
                 "ERROR:: zero value for epsilon_chord detected. "
                 "All epsilon components must be greater than zero");
             }
-            actMetaFAST.epsilonChord_.h_view(iTurb, j) = epsilonTemp[j];
+            actMetaSimple.epsilonChord_.h_view(iTurb, j) = epsilonTemp[j];
           }
 
           // Minimum epsilon allowed in simulation. This is required when
           //   specifying epsilon/chord
           get_required(cur_turbine, "epsilon_min", epsilonTemp);
           for (int j = 0; j < 3; j++) {
-            if(epsilonTemp[0]<=0.0){
-              throw std::runtime_error(
-                "ERROR:: zero value for epsilon_min detected. "
-                "All epsilon components must be greater than zero");
-            }
-            actMetaFAST.epsilon_.h_view(iTurb, j) = epsilonTemp[j];
+            actMetaSimple.epsilon_.h_view(iTurb, j) = epsilonTemp[j];
           }
         }
-        // Set all unused epsilon values to zero
-        else if (epsilon) {
-          epsilonTemp = epsilon.as<std::vector<double>>();
-          for (int j = 0; j < 3; j++) {
-            if(epsilonTemp[0]<=0.0){
-              throw std::runtime_error(
-                "ERROR:: zero value for epsilon detected. "
-                "All epsilon components must be greater than zero");
-            }
-            actMetaFAST.epsilon_.h_view(iTurb, j) = epsilonTemp[j];
+        // check epsilon values
+        for (int j = 0; j < 3; j++) {
+          if (actMetaSimple.epsilon_.h_view(iTurb, j) <= 0.0) {
+            throw std::runtime_error(
+              "ERROR:: zero value for epsilon detected. "
+              "All epsilon components must be greater than zero");
           }
-        } else {
-          throw std::runtime_error("ActuatorFAST: lacking epsilon vector");
         }
 
         // An epsilon value used for the tower
@@ -207,16 +231,16 @@ actuator_Simple_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
         if (epsilon_tower) {
           epsilonTemp = epsilon_tower.as<std::vector<double>>();
           for (int j = 0; j < 3; j++) {
-            actMetaFAST.epsilonTower_.h_view(iTurb, j) = epsilonTemp[j];
+            actMetaSimple.epsilonTower_.h_view(iTurb, j) = epsilonTemp[j];
           }
         } else {
           for (int j = 0; j < 3; j++) {
-            actMetaFAST.epsilonTower_.h_view(iTurb, j) =
-              actMetaFAST.epsilon_.h_view(iTurb, j);
+            actMetaSimple.epsilonTower_.h_view(iTurb, j) =
+              actMetaSimple.epsilon_.h_view(iTurb, j);
           }
         }
 
-        readTurbineData(iTurb, actMetaFAST, cur_turbine);
+        readTurbineData(iTurb, actMetaSimple, cur_turbine);
       } else {
         throw std::runtime_error(
           "Node for Turbine" + std::to_string(iTurb) +
@@ -227,7 +251,7 @@ actuator_Simple_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
   } else {
     throw std::runtime_error("Number of turbines <= 0 ");
   }
-  return actMetaFAST;
+  return actMetaSimple;
 }
 
 } // namespace nalu
