@@ -74,6 +74,8 @@
 #include <actuator/Actuator.h>
 #include <actuator/ActuatorParsing.h>
 #include <actuator/ActuatorBulk.h>
+#include <actuator/ActuatorLineSimple.h>
+
 #ifdef NALU_USES_OPENFAST
 #include <actuator/ActuatorLineFAST.h>
 #include <actuator/ActuatorDiskFAST.h>

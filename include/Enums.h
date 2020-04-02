@@ -259,6 +259,7 @@ enum ActuatorType {
   AdvActLineFASTNGP = 3,
   ActDiskFAST = 4,
   ActDiskFASTNGP = 5,
+  ActLineSimple = 6,
   ActuatorType_END
 };
 
@@ -266,6 +267,7 @@ static std::map<std::string, ActuatorType> ActuatorTypeMap = {
   {"ActLinePointDrag", ActuatorType::ActLinePointDrag},
   {"ActLineFAST", ActuatorType::ActLineFAST},
   {"ActDiskFAST", ActuatorType::ActDiskFAST},
+  {"ActLineSimple",ActuatorType::ActLineSimple},
   {"ActLineFASTNGP", ActuatorType::ActLineFASTNGP},
   {"AdvActLineFASTNGP", ActuatorType::AdvActLineFASTNGP},
   {"ActDiskFASTNGP", ActuatorType::ActDiskFASTNGP}};
