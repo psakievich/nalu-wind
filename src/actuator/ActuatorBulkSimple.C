@@ -27,7 +27,14 @@ ActuatorMetaSimple::ActuatorMetaSimple(const ActuatorMeta& actMeta)
     useUniformAziSampling_(
       "diskUseUniSample", is_disk() ? numberOfActuators_ : 0),
     nPointsSwept_("diskNumSwept", is_disk() ? numberOfActuators_ : 0),
-    nBlades_("numTurbBlades", numberOfActuators_)
+    nBlades_("numTurbBlades", numberOfActuators_),
+    num_force_pts_blade_("numForcePtsBladeMeta", numberOfActuators_),
+    p1_("p1Meta", numberOfActuators_),
+    p2_("p2Meta", numberOfActuators_),
+    p1zeroalphadir_("p1zeroalphadirMeta", numberOfActuators_),
+    chordnormaldir_("chordnormaldirMeta", numberOfActuators_),
+    spandir_("spandirMeta", numberOfActuators_)
+
 {
 }
 
@@ -110,7 +117,7 @@ ActuatorBulkSimple::init_openfast(
     openFast_.init();
   }
   else{
-    squash_fast_output(std::bind(&fast::OpenFAST::init, &openFast_));
+    squash_simple_output(std::bind(&fast::OpenFAST::init, &openFast_));
   }
 
   for (int i = 0; i < nTurb; ++i) {
@@ -255,7 +262,7 @@ ActuatorBulkSimple::interpolate_velocities_to_fast()
       openFast_.solution0();
     }
     else{
-      squash_fast_output(std::bind(&fast::OpenFAST::solution0, &openFast_));
+      squash_simple_output(std::bind(&fast::OpenFAST::solution0, &openFast_));
     }
   }
 }
@@ -270,7 +277,7 @@ ActuatorBulkSimple::step_fast()
   }
   else{
     for (int j = 0; j < tStepRatio_; j++) {
-      squash_fast_output(std::bind(&fast::OpenFAST::step, &openFast_));
+      squash_simple_output(std::bind(&fast::OpenFAST::step, &openFast_));
     }
   }
 }

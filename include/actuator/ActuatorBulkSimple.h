@@ -41,6 +41,26 @@ struct ActuatorMetaSimple : public ActuatorMeta
   ActFixScalarBool useUniformAziSampling_;
   ActFixScalarInt nPointsSwept_;
   ActFixScalarInt nBlades_;
+
+  // Stuff for the simple blade
+  bool debug_output_;
+  std::size_t n_simpleblades_;
+  ActScalarIntDv num_force_pts_blade_;
+  ActVectorDblDv  p1_;  // Start of blade
+  ActVectorDblDv  p2_;  // End of blade
+  ActVectorDblDv  p1zeroalphadir_;         // Directon of zero alpha at p1
+  ActVectorDblDv  chordnormaldir_;         // Direction normal to chord
+  ActVectorDblDv  spandir_;                // Direction in the span
+  // for the blade definitions
+  std::vector<std::vector<double>> chord_table_;
+  std::vector<std::vector<double>> twist_table_;
+  std::vector<std::vector<double>> elem_area_;
+  // for the polars
+  std::vector<std::vector<double>> aoa_polartable_;
+  std::vector<std::vector<double>> cl_polartable_;
+  std::vector<std::vector<double>> cd_polartable_;
+
+
 };
 
 struct ActuatorBulkSimple : public ActuatorBulk
@@ -67,6 +87,8 @@ struct ActuatorBulkSimple : public ActuatorBulk
   ActVectorDblDv epsilonOpt_;
   ActTensorDblDv orientationTensor_;
 
+  // Stuff for simple blade
+
   // TODO(SAKIEVICH) this kill lambdas that are pass by value (KOKKOS_LAMBDA)
   // may need to rethink functor/bulk design.  Perhaps have an internal object
   // in bulk for gpu data and pass that into the actuatorFunctors.
@@ -79,7 +101,7 @@ struct ActuatorBulkSimple : public ActuatorBulk
 // helper functions to
 // squash calls to std::cout from TPL's aka OpenFAST
 inline
-void squash_fast_output(std::function<void()>func)
+void squash_simple_output(std::function<void()>func)
 {
   std::stringstream buffer;
   std::streambuf* sHoldCout = std::cout.rdbuf();

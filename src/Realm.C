@@ -75,6 +75,8 @@
 #include <actuator/ActuatorParsing.h>
 #include <actuator/ActuatorBulk.h>
 #include <actuator/ActuatorLineSimple.h>
+#include <actuator/ActuatorBulkSimple.h>
+#include <actuator/ActuatorParsingSimple.h>
 
 #ifdef NALU_USES_OPENFAST
 #include <actuator/ActuatorLineFAST.h>
@@ -666,6 +668,11 @@ Realm::look_ahead_and_creation(const YAML::Node & node)
       }
       case ActuatorType::ActLineSimple : {
 	actuator_ =  new ActuatorLineSimple(*this, *foundActuator[0]);
+	break;
+      }
+      case ActuatorType::ActLineSimpleNGP:{
+	actuatorMetaSimple_ = std::make_shared<ActuatorMetaSimple>(actuator_Simple_parse(node, actMeta));
+	//actuatorMeta_ = std::make_shared<ActuatorMetaFAST>(actuator_Simple_parse(node, actMeta));
 	break;
       }
       default : {
