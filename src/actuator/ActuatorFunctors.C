@@ -100,6 +100,13 @@ SpreadForceInnerLoop::operator()(
   for (int j = 0; j < 3; j++) {
     sourceTerm[j] += projectedForce[j] * scvIp / dual_vol;
   }
+
+  // NaluEnv::self().naluOutput()  // LCCOUT
+  //   << " spreadforce pt: "
+  //   <<nodeCoords[0]<<" "<<nodeCoords[1]<<" "<<nodeCoords[2]<<" "
+  //   <<distance[0]<<" "<<distance[1]<<" "<<distance[2]
+  //   //    <<projectedForce[0]<<" "<<projectedForce[1]<<" "<<projectedForce[2]
+  //   <<std::endl;
 }
 
 } /* namespace nalu */

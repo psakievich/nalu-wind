@@ -77,6 +77,7 @@
 #include <actuator/ActuatorLineSimple.h>
 #include <actuator/ActuatorBulkSimple.h>
 #include <actuator/ActuatorParsingSimple.h>
+#include <actuator/ActuatorExecutorsSimpleNgp.h>
 
 #ifdef NALU_USES_OPENFAST
 #include <actuator/ActuatorLineFAST.h>
@@ -1070,6 +1071,14 @@ Realm::setup_post_processing_algorithms()
         ThrowErrorMsg("Unsupported actuator type");
       }
     }
+  }
+
+  // For simple fixed wing problem
+  if (NULL != actuatorMetaSimple_)
+  {
+    NaluEnv::self().naluOutputP0() << "Initializing actuatorBulkSimple_"<< std::endl; // LCCOUT  
+    actuatorBulkSimple_ = make_unique<ActuatorBulkSimple>(*actuatorMetaSimple_.get(),
+                          get_time_step_from_file());
   }
 
   // check for norm nodal fields
@@ -2069,6 +2078,17 @@ Realm::advance_time_step()
     }
   }
 #endif
+
+  // check for simple actuator line; assemble the source terms for this step
+  if ( NULL != actuatorBulkSimple_ ) {
+    if(actuatorMetaSimple_->actuatorType_==ActuatorType::ActLineSimpleNGP){
+      ActuatorLineSimpleNGP(*actuatorMetaSimple_.get(),
+        *actuatorBulkSimple_.get(),
+        bulk_data())();
+      //throw std::runtime_error("ActuatorLineSimpleNGP: start");  // LCCSTOP
+    }
+  }
+
   // Check for ABL forcing; estimate source terms for this time step
   if ( NULL != ablForcingAlg_) {
     ablForcingAlg_->execute();

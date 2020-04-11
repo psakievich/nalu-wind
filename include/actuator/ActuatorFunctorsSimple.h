@@ -13,22 +13,63 @@
 #include <actuator/ActuatorTypes.h>
 #include <actuator/ActuatorBulkSimple.h>
 #include <actuator/ActuatorFunctors.h>
+#include <NaluParsedTypes.h>
 #include <NaluEnv.h>
 
 namespace sierra {
 namespace nalu {
 
+  struct InterpActuatorDensity
+  {
+    using execution_space = ActuatorFixedExecutionSpace;
+
+    InterpActuatorDensity(ActuatorBulk& actBulk, stk::mesh::BulkData& stkBulk);
+
+    void operator()(int index) const;
+
+    ActuatorBulk& actBulk_;
+    stk::mesh::BulkData& stkBulk_;
+    VectorFieldType* coordinates_;
+    ScalarFieldType* density_;
+  };
+
+  // Things to calculate lift, drag, and AOA based on 2D airfoil theory
+  namespace AirfoilTheory2D {
+  void calculate_alpha(
+    Coordinates ws, 
+    Coordinates zeroalphadir, 
+    Coordinates spandir,
+    Coordinates chordnormaldir, 
+    double twist, 
+    Coordinates &ws2D, 
+    double &alpha);
+
+  void calculate_cl_cd(
+    double alpha,
+    std::vector<double> aoatable,
+    std::vector<double> cltable,
+    std::vector<double> cdtable,
+    double &cl,
+    double &cd);
+  }
+
 struct ActSimpleUpdatePoints
 {
   using execution_space = ActuatorFixedExecutionSpace;
 
-  ActSimpleUpdatePoints(ActuatorBulkSimple& actBulk);
+  ActSimpleUpdatePoints(ActuatorBulkSimple& actBulk, 
+			std::vector<double> p1,
+			std::vector<double> p2,
+			int numpoints);
   void operator()(int index) const;
 
   ActDualViewHelper<ActuatorFixedMemSpace> helper_;
   ActFixVectorDbl points_;
   ActFixScalarInt offsets_;
   const int turbId_;
+  const int numpoints_;
+  std::vector<double> p1_;
+  std::vector<double> p2_;
   fast::OpenFAST& fast_;
 };
 
@@ -41,8 +82,13 @@ struct ActSimpleAssignVel
 
   ActDualViewHelper<ActuatorFixedMemSpace> helper_;
   ActFixVectorDbl velocity_;
+  ActFixScalarDbl density_;
+  ActFixVectorDbl points_;
   ActFixScalarInt offset_;
+  const int debug_output_;
   const int turbId_;
+  std::vector<double> p1_;
+  std::vector<double> p2_;
   fast::OpenFAST& fast_;
 };
 
@@ -50,13 +96,26 @@ struct ActSimpleComputeForce
 {
   using execution_space = ActuatorFixedExecutionSpace;
 
-  ActSimpleComputeForce(ActuatorBulkSimple& actBulk);
+  ActSimpleComputeForce(ActuatorBulkSimple& actBulk, 
+			const ActuatorMetaSimple& actMeta);
   void operator()(int index) const;
 
   ActDualViewHelper<ActuatorFixedMemSpace> helper_;
+  ActFixVectorDbl velocity_;
+  ActFixScalarDbl density_;
   ActFixVectorDbl force_;
   ActFixScalarInt offset_;
   const int turbId_;
+  std::vector<double> aoatable_;
+  std::vector<double> cltable_;
+  std::vector<double> cdtable_;
+  std::vector<double> twist_table_;
+  std::vector<double> elem_area_;
+  Coordinates p1zeroalphadir_;         // Directon of zero alpha at p1
+  Coordinates chordnormaldir_;         // Direction normal to chord
+  Coordinates spandir_;                // Direction in the span
+  const int debug_output_;
+
   fast::OpenFAST& fast_;
 };
 

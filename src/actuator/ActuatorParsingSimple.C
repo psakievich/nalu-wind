@@ -121,6 +121,7 @@ actuator_Simple_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
   actMetaSimple.n_simpleblades_ =  n_simpleblades_;
   NaluEnv::self().naluOutputP0() << "N blade: " << actMetaSimple.n_simpleblades_<< std::endl; //LCCOUT
   if (actMetaSimple.n_simpleblades_ > 0) {
+    actMetaSimple.numPointsTotal_ = 0;
     for (int iBlade= 0; iBlade < n_simpleblades_; iBlade++) {
       //NaluEnv::self().naluOutputP0() << "Reading blade: " << iBlade<< std::endl; //LCCOUT
       const YAML::Node cur_blade =
@@ -130,6 +131,7 @@ actuator_Simple_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
       get_required(cur_blade, "num_force_pts_blade", num_force_pts_blade);
       actMetaSimple.num_force_pts_blade_.h_view(iBlade) = num_force_pts_blade;
       actMetaSimple.numPointsTurbine_.h_view(iBlade)    = num_force_pts_blade;
+      actMetaSimple.numPointsTotal_                    += num_force_pts_blade;
 
       if (actMetaSimple.debug_output_)
 	NaluEnv::self().naluOutputP0() 
@@ -246,7 +248,9 @@ actuator_Simple_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
 	chordtemp = chord_table.as<std::vector<double>>();
       else 
 	throw std::runtime_error("ActuatorSimpleNGP: missing chord_table");
-      actMetaSimple.chord_table_.push_back(extend_double_vector(chordtemp, num_force_pts_blade)); 
+      std::vector<double> chord_table_extended = 
+	extend_double_vector(chordtemp, num_force_pts_blade);
+      actMetaSimple.chord_table_.push_back(chord_table_extended); 
 
       // twist definitions
       const YAML::Node twist_table = cur_blade["twist_table"];
@@ -256,6 +260,16 @@ actuator_Simple_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
       else
 	throw std::runtime_error("ActuatorSimpleNGP: missing twist_table");
       actMetaSimple.twist_table_.push_back(extend_double_vector(twisttemp, num_force_pts_blade)); 
+
+      // Calculate elem areas
+      std::vector<double> elemareatemp(num_force_pts_blade, 0.0);
+      std::vector<double> dx(3,0.0);
+      for (int i=0; i<3; i++) 
+	dx[i] = (p2Temp[i] - p1Temp[i])/(double)num_force_pts_blade;
+      double dx_norm = sqrt(dx[0]*dx[0] + dx[1]*dx[1] + dx[2]*dx[2]);
+      for (int i=0; i<num_force_pts_blade; i++)
+	elemareatemp[i] = dx_norm*chord_table_extended[i];
+      actMetaSimple.elem_area_.push_back(elemareatemp);
 
       // Polar tables
       // --- aoa ---
@@ -292,7 +306,10 @@ actuator_Simple_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
       throw std::runtime_error("Number of simple blades <= 0 ");
   }
 
-  throw std::runtime_error("ActuatorSimple: loading blades");
+  NaluEnv::self().naluOutputP0() << " actMetaSimple.numPointsTotal_ = "
+		      << actMetaSimple.numPointsTotal_<< std::endl; // LCCOUT
+  NaluEnv::self().naluOutputP0() << "Done actuator_Simple_parse()"<< std::endl; // LCCOUT
+  //throw std::runtime_error("ActuatorSimple: loading blades");
   // ---vvv--- FAST STUFF TO DELETE ---vvvv---
   bool INCLUDEFASTSTUFF=false;
   if (INCLUDEFASTSTUFF) {

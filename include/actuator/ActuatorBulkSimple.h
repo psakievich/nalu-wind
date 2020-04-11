@@ -45,7 +45,7 @@ struct ActuatorMetaSimple : public ActuatorMeta
   // Stuff for the simple blade
   bool debug_output_;
   std::size_t n_simpleblades_;
-  ActScalarIntDv num_force_pts_blade_;
+  ActScalarIntDv  num_force_pts_blade_;
   ActVectorDblDv  p1_;  // Start of blade
   ActVectorDblDv  p2_;  // End of blade
   ActVectorDblDv  p1zeroalphadir_;         // Directon of zero alpha at p1
@@ -88,6 +88,10 @@ struct ActuatorBulkSimple : public ActuatorBulk
   ActTensorDblDv orientationTensor_;
 
   // Stuff for simple blade
+  ActScalarIntDv  num_force_pts_blade_;
+  ActScalarIntDv  assignedProc_;
+  const int       num_blades_;
+  const bool      debug_output_;
 
   // TODO(SAKIEVICH) this kill lambdas that are pass by value (KOKKOS_LAMBDA)
   // may need to rethink functor/bulk design.  Perhaps have an internal object
