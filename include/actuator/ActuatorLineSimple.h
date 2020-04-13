@@ -20,9 +20,6 @@
 #include <stk_util/parallel/ParallelVectorConcat.hpp>
 #include "ActuatorSimple.h"
 
-// OpenFAST C++ API
-// #include "OpenFAST.H" //LCCDELETE
-
 namespace sierra {
 namespace nalu {
 

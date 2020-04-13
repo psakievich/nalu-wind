@@ -38,15 +38,6 @@ ActuatorMetaSimple::ActuatorMetaSimple(const ActuatorMeta& actMeta)
 {
 }
 
-  /* // LCCDELETE
-int
-ActuatorMetaSimple::get_fast_index(
-  fast::ActuatorNodeType type, int turbId, int index, int bladeNum) const
-{
-  return actuator_utils::get_fast_point_index(
-    fastInputs_, turbId, nBlades_(turbId), type, index, bladeNum);
-}
-  */
 
 bool
 ActuatorMetaSimple::is_disk()
@@ -73,7 +64,6 @@ ActuatorBulkSimple::ActuatorBulkSimple(
       NaluEnv::self().parallel_rank() >= actMeta.numberOfActuators_
         ? -1
       : NaluEnv::self().parallel_rank()) // assign 1 turbine per rank for now Used to be ? -1
-  //tStepRatio_(naluTimeStep / actMeta.fastInputs_.dtFAST) // LCCDELETE
 {
   //init_openfast(actMeta, naluTimeStep);
   // Allocate blades to turbines
@@ -100,15 +90,6 @@ ActuatorBulkSimple::ActuatorBulkSimple(
 
   }
 
-  /*
-  for (int i = 0; i < intDivision; i++) {
-    for (int j = 0; j < nProcs; j++) {
-      NaluEnv::self().naluOutputP0() << " Turbine#: " << j + i * nProcs
-				     << " Proc#: " << j <<std::endl;
-    }
-  }
-  */
-  
 
   // Set up num_force_pts_blade_
   for (int i = 0; i <actMeta.numberOfActuators_; ++i) {
@@ -126,72 +107,10 @@ ActuatorBulkSimple::ActuatorBulkSimple(
   init_epsilon(actMeta);
   NaluEnv::self().naluOutputP0() << "Done ActuatorBulkSimple Init "
 				 << std::endl; // LCCOUT
-  // throw std::runtime_error("ActuatorBulkSimple: start");  // LCCSTOP
 }
 
 ActuatorBulkSimple::~ActuatorBulkSimple() { 
-  // openFast_.end();  // LCCDELETE
 }
-  /*  
-void
-ActuatorBulkSimple::init_openfast(
-  const ActuatorMetaSimple& actMeta, double naluTimeStep)
-{
-  // openFast_.setInputs(actMeta.fastInputs_); //LCCDELETE
-
-  //LCCDELETE
-  if (
-    std::abs(naluTimeStep - tStepRatio_ * actMeta.fastInputs_.dtFAST) <
-    0.001) { // TODO: Fix
-    // arbitrary number
-    // 0.001
-    NaluEnv::self().naluOutputP0()
-      << "Time step ratio  dtNalu/dtFAST: " << tStepRatio_ << std::endl;
-  } else {
-    throw std::runtime_error("ActuatorFAST: Ratio of Nalu's time step is not "
-                             "an integral multiple of FAST time step");
-  }
-
-  const int nProcs = NaluEnv::self().parallel_size();
-  const int nTurb = actMeta.numberOfActuators_;
-  const int intDivision = nTurb / nProcs;
-  const int remainder = actMeta.numberOfActuators_ % nProcs;
-  const int nOffset = intDivision * nProcs;
-
-  ThrowErrorMsgIf(
-    remainder && intDivision,
-    "nalu-wind can't process more turbines than ranks.");
-
-  // assign turbines to processors uniformly
-  for (int i = 0; i < intDivision; i++) {
-    for (int j = 0; j < nProcs; j++) {
-      openFast_.setTurbineProcNo(j + i * nProcs, j);
-    }
-  }
-  //LCCDELETE
-  for (int i = 0; i < remainder; i++) {
-    openFast_.setTurbineProcNo(i + nOffset, i);
-  }
-
-  if(actMeta.fastInputs_.debug){
-    openFast_.init();
-  }
-  else{
-    squash_simple_output(std::bind(&fast::OpenFAST::init, &openFast_));
-  }
-  
-  for (int i = 0; i < nTurb; ++i) {
-    if (localTurbineId_ == openFast_.get_procNo(i)) {
-      ThrowErrorMsgIf(
-        actMeta.nBlades_(i) != openFast_.get_numBlades(i),
-        "Mismatch in number of blades between OpenFAST and input deck."
-        " InputDeck: " +
-          std::to_string(actMeta.nBlades_(i)) +
-          " OpenFAST: " + std::to_string(openFast_.get_numBlades(i)));
-    }
-  }
-}
-  */  //LCCDELETE
 
 void
 ActuatorBulkSimple::init_epsilon(const ActuatorMetaSimple& actMeta)
@@ -238,101 +157,6 @@ ActuatorBulkSimple::init_epsilon(const ActuatorMetaSimple& actMeta)
     }
   } // loop over iBlade
 
-  // DELETE THIS STUFF LATER
-  /*
-  bool INCLUDEFASTSTUFF=false;
-  if (INCLUDEFASTSTUFF) {
-  const int nTurb = openFast_.get_nTurbinesGlob();
-  for (int iTurb = 0; iTurb < nTurb; iTurb++) {
-    if (openFast_.get_procNo(iTurb) == NaluEnv::self().parallel_rank()) {
-      ThrowAssert(actMeta.numPointsTotal_ >= openFast_.get_numForcePts(iTurb));
-      const int numForcePts = openFast_.get_numForcePts(iTurb);
-      const int offset = turbIdOffset_.h_view(iTurb);
-      auto epsilonChord =
-        Kokkos::subview(actMeta.epsilonChord_.view_host(), iTurb, Kokkos::ALL);
-      auto epsilonRef =
-        Kokkos::subview(actMeta.epsilon_.view_host(), iTurb, Kokkos::ALL);
-      auto epsilonTower =
-        Kokkos::subview(actMeta.epsilonTower_.view_host(), iTurb, Kokkos::ALL);
-
-      for (int np = 0; np < numForcePts; np++) {
-
-        auto epsilonLocal =
-          Kokkos::subview(epsilon_.view_host(), np + offset, Kokkos::ALL);
-        auto epsilonOpt =
-          Kokkos::subview(epsilonOpt_.view_host(), np + offset, Kokkos::ALL);
-
-        switch (openFast_.getForceNodeType(iTurb, np)) {
-        case fast::HUB: {
-          float nac_cd = openFast_.get_nacelleCd(iTurb);
-          // Compute epsilon only if drag coefficient is greater than zero
-          if (nac_cd > 0) {
-            float nac_area = openFast_.get_nacelleArea(iTurb);
-
-            // This model is used to set the momentum thickness
-            // of the wake (Martinez-Tossas PhD Thesis 2017)
-            float tmpEps = std::sqrt(2.0 / M_PI * nac_cd * nac_area);
-            for (int i = 0; i < 3; i++) {
-              epsilonLocal(i) = tmpEps;
-            }
-          }
-          // If no nacelle force just specify the standard value
-          // (it will not be used)
-          else {
-            for (int i = 0; i < 3; i++) {
-              epsilonLocal(i) = epsilonRef(i);
-            }
-          }
-          for (int i = 0; i < 3; i++) {
-            epsilonOpt(i) = epsilonLocal(i);
-          }
-          break;
-        }
-        case fast::BLADE: {
-          double chord = openFast_.getChord(np, iTurb);
-          for (int i = 0; i < 3; i++) {
-            // Define the optimal epsilon
-            epsilonOpt(i) = epsilonChord(i) * chord;
-            epsilonLocal(i) = std::max(epsilonOpt(i), epsilonRef(i));
-          }
-          break;
-        }
-        case fast::TOWER: {
-          for (int i = 0; i < 3; i++) {
-            epsilonLocal(i) = epsilonTower(i);
-            epsilonOpt(i) = epsilonLocal(i);
-          }
-          break;
-        }
-        default:
-          throw std::runtime_error("Actuator line model node type not valid");
-          break;
-        }
-
-        for (int i = 0; i < 3; ++i) {
-          ThrowAssertMsg(
-            epsilonLocal(i) > 0.0,
-            "Epsilon zero for point: " + std::to_string(np) + " index " +
-              std::to_string(i));
-        }
-
-        // The radius of the searching. This is given in terms of
-        //   the maximum of epsilon.x/y/z/.
-        //
-        // This is the length where the value of the Gaussian becomes
-        // 0.1 % (1.0 / .001 = 1000) of the value at the center of the Gaussian
-        searchRadius_.h_view(np + offset) =
-          std::max(
-            epsilonLocal(0), std::max(epsilonLocal(1), epsilonLocal(2))) *
-          sqrt(log(1.e3));
-      }
-    } else {
-      NaluEnv::self().naluOutput() << "Proc " << NaluEnv::self().parallel_rank()
-                                   << " glob iTurb " << iTurb << std::endl;
-    }
-  }
-  } // INCLUDEFASTSTUFF
-  */
   actuator_utils::reduce_view_on_host(epsilon_.view_host());
   actuator_utils::reduce_view_on_host(epsilonOpt_.view_host());
   actuator_utils::reduce_view_on_host(searchRadius_.view_host());
@@ -345,10 +169,9 @@ Kokkos::RangePolicy<ActuatorFixedExecutionSpace>
 ActuatorBulkSimple::local_range_policy()
 {
   auto rank = NaluEnv::self().parallel_rank();
-  //if (rank == openFast_.get_procNo(rank)) { //LCCDELETE
   if (rank < num_blades_) {
     const int offset = turbIdOffset_.h_view(rank);
-    const int size = num_force_pts_blade_.h_view(rank); //openFast_.get_numForcePts(rank);
+    const int size   = num_force_pts_blade_.h_view(rank); 
     return Kokkos::RangePolicy<ActuatorFixedExecutionSpace>(
       offset, offset + size);
   } else {
@@ -356,53 +179,6 @@ ActuatorBulkSimple::local_range_policy()
   }
 }
 
-  //LCCDELETE
-  /*
-void
-ActuatorBulkSimple::interpolate_velocities_to_fast()
-{
-  openFast_.interpolateVel_ForceToVelNodes();
-
-  if (openFast_.isTimeZero()) {
-    if(openFast_.isDebug()){
-      openFast_.solution0();
-    }
-    else{
-      squash_simple_output(std::bind(&fast::OpenFAST::solution0, &openFast_));
-    }
-  }
-}
-  */  //LCCDELETE
-
-/*  //LCCDELETE
-void
-ActuatorBulkSimple::step_fast()
-{
-  if(openFast_.isDebug()){
-    for (int j = 0; j < tStepRatio_; j++) {
-      openFast_.step();
-    }
-  }
-  else{
-    for (int j = 0; j < tStepRatio_; j++) {
-      squash_simple_output(std::bind(&fast::OpenFAST::step, &openFast_));
-    }
-  }
-}
-*/  //LCCDELETE
-
-/*  //LCCDELETE
-bool
-ActuatorBulkSimple::fast_is_time_zero()
-{
-  int localFastZero = (int)openFast_.isTimeZero();
-  int globalFastZero = 0;
-  MPI_Allreduce(
-    &localFastZero, &globalFastZero, 1, MPI_INT, MPI_SUM,
-    NaluEnv::self().parallel_comm());
-  return globalFastZero > 0;
-}
-*/  //LCCDELETE
 
 
 void
@@ -410,8 +186,6 @@ ActuatorBulkSimple::output_torque_info()
 {
   for (size_t iTurb = 0; iTurb < turbineThrust_.extent(0); iTurb++) {
 
-    //int processorId = openFast_.get_procNo(iTurb);
-    //if (NaluEnv::self().parallel_rank() == processorId) {
     if (NaluEnv::self().parallel_rank() == iTurb) {
       auto thrust = Kokkos::subview(turbineThrust_, iTurb, Kokkos::ALL);
       auto torque = Kokkos::subview(turbineTorque_, iTurb, Kokkos::ALL);
@@ -423,21 +197,6 @@ ActuatorBulkSimple::output_torque_info()
       //   << "  Torque[" << iTurb << "] = " << torque(0) << " " << torque(1)
       //   << " " << torque(2) << " " << std::endl;
 
-      /*
-      std::vector<double> tmpThrust(3);
-      std::vector<double> tmpTorque(3);
-
-      openFast_.computeTorqueThrust(iTurb, tmpTorque, tmpThrust);
-
-      NaluEnv::self().naluOutput()
-        << "  Thrust ratio actual/correct = [" << thrust(0) / tmpThrust[0]
-        << " " << thrust(1) / tmpThrust[1] << " " << thrust(2) / tmpThrust[2]
-        << "] " << std::endl;
-      NaluEnv::self().naluOutput()
-        << "  Torque ratio actual/correct = [" << torque(0) / tmpTorque[0]
-        << " " << torque(1) / tmpTorque[1] << " " << torque(2) / tmpTorque[2]
-        << "] " << std::endl;
-      */
     }
   }
 }
@@ -451,7 +210,6 @@ ActuatorBulkSimple::zero_open_fast_views()
   Kokkos::deep_copy(dvHelper_.get_local_view(actuatorForce_),0.0);
   Kokkos::deep_copy(dvHelper_.get_local_view(pointCentroid_),0.0);
   Kokkos::deep_copy(dvHelper_.get_local_view(velocity_),0.0);
-  //NaluEnv::self().naluOutput() << "Done zero_open_fast_views()"<<std::endl;//LCCOUT
      
 }
 
