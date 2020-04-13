@@ -38,6 +38,7 @@ ActuatorMetaSimple::ActuatorMetaSimple(const ActuatorMeta& actMeta)
 {
 }
 
+  /* // LCCDELETE
 int
 ActuatorMetaSimple::get_fast_index(
   fast::ActuatorNodeType type, int turbId, int index, int bladeNum) const
@@ -45,11 +46,12 @@ ActuatorMetaSimple::get_fast_index(
   return actuator_utils::get_fast_point_index(
     fastInputs_, turbId, nBlades_(turbId), type, index, bladeNum);
 }
+  */
 
 bool
 ActuatorMetaSimple::is_disk()
 {
-  return actuatorType_ == ActuatorType::ActDiskFASTNGP;
+  return false; // actuatorType_ == ActuatorType::ActDiskFASTNGP;
 }
 
 ActuatorBulkSimple::ActuatorBulkSimple(
@@ -70,8 +72,8 @@ ActuatorBulkSimple::ActuatorBulkSimple(
     localTurbineId_(// NaluEnv::self().parallel_rank()),
       NaluEnv::self().parallel_rank() >= actMeta.numberOfActuators_
         ? -1
-        : NaluEnv::self().parallel_rank()), // assign 1 turbine per rank for now Used to be ? -1
-    tStepRatio_(naluTimeStep / actMeta.fastInputs_.dtFAST)
+      : NaluEnv::self().parallel_rank()) // assign 1 turbine per rank for now Used to be ? -1
+  //tStepRatio_(naluTimeStep / actMeta.fastInputs_.dtFAST) // LCCDELETE
 {
   //init_openfast(actMeta, naluTimeStep);
   // Allocate blades to turbines
@@ -127,14 +129,17 @@ ActuatorBulkSimple::ActuatorBulkSimple(
   // throw std::runtime_error("ActuatorBulkSimple: start");  // LCCSTOP
 }
 
-ActuatorBulkSimple::~ActuatorBulkSimple() { openFast_.end(); }
-
+ActuatorBulkSimple::~ActuatorBulkSimple() { 
+  // openFast_.end();  // LCCDELETE
+}
+  /*  
 void
 ActuatorBulkSimple::init_openfast(
   const ActuatorMetaSimple& actMeta, double naluTimeStep)
 {
-  openFast_.setInputs(actMeta.fastInputs_);
+  // openFast_.setInputs(actMeta.fastInputs_); //LCCDELETE
 
+  //LCCDELETE
   if (
     std::abs(naluTimeStep - tStepRatio_ * actMeta.fastInputs_.dtFAST) <
     0.001) { // TODO: Fix
@@ -163,6 +168,7 @@ ActuatorBulkSimple::init_openfast(
       openFast_.setTurbineProcNo(j + i * nProcs, j);
     }
   }
+  //LCCDELETE
   for (int i = 0; i < remainder; i++) {
     openFast_.setTurbineProcNo(i + nOffset, i);
   }
@@ -173,7 +179,7 @@ ActuatorBulkSimple::init_openfast(
   else{
     squash_simple_output(std::bind(&fast::OpenFAST::init, &openFast_));
   }
-
+  
   for (int i = 0; i < nTurb; ++i) {
     if (localTurbineId_ == openFast_.get_procNo(i)) {
       ThrowErrorMsgIf(
@@ -185,6 +191,7 @@ ActuatorBulkSimple::init_openfast(
     }
   }
 }
+  */  //LCCDELETE
 
 void
 ActuatorBulkSimple::init_epsilon(const ActuatorMetaSimple& actMeta)
@@ -197,7 +204,7 @@ ActuatorBulkSimple::init_epsilon(const ActuatorMetaSimple& actMeta)
 
   const int nBlades = actMeta.n_simpleblades_;
   for (int iBlade = 0; iBlade<nBlades; iBlade++) {
-    // LCC Change this
+    // LCC test this for non-isotropic
     if (NaluEnv::self().parallel_rank()==assignedProc_.h_view(iBlade)) { 
       const int numForcePts = actMeta.num_force_pts_blade_.h_view(iBlade);
       const int offset = turbIdOffset_.h_view(iBlade);      
@@ -232,6 +239,7 @@ ActuatorBulkSimple::init_epsilon(const ActuatorMetaSimple& actMeta)
   } // loop over iBlade
 
   // DELETE THIS STUFF LATER
+  /*
   bool INCLUDEFASTSTUFF=false;
   if (INCLUDEFASTSTUFF) {
   const int nTurb = openFast_.get_nTurbinesGlob();
@@ -324,6 +332,7 @@ ActuatorBulkSimple::init_epsilon(const ActuatorMetaSimple& actMeta)
     }
   }
   } // INCLUDEFASTSTUFF
+  */
   actuator_utils::reduce_view_on_host(epsilon_.view_host());
   actuator_utils::reduce_view_on_host(epsilonOpt_.view_host());
   actuator_utils::reduce_view_on_host(searchRadius_.view_host());
@@ -336,7 +345,7 @@ Kokkos::RangePolicy<ActuatorFixedExecutionSpace>
 ActuatorBulkSimple::local_range_policy()
 {
   auto rank = NaluEnv::self().parallel_rank();
-  //if (rank == openFast_.get_procNo(rank)) {
+  //if (rank == openFast_.get_procNo(rank)) { //LCCDELETE
   if (rank < num_blades_) {
     const int offset = turbIdOffset_.h_view(rank);
     const int size = num_force_pts_blade_.h_view(rank); //openFast_.get_numForcePts(rank);
@@ -347,6 +356,8 @@ ActuatorBulkSimple::local_range_policy()
   }
 }
 
+  //LCCDELETE
+  /*
 void
 ActuatorBulkSimple::interpolate_velocities_to_fast()
 {
@@ -361,7 +372,9 @@ ActuatorBulkSimple::interpolate_velocities_to_fast()
     }
   }
 }
+  */  //LCCDELETE
 
+/*  //LCCDELETE
 void
 ActuatorBulkSimple::step_fast()
 {
@@ -376,7 +389,9 @@ ActuatorBulkSimple::step_fast()
     }
   }
 }
+*/  //LCCDELETE
 
+/*  //LCCDELETE
 bool
 ActuatorBulkSimple::fast_is_time_zero()
 {
@@ -387,6 +402,8 @@ ActuatorBulkSimple::fast_is_time_zero()
     NaluEnv::self().parallel_comm());
   return globalFastZero > 0;
 }
+*/  //LCCDELETE
+
 
 void
 ActuatorBulkSimple::output_torque_info()

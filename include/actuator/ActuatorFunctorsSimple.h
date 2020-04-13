@@ -70,7 +70,7 @@ struct ActSimpleUpdatePoints
   const int numpoints_;
   std::vector<double> p1_;
   std::vector<double> p2_;
-  fast::OpenFAST& fast_;
+  // fast::OpenFAST& fast_; //LCCDELETE
 };
 
 struct ActSimpleAssignVel
@@ -89,7 +89,7 @@ struct ActSimpleAssignVel
   const int turbId_;
   std::vector<double> p1_;
   std::vector<double> p2_;
-  fast::OpenFAST& fast_;
+  // fast::OpenFAST& fast_; //LCCDELETE
 };
 
 struct ActSimpleComputeForce
@@ -116,7 +116,7 @@ struct ActSimpleComputeForce
   Coordinates spandir_;                // Direction in the span
   const int debug_output_;
 
-  fast::OpenFAST& fast_;
+  // fast::OpenFAST& fast_; //LCCDELETE
 };
 
 struct ActSimpleSetUpThrustCalc
@@ -142,7 +142,7 @@ struct ActSimpleStashOrientationVectors
   ActFixTensorDbl orientation_;
   ActFixScalarInt offset_;
   const int turbId_;
-  fast::OpenFAST& fast_;
+  // fast::OpenFAST& fast_; //LCCDELETE
 };
 
 struct ActSimpleComputeThrustInnerLoop

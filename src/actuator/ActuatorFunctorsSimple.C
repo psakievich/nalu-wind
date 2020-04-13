@@ -72,7 +72,7 @@ ActSimpleUpdatePoints::ActSimpleUpdatePoints(ActuatorBulkSimple& actBulk,
   : points_(helper_.get_local_view(actBulk.pointCentroid_)),
     offsets_(helper_.get_local_view(actBulk.turbIdOffset_)),
     turbId_(actBulk.localTurbineId_),
-    fast_(actBulk.openFast_),
+    // fast_(actBulk.openFast_),  //LCCDELETE
     p1_(p1),
     p2_(p2),
     numpoints_(numpts)
@@ -111,8 +111,8 @@ ActSimpleAssignVel::ActSimpleAssignVel(ActuatorBulkSimple& actBulk)
     points_(helper_.get_local_view(actBulk.pointCentroid_)),
     offset_(helper_.get_local_view(actBulk.turbIdOffset_)),
     turbId_(actBulk.localTurbineId_),
-    debug_output_(actBulk.debug_output_),
-    fast_(actBulk.openFast_)
+    debug_output_(actBulk.debug_output_)
+    // fast_(actBulk.openFast_) //LCCDELETE
 {
 }
 
@@ -146,8 +146,8 @@ ActSimpleComputeForce::ActSimpleComputeForce(ActuatorBulkSimple& actBulk,
     density_(helper_.get_local_view(actBulk.density_)),
     offset_(helper_.get_local_view(actBulk.turbIdOffset_)),
     turbId_(actBulk.localTurbineId_),
-    debug_output_(actBulk.debug_output_),
-    fast_(actBulk.openFast_) // DELETE THIS LATER
+    debug_output_(actBulk.debug_output_)
+    // fast_(actBulk.openFast_) // DELETE THIS LATER
 {
   // Used to initialize via
     // aoatable_(actMeta.aoa_polartable_[actBulk.localTurbineId_]),
@@ -446,8 +446,8 @@ ActSimpleStashOrientationVectors::ActSimpleStashOrientationVectors(
   ActuatorBulkSimple& actBulk)
   : orientation_(helper_.get_local_view(actBulk.orientationTensor_)),
     offset_(helper_.get_local_view(actBulk.turbIdOffset_)),
-    turbId_(actBulk.localTurbineId_),
-    fast_(actBulk.openFast_)
+    turbId_(actBulk.localTurbineId_)
+    // fast_(actBulk.openFast_) //LCCDELETE
 {
   helper_.touch_dual_view(actBulk.orientationTensor_);
   actBulk.turbIdOffset_.sync_host();
@@ -460,7 +460,7 @@ ActSimpleStashOrientationVectors::operator()(int index) const
   auto localOrientation = Kokkos::subview(orientation_, index, Kokkos::ALL);
   //if (fast_.getForceNodeType(turbId_, pointId) == fast::BLADE) {
   if(pointId>0){
-    fast_.getForceNodeOrientation(localOrientation.data(), pointId, turbId_);
+    // fast_.getForceNodeOrientation(localOrientation.data(), pointId, turbId_);
 
     // swap columns of matrix since openfast stores data
     // as (thick, chord, span) and we want (chord, thick, span)

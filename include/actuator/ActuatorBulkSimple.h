@@ -11,7 +11,7 @@
 #define ACTUATORBULKSIMPLE_H_
 
 #include <actuator/ActuatorBulk.h>
-#include "OpenFAST.H"
+// #include "OpenFAST.H" // LCCDELETE
 
 namespace sierra {
 namespace nalu {
@@ -21,17 +21,19 @@ struct ActuatorMetaSimple : public ActuatorMeta
   ActuatorMetaSimple(const ActuatorMeta& actMeta);
 
   // HOST ONLY
-  fast::fastInputs fastInputs_;
+  // fast::fastInputs fastInputs_;  // LCCDELETE
   std::vector<std::string> turbineNames_;
   std::vector<std::string> turbineOutputFileNames_;
   bool filterLiftLineCorrection_;
   bool isotropicGaussian_;
   bool is_disk();
+  /* //LCCDELETE
   int get_fast_index(
     fast::ActuatorNodeType type,
     int turbId,
     int index = 0,
     int bladeNum = 0) const;
+  */
 
   // TODO(SAKIEVICH) not certain all these need to be dual views
   int maxNumPntsPerBlade_;
@@ -69,11 +71,11 @@ struct ActuatorBulkSimple : public ActuatorBulk
 
   Kokkos::RangePolicy<Kokkos::DefaultHostExecutionSpace> local_range_policy();
 
-  void interpolate_velocities_to_fast();
-  void step_fast();
-  bool fast_is_time_zero();
+  // void interpolate_velocities_to_fast(); //LCCDELETE
+  // void step_fast(); //LCCDELETE
+  // bool fast_is_time_zero(); //LCCDELETE
   void output_torque_info();
-  void init_openfast(const ActuatorMetaSimple& actMeta, double naluTimeStep);
+  // void init_openfast(const ActuatorMetaSimple& actMeta, double naluTimeStep); //LCCDELETE
   void init_epsilon(const ActuatorMetaSimple& actMeta);
   virtual void zero_open_fast_views();
 
@@ -96,9 +98,9 @@ struct ActuatorBulkSimple : public ActuatorBulk
   // TODO(SAKIEVICH) this kill lambdas that are pass by value (KOKKOS_LAMBDA)
   // may need to rethink functor/bulk design.  Perhaps have an internal object
   // in bulk for gpu data and pass that into the actuatorFunctors.
-  fast::OpenFAST openFast_;
+  // fast::OpenFAST openFast_; // LCCDELETE
   const int localTurbineId_;
-  const int tStepRatio_;
+  // const int tStepRatio_; //LCCDELETE
   ActDualViewHelper<ActuatorMemSpace> dvHelper_;
 };
 

@@ -21,7 +21,7 @@
 #include "ActuatorSimple.h"
 
 // OpenFAST C++ API
-#include "OpenFAST.H"
+// #include "OpenFAST.H" //LCCDELETE
 
 namespace sierra {
 namespace nalu {

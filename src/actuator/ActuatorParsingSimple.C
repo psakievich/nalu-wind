@@ -31,7 +31,7 @@ extend_double_vector(std::vector<double> vec, const int N)
     return vec;
   return vec;  // Should not get here
 }
-
+  /* //LCCDELETE
 void
 readTurbineData(int iTurb, ActuatorMetaSimple& actMetaSimple, YAML::Node turbNode)
 {
@@ -94,8 +94,9 @@ readTurbineData(int iTurb, ActuatorMetaSimple& actMetaSimple, YAML::Node turbNod
     + fi.globTurbineData[iTurb].numForcePtsTwr +
     fi.globTurbineData[iTurb].numForcePtsBlade * (*numBlades);
   actMetaSimple.numPointsTotal_ += actMetaSimple.numPointsTurbine_.h_view(iTurb);
-}
+  } */
 } // namespace
+  
 
 ActuatorMetaSimple
 actuator_Simple_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
@@ -311,6 +312,7 @@ actuator_Simple_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
   NaluEnv::self().naluOutputP0() << "Done actuator_Simple_parse()"<< std::endl; // LCCOUT
   //throw std::runtime_error("ActuatorSimple: loading blades");
   // ---vvv--- FAST STUFF TO DELETE ---vvvv---
+  /*
   bool INCLUDEFASTSTUFF=false;
   if (INCLUDEFASTSTUFF) {
   fast::fastInputs& fi = actMetaSimple.fastInputs_;
@@ -464,7 +466,7 @@ actuator_Simple_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
           }
         }
 
-        readTurbineData(iTurb, actMetaSimple, cur_turbine);
+        // readTurbineData(iTurb, actMetaSimple, cur_turbine); //LCCDELETE
       } else {
         throw std::runtime_error(
           "Node for Turbine" + std::to_string(iTurb) +
@@ -476,6 +478,7 @@ actuator_Simple_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
     throw std::runtime_error("Number of turbines <= 0 ");
   }
   } // INCLUDEFASTSTUFF
+  */
   return actMetaSimple;
 }
 
