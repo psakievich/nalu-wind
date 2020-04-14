@@ -61,9 +61,6 @@ class GeometryAlgDriver;
 
 class NonConformalManager;
 class ErrorIndicatorAlgorithmDriver;
-#if defined (NALU_USES_PERCEPT)
-class Adapter;
-#endif
 class EquationSystems;
 class OutputInfo;
 class OversetManager;
@@ -85,8 +82,6 @@ class DataProbePostProcessing;
 class Actuator;
 struct ActuatorMetaFAST;
 struct ActuatorBulkFAST;
-struct ActuatorMetaSimple;
-struct ActuatorBulkSimple;
 class ABLForcingAlgorithm;
 class BdyLayerStatistics;
 
@@ -125,8 +120,6 @@ class Realm {
   std::string convert_bytes(double bytes);
 
   void create_mesh();
-
-  void setup_adaptivity();
 
   void setup_nodal_fields();
   void setup_edge_fields();
@@ -361,8 +354,7 @@ class Realm {
   //  to be applied, e.g., in adaptivity we need to avoid the parent
   //  elements
   stk::mesh::BucketVector const& get_buckets( stk::mesh::EntityRank rank,
-                                              const stk::mesh::Selector & selector ,
-                                              bool get_all = false) const;
+                                              const stk::mesh::Selector & selector) const;
 
   // get aura, bulk and meta data
   bool get_activate_aura();
@@ -429,14 +421,8 @@ class Realm {
 
   // algorithm drivers managed by region
   std::unique_ptr<GeometryAlgDriver> geometryAlgDriver_;
-  ErrorIndicatorAlgorithmDriver *errorIndicatorAlgDriver_;
-# if defined (NALU_USES_PERCEPT)  
-  Adapter *adapter_;
-  Teuchos::RCP<stk::mesh::Selector> activePartForIO_;
-#endif
   unsigned numInitialElements_;
-  // for element, side, edge, node rank (node not used)
-  stk::mesh::Selector adapterSelector_[4];
+
 
   TimeIntegrator *timeIntegrator_;
 
@@ -461,8 +447,6 @@ class Realm {
   Actuator *actuator_;
   std::shared_ptr<ActuatorMetaFAST> actuatorMeta_;
   std::shared_ptr<ActuatorBulkFAST> actuatorBulk_;
-  std::shared_ptr<ActuatorMetaSimple> actuatorMetaSimple_;
-  std::shared_ptr<ActuatorBulkSimple> actuatorBulkSimple_;
   ABLForcingAlgorithm *ablForcingAlg_;
   BdyLayerStatistics* bdyLayerStats_{nullptr};
   std::unique_ptr<MeshMotionAlg> meshMotionAlg_;
@@ -474,6 +458,7 @@ class Realm {
   SizeType nodeCount_;
   bool estimateMemoryOnly_;
   double availableMemoryPerCoreGB_;
+  double timerActuator_{0};
   double timerCreateMesh_;
   double timerPopulateMesh_;
   double timerPopulateFieldData_;
@@ -482,7 +467,6 @@ class Realm {
   double timerNonconformal_;
   double timerInitializeEqs_;
   double timerPropertyEval_;
-  double timerAdapt_;
   double timerTransferSearch_;
   double timerTransferExecute_;
   double timerSkinMesh_;
@@ -618,7 +602,6 @@ class Realm {
   double get_stefan_boltzmann();
   double get_turb_model_constant(
     const TurbulenceModelConstant turbModelEnum);
-  bool process_adaptivity();
 
   // element promotion options
   bool doPromotion_; // conto
@@ -642,9 +625,6 @@ class Realm {
 
   std::string physics_part_name(std::string) const;
   std::vector<std::string> physics_part_names(std::vector<std::string>) const;
-
-  // check for mesh changing
-  bool mesh_changed() const;
 
   stk::mesh::PartVector allPeriodicInteractingParts_;
   stk::mesh::PartVector allNonConformalInteractingParts_;

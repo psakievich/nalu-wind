@@ -34,47 +34,6 @@ protected:
   }
 };
 
-TEST_F(ActuatorFunctorFastTests, runActFastZero)
-{
-  const YAML::Node y_node = actuator_unit::create_yaml_node(fastParseParams_);
-
-  auto actMetaFast = actuator_FAST_parse(y_node, actMeta_);
-  ActuatorBulkFAST actBulk(actMetaFast, 0.0625);
-
-  ASSERT_EQ(actMetaFast.numPointsTotal_, 41);
-
-  auto velHost = actBulk.velocity_.view_host();
-  auto frcHost = actBulk.actuatorForce_.view_host();
-
-  actBulk.actuatorForce_.modify_device();
-  actBulk.velocity_.modify_device();
-
-  for (int i = 0; i < actMetaFast.numPointsTotal_; ++i) {
-    for (int j = 0; j < 3; ++j) {
-      actBulk.actuatorForce_.h_view(i, j) = 1.0;
-      actBulk.velocity_.h_view(i, j) = 1.0;
-    }
-  }
-
-  actBulk.actuatorForce_.sync_device();
-  actBulk.velocity_.sync_device();
-
-  for (int i = 0; i < velHost.extent_int(0); ++i) {
-    for (int j = 0; j < 3; ++j) {
-      EXPECT_DOUBLE_EQ(1.0, velHost(i, j));
-      EXPECT_DOUBLE_EQ(1.0, frcHost(i, j));
-    }
-  }
-
-  actBulk.zero_open_fast_views();
-
-  for (int i = 0; i < velHost.extent_int(0); ++i) {
-    for (int j = 0; j < 3; ++j) {
-      EXPECT_DOUBLE_EQ(0.0, velHost(i, j));
-      EXPECT_DOUBLE_EQ(0.0, frcHost(i, j));
-    }
-  }
-}
 
 TEST_F(ActuatorFunctorFastTests, runUpdatePoints)
 {
@@ -89,18 +48,8 @@ TEST_F(ActuatorFunctorFastTests, runUpdatePoints)
   ASSERT_EQ(actMetaFast.numPointsTotal_, 41);
 
   auto points = actBulk.pointCentroid_.view_host();
-  auto localRangePolicy = actBulk.local_range_policy();
-  actBulk.zero_open_fast_views();
 
-  for (int i = 0; i < points.extent_int(0); ++i) {
-    for (int j = 0; j < 3; ++j) {
-      EXPECT_DOUBLE_EQ(0.0, points(i, j));
-    }
-  }
-
-  Kokkos::parallel_for(
-    "testUpdatePoints", localRangePolicy, ActFastUpdatePoints(actBulk));
-  actuator_utils::reduce_view_on_host(points);
+  RunActFastUpdatePoints(actBulk);
 
   // test for empty points
   for (int i = 0; i < actMetaFast.numPointsTotal_; ++i) {
@@ -147,7 +96,6 @@ TEST_F(ActuatorFunctorFastTests, runAssignVelAndComputeForces)
   auto force = actBulk.actuatorForce_.view_host();
 
   auto localRangePolicy = actBulk.local_range_policy();
-  actBulk.zero_open_fast_views();
 
   for (int i = 0; i < vel.extent_int(0); ++i) {
     for (int j = 0; j < 3; ++j) {
@@ -158,17 +106,16 @@ TEST_F(ActuatorFunctorFastTests, runAssignVelAndComputeForces)
   actBulk.velocity_.modify_host();
   actBulk.actuatorForce_.modify_host();
 
-  Kokkos::parallel_for("initUniformVelocity", localRangePolicy, [&](int i) {
-    actBulk.velocity_.h_view(i, 0) = 1.0;
-  });
-  actuator_utils::reduce_view_on_host(vel);
+  Kokkos::deep_copy(actBulk.velocity_.view_host(), 1.0);
+
 
   Kokkos::parallel_for(
     "testAssignVel", localRangePolicy, ActFastAssignVel(actBulk));
-  Kokkos::parallel_for(
-    "testComputeForces", localRangePolicy, ActFastComputeForce(actBulk));
 
-  actuator_utils::reduce_view_on_host(force);
+  actBulk.interpolate_velocities_to_fast();
+  actBulk.step_fast();
+
+  RunActFastComputeForce(actBulk);
 
   ActFixVectorDbl fastForces(
     "forcesComputedFromFAST", actMetaFast.numPointsTotal_);
@@ -197,6 +144,75 @@ TEST_F(ActuatorFunctorFastTests, runAssignVelAndComputeForces)
         EXPECT_DOUBLE_EQ(fastForces(i, j), force(i, j));
       }
     });
+}
+
+TEST_F(ActuatorFunctorFastTests, spreadForceWhProjIdentity)
+{
+  auto epsLoc = std::find_if(
+    fastParseParams_.begin(), fastParseParams_.end(),
+    [](std::string val) { return val.find("epsilon:") != std::string::npos; });
+
+  *epsLoc = "    epsilon: [1.0, 0.5, 2.0]\n";
+  fastParseParams_.push_back("    epsilon_tower: 5.0\n");
+  const YAML::Node y_node = actuator_unit::create_yaml_node(fastParseParams_);
+
+  auto actMetaFast = actuator_FAST_parse(y_node, actMeta_);
+  ActuatorBulkFAST actBulk(actMetaFast, 0.0625);
+
+  auto fastRangePolicy = actBulk.local_range_policy();
+
+  actBulk.velocity_.modify_host();
+  actBulk.actuatorForce_.modify_host();
+
+  auto vel = actBulk.velocity_.view_host();
+  auto force = actBulk.actuatorForce_.view_host();
+  auto points = actBulk.pointCentroid_.view_host();
+
+
+  Kokkos::deep_copy(vel, 8.0);
+
+  RunActFastUpdatePoints(actBulk);
+
+  Kokkos::parallel_for(
+    "testAssignVel", fastRangePolicy, ActFastAssignVel(actBulk));
+
+  actBulk.interpolate_velocities_to_fast();
+  actBulk.step_fast();
+
+  RunActFastComputeForce(actBulk);
+  RunActFastStashOrientVecs(actBulk);
+
+  // compute source term contributions at the hub location
+  // from the tower actuator points
+  auto hubLocation =
+    Kokkos::subview(actBulk.pointCentroid_.view_host(), 0, Kokkos::ALL);
+  const int nPntsTower =
+    actMetaFast.fastInputs_.globTurbineData[0].numForcePtsTwr;
+
+  ActFastSpreadForceWhProjInnerLoop projInner(actBulk);
+  SpreadForceInnerLoop isoInner(actBulk);
+
+  for (int i = 0; i < nPntsTower; i++) {
+    double sourceTermNoProj[3] = {0, 0, 0};
+    double sourceTermWhProj[3] = {0, 0, 0};
+    const uint64_t id =
+      static_cast<uint64_t>(actMetaFast.get_fast_index(fast::TOWER, 0, i));
+
+    auto epsilon =
+      Kokkos::subview(actBulk.epsilon_.view_host(), id, Kokkos::ALL);
+
+    for (int j = 0; j < 3; j++) {
+      ASSERT_DOUBLE_EQ(5.0, epsilon(j)) << "point index: " << id << " j: " << j;
+    }
+
+    // note offset is zero so can just use id
+    projInner(id, hubLocation.data(), &sourceTermWhProj[0], 1.0, 1.0);
+    isoInner(id, hubLocation.data(), &sourceTermNoProj[0], 1.0, 1.0);
+
+    for (int j = 0; j < 3; j++) {
+      EXPECT_NEAR(sourceTermNoProj[j], sourceTermWhProj[j], 1e-8);
+    }
+  }
 }
 
 } // namespace

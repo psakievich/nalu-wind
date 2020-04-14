@@ -52,10 +52,9 @@ struct ActuatorBulkFAST : public ActuatorBulk
   void interpolate_velocities_to_fast();
   void step_fast();
   bool fast_is_time_zero();
-  void output_torque_info();
+  void output_torque_info(stk::mesh::BulkData& stkBulk);
   void init_openfast(const ActuatorMetaFAST& actMeta, double naluTimeStep);
   void init_epsilon(const ActuatorMetaFAST& actMeta);
-  virtual void zero_open_fast_views();
 
   virtual ~ActuatorBulkFAST();
 
@@ -67,9 +66,6 @@ struct ActuatorBulkFAST : public ActuatorBulk
   ActVectorDblDv epsilonOpt_;
   ActTensorDblDv orientationTensor_;
 
-  // TODO(SAKIEVICH) this kill lambdas that are pass by value (KOKKOS_LAMBDA)
-  // may need to rethink functor/bulk design.  Perhaps have an internal object
-  // in bulk for gpu data and pass that into the actuatorFunctors.
   fast::OpenFAST openFast_;
   const int localTurbineId_;
   const int tStepRatio_;
@@ -77,7 +73,7 @@ struct ActuatorBulkFAST : public ActuatorBulk
 };
 
 // helper functions to
-// squash calls to std::cout from TPL's aka OpenFAST
+// squash calls to std::cout from OpenFAST
 inline
 void squash_fast_output(std::function<void()>func)
 {

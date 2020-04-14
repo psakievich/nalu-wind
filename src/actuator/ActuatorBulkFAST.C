@@ -9,6 +9,7 @@
 
 #include <actuator/ActuatorBulkFAST.h>
 #include <actuator/UtilitiesActuator.h>
+#include <actuator/ActuatorFunctorsFAST.h>
 #include <NaluEnv.h>
 
 namespace sierra {
@@ -64,6 +65,7 @@ ActuatorBulkFAST::ActuatorBulkFAST(
 {
   init_openfast(actMeta, naluTimeStep);
   init_epsilon(actMeta);
+  RunActFastUpdatePoints(*this);
 }
 
 ActuatorBulkFAST::~ActuatorBulkFAST() { openFast_.end(); }
@@ -128,12 +130,15 @@ ActuatorBulkFAST::init_openfast(
 void
 ActuatorBulkFAST::init_epsilon(const ActuatorMetaFAST& actMeta)
 {
-  // set epsilon and radius
+  // set epsilon and search radius
 
   epsilon_.modify_host();
   epsilonOpt_.modify_host();
   searchRadius_.modify_host();
   const int nTurb = openFast_.get_nTurbinesGlob();
+
+  NaluEnv::self().naluOutputP0() << "Total Number of Actuator Points is: "
+      << actMeta.numPointsTotal_<<std::endl;
 
   for (int iTurb = 0; iTurb < nTurb; iTurb++) {
     if (openFast_.get_procNo(iTurb) == NaluEnv::self().parallel_rank()) {
@@ -216,7 +221,7 @@ ActuatorBulkFAST::init_epsilon(const ActuatorMetaFAST& actMeta)
         searchRadius_.h_view(np + offset) =
           std::max(
             epsilonLocal(0), std::max(epsilonLocal(1), epsilonLocal(2))) *
-          sqrt(log(1.e3));
+            2.6282608848784661; //sqrt(log(1000))
       }
     } else {
       NaluEnv::self().naluOutput() << "Proc " << NaluEnv::self().parallel_rank()
@@ -287,8 +292,21 @@ ActuatorBulkFAST::fast_is_time_zero()
 }
 
 void
-ActuatorBulkFAST::output_torque_info()
+ActuatorBulkFAST::output_torque_info(stk::mesh::BulkData& stkBulk)
 {
+  Kokkos::parallel_for(
+    "setUpTorqueCalc", hubLocations_.extent(0),
+    ActFastSetUpThrustCalc(*this));
+
+  actuator_utils::reduce_view_on_host(hubLocations_);
+  actuator_utils::reduce_view_on_host(hubOrientation_);
+
+  Kokkos::parallel_for(
+    "computeTorque", coarseSearchElemIds_.extent(0),
+    ActFastComputeThrust(*this, stkBulk));
+  actuator_utils::reduce_view_on_host(turbineThrust_);
+  actuator_utils::reduce_view_on_host(turbineTorque_);
+
   for (size_t iTurb = 0; iTurb < turbineThrust_.extent(0); iTurb++) {
 
     int processorId = openFast_.get_procNo(iTurb);
@@ -319,17 +337,6 @@ ActuatorBulkFAST::output_torque_info()
         << "] " << std::endl;
     }
   }
-}
-
-void
-ActuatorBulkFAST::zero_open_fast_views()
-{
-  dvHelper_.touch_dual_view(actuatorForce_);
-  dvHelper_.touch_dual_view(pointCentroid_);
-  dvHelper_.touch_dual_view(velocity_);
-  Kokkos::deep_copy(dvHelper_.get_local_view(actuatorForce_),0.0);
-  Kokkos::deep_copy(dvHelper_.get_local_view(pointCentroid_),0.0);
-  Kokkos::deep_copy(dvHelper_.get_local_view(velocity_),0.0);
 }
 
 } // namespace nalu
