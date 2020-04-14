@@ -1114,7 +1114,7 @@ MomentumEquationSystem::register_nodal_fields(
   }
 
   // speciality source
-  if ( NULL != realm_.actuator_ || NULL != realm_.actuatorMeta_) {
+  if ( NULL != realm_.actuator_ || NULL != realm_.actuatorMeta_ || NULL != realm_.actuatorMetaSimple_) {
     VectorFieldType *actuatorSource
       =  &(meta_data.declare_field<VectorFieldType>(stk::topology::NODE_RANK, "actuator_source"));
     VectorFieldType *actuatorSourceLHS
