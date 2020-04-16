@@ -20,24 +20,17 @@ struct ActuatorMetaSimple : public ActuatorMeta
   ActuatorMetaSimple(const ActuatorMeta& actMeta);
 
   // HOST ONLY
-  std::vector<std::string> turbineNames_;
-  std::vector<std::string> turbineOutputFileNames_;
   bool filterLiftLineCorrection_;
   bool isotropicGaussian_;
-  bool is_disk();
 
   // TODO(SAKIEVICH) not certain all these need to be dual views
-  int maxNumPntsPerBlade_;
+  //int maxNumPntsPerBlade_;
   ActVectorDblDv epsilon_;
   ActVectorDblDv epsilonChord_;
-  ActVectorDblDv epsilonTower_;
-  ActFixScalarBool useUniformAziSampling_;
-  ActFixScalarInt nPointsSwept_;
-  ActFixScalarInt nBlades_;
 
   // Stuff for the simple blade
-  bool debug_output_;
-  std::size_t n_simpleblades_;
+  bool            debug_output_;
+  std::size_t     n_simpleblades_;
   ActScalarIntDv  num_force_pts_blade_;
   ActVectorDblDv  p1_;  // Start of blade
   ActVectorDblDv  p2_;  // End of blade
@@ -70,8 +63,6 @@ struct ActuatorBulkSimple : public ActuatorBulk
 
   ActFixVectorDbl turbineThrust_;
   ActFixVectorDbl turbineTorque_;
-  ActFixVectorDbl hubLocations_;
-  ActFixVectorDbl hubOrientation_;
 
   ActVectorDblDv epsilonOpt_;
   ActTensorDblDv orientationTensor_;

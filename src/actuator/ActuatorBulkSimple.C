@@ -16,18 +16,10 @@ namespace nalu {
 
 ActuatorMetaSimple::ActuatorMetaSimple(const ActuatorMeta& actMeta)
   : ActuatorMeta(actMeta),
-    turbineNames_(numberOfActuators_),
-    turbineOutputFileNames_(numberOfActuators_),
     filterLiftLineCorrection_(false),
     isotropicGaussian_(false),
-    maxNumPntsPerBlade_(0),
     epsilon_("epsilonMeta", numberOfActuators_),
     epsilonChord_("epsilonChordMeta", numberOfActuators_),
-    epsilonTower_("epsilonTowerMeta", numberOfActuators_),
-    useUniformAziSampling_(
-      "diskUseUniSample", is_disk() ? numberOfActuators_ : 0),
-    nPointsSwept_("diskNumSwept", is_disk() ? numberOfActuators_ : 0),
-    nBlades_("numTurbBlades", numberOfActuators_),
     num_force_pts_blade_("numForcePtsBladeMeta", numberOfActuators_),
     p1_("p1Meta", numberOfActuators_),
     p2_("p2Meta", numberOfActuators_),
@@ -38,20 +30,11 @@ ActuatorMetaSimple::ActuatorMetaSimple(const ActuatorMeta& actMeta)
 {
 }
 
-
-bool
-ActuatorMetaSimple::is_disk()
-{
-  return false; // actuatorType_ == ActuatorType::ActDiskFASTNGP;
-}
-
 ActuatorBulkSimple::ActuatorBulkSimple(
   const ActuatorMetaSimple& actMeta, double naluTimeStep)
   : ActuatorBulk(actMeta),
     turbineThrust_("turbineThrust", actMeta.numberOfActuators_),
     turbineTorque_("turbineTorque", actMeta.numberOfActuators_),
-    hubLocations_("hubLocations", actMeta.numberOfActuators_),
-    hubOrientation_("hubOrientations", actMeta.numberOfActuators_),
     epsilonOpt_("epsilonOptimal", actMeta.numPointsTotal_),
     orientationTensor_(
       "orientationTensor",
@@ -65,7 +48,6 @@ ActuatorBulkSimple::ActuatorBulkSimple(
         ? -1
       : NaluEnv::self().parallel_rank()) // assign 1 turbine per rank for now Used to be ? -1
 {
-  //init_openfast(actMeta, naluTimeStep);
   // Allocate blades to turbines
   const int nProcs = NaluEnv::self().parallel_size();
   const int nTurb = actMeta.numberOfActuators_;
@@ -193,9 +175,6 @@ ActuatorBulkSimple::output_torque_info()
         << std::endl
         << "  Thrust[" << iTurb << "] = " << thrust(0) << " " << thrust(1)
         << " " << thrust(2) << " " << std::endl;
-      // NaluEnv::self().naluOutput()
-      //   << "  Torque[" << iTurb << "] = " << torque(0) << " " << torque(1)
-      //   << " " << torque(2) << " " << std::endl;
 
     }
   }

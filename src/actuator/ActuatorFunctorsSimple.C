@@ -178,16 +178,6 @@ ActSimpleComputeForce::ActSimpleComputeForce(ActuatorBulkSimple& actBulk,
     spandir_.y_        = actMeta.spandir_.h_view(turbId_, 1);
     spandir_.z_        = actMeta.spandir_.h_view(turbId_, 2);
 
-  // if (debug_output_)
-  //   NaluEnv::self().naluOutput() 
-  //     << "Blade "<< turbId_  // LCCOUT
-  //     << std::scientific<< std::setprecision(7)
-  //     << " p1zeroAOA: "
-  //     <<p1zeroalphadir_.x_<<" "<<p1zeroalphadir_.y_<<" "<<p1zeroalphadir_.z_
-  //     << " chordnorm: "
-  //     <<chordnormaldir_.x_<<" "<<chordnormaldir_.y_<<" "<<chordnormaldir_.z_
-  //     << " spandir: "
-  //     <<spandir_.x_<<" "<<spandir_.y_<<" "<<spandir_.z_<<" "<<std::endl;
   }
 }
 
@@ -332,19 +322,12 @@ ActSimpleSetUpThrustCalc::ActSimpleSetUpThrustCalc(ActuatorBulkSimple& actBulk)
 void
 ActSimpleSetUpThrustCalc::operator()(int index) const
 {
-  auto hubLoc = Kokkos::subview(actBulk_.hubLocations_, index, Kokkos::ALL);
-  auto hubOri = Kokkos::subview(actBulk_.hubOrientation_, index, Kokkos::ALL);
   auto thrust = Kokkos::subview(actBulk_.turbineThrust_, index, Kokkos::ALL);
   auto torque = Kokkos::subview(actBulk_.turbineTorque_, index, Kokkos::ALL);
 
   for (int i = 0; i < 3; i++) {
     thrust(i) = 0.0;
     torque(i) = 0.0;
-  }
-
-  for (int j = 0; j < 3; j++) {
-    hubLoc(j) = 0.0;
-    hubOri(j) = 0.0;
   }
 }
 
@@ -374,8 +357,6 @@ ActSimpleComputeThrustInnerLoop::operator()(
   */
   if (NaluEnv::self().parallel_rank()<actBulk_.num_blades_) {
     int turbId = NaluEnv::self().parallel_rank();
-  //auto hubLoc = Kokkos::subview(actBulk_.hubLocations_, turbId, Kokkos::ALL);
-  //auto hubOri = Kokkos::subview(actBulk_.hubOrientation_, turbId, Kokkos::ALL);
   auto thrust = Kokkos::subview(actBulk_.turbineThrust_, turbId, Kokkos::ALL);
   auto torque = Kokkos::subview(actBulk_.turbineTorque_, turbId, Kokkos::ALL);
 

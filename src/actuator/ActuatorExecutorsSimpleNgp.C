@@ -64,29 +64,7 @@ ActuatorLineSimpleNGP::operator()()
   }
 
   actBulk_.parallel_sum_source_term(stkBulk_);
-  //throw std::runtime_error("ActuatorLineSimpleNGP:: parallel_sum_source_term");  // LCCSTOP
 
-  // IGNORE THE THRUST CALC FOR NOW
-  bool run_thrustcalc=false;
-  if (run_thrustcalc) {
-    // Always run compute the thrust and torque
-    Kokkos::parallel_for(
-			 "setUpTorqueCalc", actMeta_.numberOfActuators_,
-			 ActSimpleSetUpThrustCalc(actBulk_));
-    //NaluEnv::self().naluOutput() << "setUpTorqueCalc done"<< std::endl; //LCCOUT
-
-    actuator_utils::reduce_view_on_host(actBulk_.hubLocations_);
-    actuator_utils::reduce_view_on_host(actBulk_.hubOrientation_);
-  
-    Kokkos::parallel_for(
-			 "computeTorque", localSizeCoarseSearch,
-			 ActSimpleComputeThrust(actBulk_, stkBulk_));
-    NaluEnv::self().naluOutput() << "computeTorque done"<< std::endl; //LCCOUT
-    actuator_utils::reduce_view_on_host(actBulk_.turbineThrust_);
-    actuator_utils::reduce_view_on_host(actBulk_.turbineTorque_);
-    actBulk_.output_torque_info();
-  }
-  //throw std::runtime_error("ActuatorLineSimpleNGP:: computeTorque");  // LCCSTOP
 }
 
 void
@@ -111,12 +89,6 @@ ActuatorLineSimpleNGP::update()
   }
   int Npts=actMeta_.num_force_pts_blade_.h_view(actBulk_.localTurbineId_);
 
-  // if (actBulk_.debug_output_)
-  //   NaluEnv::self().naluOutput()  // LCCOUT
-  //     << "Blade: " <<actBulk_.localTurbineId_ 
-  //     << " p1: "<<p1[0]<<" "<<p1[1]<<" "<<p1[2]
-  //     << " p2: "<<p2[0]<<" "<<p2[1]<<" "<<p2[2]<< std::endl;
-
   Kokkos::parallel_for(
     "updatePointLocationsActuatorNgpSimple", fastRangePolicy,
     ActSimpleUpdatePoints(actBulk_, p1, p2, Npts));
@@ -127,9 +99,6 @@ ActuatorLineSimpleNGP::update()
     "interpolateVelocitiesActuatorNgpSimple", numActPoints_,
     InterpActuatorVel(actBulk_, stkBulk_));
   actuator_utils::reduce_view_on_host(velReduce);
-
-  // if (actBulk_.debug_output_)
-  //   NaluEnv::self().naluOutput() << " Starting density interpolation " <<std::endl;  // LCCOUT
 
   Kokkos::parallel_for(
     "interpolateDensityActuatorNgpSimple", numActPoints_,
