@@ -200,7 +200,6 @@ actuator_Simple_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
 	throw std::runtime_error("ActuatorSimpleNGP: missing chord_table");
       std::vector<double> chord_table_extended = 
 	extend_double_vector(chordtemp, num_force_pts_blade);
-      //actMetaSimple.chord_table_.push_back(chord_table_extended);  // LCCDELETE
       input_chord_table.push_back(chord_table_extended);
 
       // twist definitions
@@ -210,7 +209,6 @@ actuator_Simple_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
 	twisttemp = twist_table.as<std::vector<double>>();
       else
 	throw std::runtime_error("ActuatorSimpleNGP: missing twist_table");
-      //actMetaSimple.twist_table_.push_back(extend_double_vector(twisttemp, num_force_pts_blade)); // LCCDELETE
       input_twist_table.push_back(extend_double_vector(twisttemp, num_force_pts_blade));
 
       // Calculate elem areas
@@ -221,7 +219,6 @@ actuator_Simple_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
       double dx_norm = sqrt(dx[0]*dx[0] + dx[1]*dx[1] + dx[2]*dx[2]);
       for (int i=0; i<num_force_pts_blade; i++)
 	elemareatemp[i] = dx_norm*chord_table_extended[i];
-      //actMetaSimple.elem_area_.push_back(elemareatemp); // LCCDELETE
       input_elem_area.push_back(elemareatemp);
 
       // Polar tables
@@ -232,7 +229,6 @@ actuator_Simple_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
 	aoatemp = aoa_table.as<std::vector<double>>();
       else
 	throw std::runtime_error("ActuatorSimpleNGP: missing aoa_table");
-      //actMetaSimple.aoa_polartable_.push_back(aoatemp);   // LCCDELETE
       input_aoa_polartable.push_back(aoatemp);
       size_t polartableN = aoatemp.size();
       actMetaSimple.polartable_size_.h_view(iBlade) = polartableN;
@@ -248,7 +244,6 @@ actuator_Simple_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
 	cltemp = cl_table.as<std::vector<double>>();
       else
 	throw std::runtime_error("ActuatorSimpleNGP: missing cl_table");
-      //actMetaSimple.cl_polartable_.push_back(extend_double_vector(cltemp, polartableN));  // LCCDELETE
       input_cl_polartable.push_back(extend_double_vector(cltemp, polartableN));
 
       // --- cd ---
@@ -258,7 +253,6 @@ actuator_Simple_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
 	cdtemp = cd_table.as<std::vector<double>>();
       else
 	throw std::runtime_error("ActuatorSimpleNGP: missing cd_table");
-      //actMetaSimple.cd_polartable_.push_back(extend_double_vector(cdtemp, polartableN));  // LCCDELETE
       input_cd_polartable.push_back(extend_double_vector(cdtemp, polartableN)); 
 	
     } // End loop over blades
@@ -276,9 +270,9 @@ actuator_Simple_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
   // Copy the information over
   for (int iBlade= 0; iBlade < n_simpleblades_; iBlade++) {
     for (int j=0; j <actMetaSimple.numPointsTurbine_.h_view(iBlade); j++) {
-      actMetaSimple.chord_tableDv_.h_view(iBlade, j) = input_chord_table[iBlade][j]; //actMetaSimple.chord_table_[iBlade][j]; // LCCDELETE
-      actMetaSimple.twist_tableDv_.h_view(iBlade, j) = input_twist_table[iBlade][j]; // actMetaSimple.twist_table_[iBlade][j]; // LCCDELETE
-      actMetaSimple.elem_areaDv_.h_view(iBlade, j)   = input_elem_area[iBlade][j]; //actMetaSimple.elem_area_[iBlade][j]; // LCCDELETE
+      actMetaSimple.chord_tableDv_.h_view(iBlade, j) = input_chord_table[iBlade][j]; 
+      actMetaSimple.twist_tableDv_.h_view(iBlade, j) = input_twist_table[iBlade][j]; 
+      actMetaSimple.elem_areaDv_.h_view(iBlade, j)   = input_elem_area[iBlade][j]; 
     }
   }
 
@@ -292,9 +286,9 @@ actuator_Simple_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
   // Copy the information over
   for (int iBlade= 0; iBlade < n_simpleblades_; iBlade++) {
     for (int j=0; j < actMetaSimple.polartable_size_.h_view(iBlade); j++) {
-      actMetaSimple.aoa_polartableDv_.h_view(iBlade, j) = input_aoa_polartable[iBlade][j]; // actMetaSimple.aoa_polartable_[iBlade][j];  // LCCDELETE
-      actMetaSimple.cl_polartableDv_.h_view(iBlade, j)  = input_cl_polartable[iBlade][j]; // actMetaSimple.cl_polartable_[iBlade][j];  // LCCDELETE
-      actMetaSimple.cd_polartableDv_.h_view(iBlade, j)  = input_cd_polartable[iBlade][j]; // actMetaSimple.cd_polartable_[iBlade][j];  // LCCDELETE
+      actMetaSimple.aoa_polartableDv_.h_view(iBlade, j) = input_aoa_polartable[iBlade][j]; 
+      actMetaSimple.cl_polartableDv_.h_view(iBlade, j)  = input_cl_polartable[iBlade][j]; 
+      actMetaSimple.cd_polartableDv_.h_view(iBlade, j)  = input_cd_polartable[iBlade][j]; 
     }
   }
   if (actMetaSimple.debug_output_) {

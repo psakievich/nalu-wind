@@ -107,23 +107,6 @@ TEST_F(ActuatorParsingSimpleTests, minimumRequired)
     EXPECT_DOUBLE_EQ(0.0,   actMetaSimple.p1zeroalphadir_.h_view(0, 1));
     EXPECT_DOUBLE_EQ(0.0,   actMetaSimple.p1zeroalphadir_.h_view(0, 2));
 
-    /*
-    // Check the chord/twist tables
-    for (int i=0; i<actMetaSimple.num_force_pts_blade_.h_view(0); i++) {
-      EXPECT_DOUBLE_EQ(1.0, actMetaSimple.chord_table_[0][i]);
-      EXPECT_DOUBLE_EQ(0.0, actMetaSimple.twist_table_[0][i]);
-    }
-    // Check the polar tables
-    for (int i=0; i<3; i++) {
-      EXPECT_DOUBLE_EQ(0.0, actMetaSimple.cd_polartable_[0][i]);
-    }
-    EXPECT_DOUBLE_EQ(-10.0, actMetaSimple.cl_polartable_[0][0]);
-    EXPECT_DOUBLE_EQ(  0.0, actMetaSimple.cl_polartable_[0][1]);
-    EXPECT_DOUBLE_EQ( 10.0, actMetaSimple.cl_polartable_[0][2]);
-    EXPECT_DOUBLE_EQ(-180.0, actMetaSimple.aoa_polartable_[0][0]);
-    EXPECT_DOUBLE_EQ(   0.0, actMetaSimple.aoa_polartable_[0][1]);
-    EXPECT_DOUBLE_EQ( 180.0, actMetaSimple.aoa_polartable_[0][2]);
-    */
     // Check the chord/twist tables (DV)
     for (int i=0; i<actMetaSimple.num_force_pts_blade_.h_view(0); i++) {
       EXPECT_DOUBLE_EQ(1.0,   actMetaSimple.chord_tableDv_.h_view(0, i));

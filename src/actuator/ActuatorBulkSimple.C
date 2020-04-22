@@ -56,11 +56,12 @@ ActuatorBulkSimple::ActuatorBulkSimple(
   const int intDivision = nTurb / nProcs;
   const int remainder = actMeta.numberOfActuators_ % nProcs;
 
-  NaluEnv::self().naluOutputP0() << " nProcs: " << nProcs 
-				 << " nTurb:  " << nTurb
-				 << " intDiv: " << intDivision
-				 << " remain: " << remainder
-				 << std::endl; // LCCOUT
+  if (actMeta.debug_output_) 
+    NaluEnv::self().naluOutputP0() << " nProcs: " << nProcs 
+				   << " nTurb:  " << nTurb
+				   << " intDiv: " << intDivision
+				   << " remain: " << remainder
+				   << std::endl; // LCCOUT
 
   if (remainder && intDivision)  // this doesn't work for nProcs=1
     throw std::runtime_error(" ERRORXX: more blades than ranks");
@@ -121,7 +122,6 @@ ActuatorBulkSimple::init_epsilon(const ActuatorMetaSimple& actMeta)
         auto epsilonOpt =
           Kokkos::subview(epsilonOpt_.view_host(), np + offset, Kokkos::ALL);
 
-	//double chord = actMeta.chord_table_[iBlade][np]; // LCCDELETE
 	double chord = actMeta.chord_tableDv_.h_view(iBlade, np); 
 	for (int i = 0; i < 3; i++) {
 	  // Define the optimal epsilon

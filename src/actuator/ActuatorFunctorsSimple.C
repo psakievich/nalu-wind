@@ -94,10 +94,6 @@ ActSimpleUpdatePoints::operator()(int index) const
     point(i) = p1_[i] + 0.5*dx[i] + dx[i]*(float)pointId;
   }
 
-  // NaluEnv::self().naluOutputP0()  // LCCOUT
-  //   << "pointId: " << pointId
-  //   << " point: "<<point(0)<<" "<<point(1)<<" "<<point(2)<<" "<< std::endl;
-
 }
 
 ActSimpleAssignVel::ActSimpleAssignVel(ActuatorBulkSimple& actBulk)
@@ -145,7 +141,6 @@ ActSimpleComputeForce::ActSimpleComputeForce(ActuatorBulkSimple& actBulk,
   helper_.touch_dual_view(actBulk.actuatorForce_);
   if (NaluEnv::self().parallel_rank() == turbId_) {
     // Set up the polar table arrays
-    //size_t Npolartable=actMeta.aoa_polartable_[actBulk.localTurbineId_].size(); // LCCDELETE
     size_t Npolartable = actMeta.polartable_size_.h_view(turbId_);
     aoatable_.resize(Npolartable);
     cltable_.resize(Npolartable);
@@ -155,10 +150,6 @@ ActSimpleComputeForce::ActSimpleComputeForce(ActuatorBulkSimple& actBulk,
       aoatable_[i] = actMeta.aoa_polartableDv_.h_view(turbId_, i);
       cltable_[i]  = actMeta.cl_polartableDv_.h_view(turbId_, i);
       cdtable_[i]  = actMeta.cd_polartableDv_.h_view(turbId_, i);
-       // LCCDELETE
-      //aoatable_[i] = actMeta.aoa_polartable_[actBulk.localTurbineId_][i];
-      //cltable_[i]  = actMeta.cl_polartable_[actBulk.localTurbineId_][i];
-      //cdtable_[i]  = actMeta.cd_polartable_[actBulk.localTurbineId_][i];
       
     }
     // Copy over the twist/area tables
@@ -169,8 +160,6 @@ ActSimpleComputeForce::ActSimpleComputeForce(ActuatorBulkSimple& actBulk,
     for (size_t i=0; i<Npts; i++) {
       twist_table_[i] = actMeta.twist_tableDv_.h_view(turbId_, i);
       elem_area_[i]   = actMeta.elem_areaDv_.h_view(turbId_, i);
-      //twist_table_[i] = actMeta.twist_table_[actBulk.localTurbineId_][i]; // LCCDELETE
-      //elem_area_[i] = actMeta.elem_area_[actBulk.localTurbineId_][i]; // LCCDELETE
     }
     
 
