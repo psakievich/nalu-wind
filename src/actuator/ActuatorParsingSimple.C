@@ -56,7 +56,16 @@ actuator_Simple_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
   size_t n_simpleblades_;
   get_required(y_actuator, "n_simpleblades", n_simpleblades_);
   actMetaSimple.n_simpleblades_ =  n_simpleblades_;
-  NaluEnv::self().naluOutputP0() << "N blade: " << actMetaSimple.n_simpleblades_<< std::endl; //LCCOUT
+  //NaluEnv::self().naluOutputP0() << "N blade: " << actMetaSimple.n_simpleblades_<< std::endl; //LCCOUT
+
+  // Declare some vectors to store blade information
+  std::vector<std::vector<double>> input_chord_table;
+  std::vector<std::vector<double>> input_twist_table;
+  std::vector<std::vector<double>> input_elem_area;
+  std::vector<std::vector<double>> input_aoa_polartable;
+  std::vector<std::vector<double>> input_cl_polartable;
+  std::vector<std::vector<double>> input_cd_polartable;
+ 
   if (actMetaSimple.n_simpleblades_ > 0) {
     actMetaSimple.numPointsTotal_ = 0;
     for (int iBlade= 0; iBlade < n_simpleblades_; iBlade++) {
@@ -69,6 +78,10 @@ actuator_Simple_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
       actMetaSimple.num_force_pts_blade_.h_view(iBlade) = num_force_pts_blade;
       actMetaSimple.numPointsTurbine_.h_view(iBlade)    = num_force_pts_blade;
       actMetaSimple.numPointsTotal_                    += num_force_pts_blade;
+
+      if (num_force_pts_blade > actMetaSimple.max_num_force_pts_blade_) {
+	actMetaSimple.max_num_force_pts_blade_ = num_force_pts_blade;
+      }
 
       if (actMetaSimple.debug_output_)
 	NaluEnv::self().naluOutputP0() 
@@ -187,7 +200,8 @@ actuator_Simple_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
 	throw std::runtime_error("ActuatorSimpleNGP: missing chord_table");
       std::vector<double> chord_table_extended = 
 	extend_double_vector(chordtemp, num_force_pts_blade);
-      actMetaSimple.chord_table_.push_back(chord_table_extended); 
+      //actMetaSimple.chord_table_.push_back(chord_table_extended);  // LCCDELETE
+      input_chord_table.push_back(chord_table_extended);
 
       // twist definitions
       const YAML::Node twist_table = cur_blade["twist_table"];
@@ -196,7 +210,8 @@ actuator_Simple_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
 	twisttemp = twist_table.as<std::vector<double>>();
       else
 	throw std::runtime_error("ActuatorSimpleNGP: missing twist_table");
-      actMetaSimple.twist_table_.push_back(extend_double_vector(twisttemp, num_force_pts_blade)); 
+      //actMetaSimple.twist_table_.push_back(extend_double_vector(twisttemp, num_force_pts_blade)); // LCCDELETE
+      input_twist_table.push_back(extend_double_vector(twisttemp, num_force_pts_blade));
 
       // Calculate elem areas
       std::vector<double> elemareatemp(num_force_pts_blade, 0.0);
@@ -206,7 +221,8 @@ actuator_Simple_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
       double dx_norm = sqrt(dx[0]*dx[0] + dx[1]*dx[1] + dx[2]*dx[2]);
       for (int i=0; i<num_force_pts_blade; i++)
 	elemareatemp[i] = dx_norm*chord_table_extended[i];
-      actMetaSimple.elem_area_.push_back(elemareatemp);
+      //actMetaSimple.elem_area_.push_back(elemareatemp); // LCCDELETE
+      input_elem_area.push_back(elemareatemp);
 
       // Polar tables
       // --- aoa ---
@@ -216,8 +232,14 @@ actuator_Simple_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
 	aoatemp = aoa_table.as<std::vector<double>>();
       else
 	throw std::runtime_error("ActuatorSimpleNGP: missing aoa_table");
-      actMetaSimple.aoa_polartable_.push_back(aoatemp); 
+      //actMetaSimple.aoa_polartable_.push_back(aoatemp);   // LCCDELETE
+      input_aoa_polartable.push_back(aoatemp);
       size_t polartableN = aoatemp.size();
+      actMetaSimple.polartable_size_.h_view(iBlade) = polartableN;
+      // get the maximum size
+      if (polartableN > actMetaSimple.max_polartable_size_) {
+	actMetaSimple.max_polartable_size_ = polartableN;
+      }
 
       // --- cl ---
       const YAML::Node cl_table = cur_blade["cl_table"];
@@ -226,7 +248,8 @@ actuator_Simple_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
 	cltemp = cl_table.as<std::vector<double>>();
       else
 	throw std::runtime_error("ActuatorSimpleNGP: missing cl_table");
-      actMetaSimple.cl_polartable_.push_back(extend_double_vector(cltemp, polartableN)); 
+      //actMetaSimple.cl_polartable_.push_back(extend_double_vector(cltemp, polartableN));  // LCCDELETE
+      input_cl_polartable.push_back(extend_double_vector(cltemp, polartableN));
 
       // --- cd ---
       const YAML::Node cd_table = cur_blade["cd_table"];
@@ -235,17 +258,50 @@ actuator_Simple_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
 	cdtemp = cd_table.as<std::vector<double>>();
       else
 	throw std::runtime_error("ActuatorSimpleNGP: missing cd_table");
-      actMetaSimple.cd_polartable_.push_back(extend_double_vector(cdtemp, polartableN)); 
-
+      //actMetaSimple.cd_polartable_.push_back(extend_double_vector(cdtemp, polartableN));  // LCCDELETE
+      input_cd_polartable.push_back(extend_double_vector(cdtemp, polartableN)); 
 	
     } // End loop over blades
   }else {
       throw std::runtime_error("Number of simple blades <= 0 ");
   }
 
-  NaluEnv::self().naluOutputP0() << " actMetaSimple.numPointsTotal_ = "
-		      << actMetaSimple.numPointsTotal_<< std::endl; // LCCOUT
-  NaluEnv::self().naluOutputP0() << "Done actuator_Simple_parse()"<< std::endl; // LCCOUT
+  // resize blade definition tables
+  Act2DArrayDblDv chordview("chord_table_view", n_simpleblades_, actMetaSimple.max_num_force_pts_blade_);
+  Act2DArrayDblDv twistview("twist_table_view", n_simpleblades_, actMetaSimple.max_num_force_pts_blade_);
+  Act2DArrayDblDv elem_area_view("elem_area_view", n_simpleblades_, actMetaSimple.max_num_force_pts_blade_);
+  actMetaSimple.chord_tableDv_ = chordview;
+  actMetaSimple.twist_tableDv_ = twistview;
+  actMetaSimple.elem_areaDv_   = elem_area_view;
+  // Copy the information over
+  for (int iBlade= 0; iBlade < n_simpleblades_; iBlade++) {
+    for (int j=0; j <actMetaSimple.numPointsTurbine_.h_view(iBlade); j++) {
+      actMetaSimple.chord_tableDv_.h_view(iBlade, j) = input_chord_table[iBlade][j]; //actMetaSimple.chord_table_[iBlade][j]; // LCCDELETE
+      actMetaSimple.twist_tableDv_.h_view(iBlade, j) = input_twist_table[iBlade][j]; // actMetaSimple.twist_table_[iBlade][j]; // LCCDELETE
+      actMetaSimple.elem_areaDv_.h_view(iBlade, j)   = input_elem_area[iBlade][j]; //actMetaSimple.elem_area_[iBlade][j]; // LCCDELETE
+    }
+  }
+
+  // resize the polar table views
+  Act2DArrayDblDv aoaview("aoa_polartable_view", n_simpleblades_, actMetaSimple.max_polartable_size_);
+  Act2DArrayDblDv clview("cl_polartable_view",   n_simpleblades_, actMetaSimple.max_polartable_size_);
+  Act2DArrayDblDv cdview("cd_polartable_view",   n_simpleblades_, actMetaSimple.max_polartable_size_);
+  actMetaSimple.aoa_polartableDv_ = aoaview;
+  actMetaSimple.cl_polartableDv_  = clview;
+  actMetaSimple.cd_polartableDv_  = cdview;
+  // Copy the information over
+  for (int iBlade= 0; iBlade < n_simpleblades_; iBlade++) {
+    for (int j=0; j < actMetaSimple.polartable_size_.h_view(iBlade); j++) {
+      actMetaSimple.aoa_polartableDv_.h_view(iBlade, j) = input_aoa_polartable[iBlade][j]; // actMetaSimple.aoa_polartable_[iBlade][j];  // LCCDELETE
+      actMetaSimple.cl_polartableDv_.h_view(iBlade, j)  = input_cl_polartable[iBlade][j]; // actMetaSimple.cl_polartable_[iBlade][j];  // LCCDELETE
+      actMetaSimple.cd_polartableDv_.h_view(iBlade, j)  = input_cd_polartable[iBlade][j]; // actMetaSimple.cd_polartable_[iBlade][j];  // LCCDELETE
+    }
+  }
+  if (actMetaSimple.debug_output_) {
+    NaluEnv::self().naluOutputP0() << " actMetaSimple.numPointsTotal_ = "
+				   << actMetaSimple.numPointsTotal_<< std::endl; // LCCOUT
+    NaluEnv::self().naluOutputP0() << "Done actuator_Simple_parse()"<< std::endl; // LCCOUT
+  }
   return actMetaSimple;
 }
 

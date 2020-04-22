@@ -37,15 +37,28 @@ struct ActuatorMetaSimple : public ActuatorMeta
   ActVectorDblDv  p1zeroalphadir_;         // Directon of zero alpha at p1
   ActVectorDblDv  chordnormaldir_;         // Direction normal to chord
   ActVectorDblDv  spandir_;                // Direction in the span
+  
   // for the blade definitions
-  std::vector<std::vector<double>> chord_table_;
-  std::vector<std::vector<double>> twist_table_;
-  std::vector<std::vector<double>> elem_area_;
+  //std::vector<std::vector<double>> chord_table_;
+  //std::vector<std::vector<double>> twist_table_;
+  //std::vector<std::vector<double>> elem_area_;
   // for the polars
-  std::vector<std::vector<double>> aoa_polartable_;
-  std::vector<std::vector<double>> cl_polartable_;
-  std::vector<std::vector<double>> cd_polartable_;
-
+  //std::vector<std::vector<double>> aoa_polartable_;
+  //std::vector<std::vector<double>> cl_polartable_;
+  //std::vector<std::vector<double>> cd_polartable_;
+  
+  // Kokkos quantities
+  // for the blade definitions
+  std::size_t      max_num_force_pts_blade_;
+  Act2DArrayDblDv  chord_tableDv_;
+  Act2DArrayDblDv  twist_tableDv_;
+  Act2DArrayDblDv  elem_areaDv_;
+  // for the polars
+  std::size_t      max_polartable_size_;
+  ActScalarIntDv   polartable_size_;
+  Act2DArrayDblDv  aoa_polartableDv_;
+  Act2DArrayDblDv  cl_polartableDv_;
+  Act2DArrayDblDv  cd_polartableDv_;
 
 };
 

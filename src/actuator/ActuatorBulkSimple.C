@@ -25,8 +25,10 @@ ActuatorMetaSimple::ActuatorMetaSimple(const ActuatorMeta& actMeta)
     p2_("p2Meta", numberOfActuators_),
     p1zeroalphadir_("p1zeroalphadirMeta", numberOfActuators_),
     chordnormaldir_("chordnormaldirMeta", numberOfActuators_),
-    spandir_("spandirMeta", numberOfActuators_)
-
+    spandir_("spandirMeta", numberOfActuators_),
+    max_num_force_pts_blade_(0),
+    max_polartable_size_(0),
+    polartable_size_("polartablesizeMeta", numberOfActuators_)
 {
 }
 
@@ -119,7 +121,8 @@ ActuatorBulkSimple::init_epsilon(const ActuatorMetaSimple& actMeta)
         auto epsilonOpt =
           Kokkos::subview(epsilonOpt_.view_host(), np + offset, Kokkos::ALL);
 
-	double chord = actMeta.chord_table_[iBlade][np];
+	//double chord = actMeta.chord_table_[iBlade][np]; // LCCDELETE
+	double chord = actMeta.chord_tableDv_.h_view(iBlade, np); 
 	for (int i = 0; i < 3; i++) {
 	  // Define the optimal epsilon
 	  epsilonOpt(i) = epsilonChord(i) * chord;
