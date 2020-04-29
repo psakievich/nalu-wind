@@ -59,14 +59,13 @@ struct ActuatorBulkSimple : public ActuatorBulk
 
   Kokkos::RangePolicy<Kokkos::DefaultHostExecutionSpace> local_range_policy();
 
-  void output_torque_info();
   void init_epsilon(const ActuatorMetaSimple& actMeta);
+  void init_points(const ActuatorMetaSimple& actMeta);
   virtual void zero_open_fast_views();
 
   virtual ~ActuatorBulkSimple();
 
   ActFixVectorDbl turbineThrust_;
-  ActFixVectorDbl turbineTorque_;
 
   ActVectorDblDv epsilonOpt_;
   ActTensorDblDv orientationTensor_;
@@ -84,17 +83,6 @@ struct ActuatorBulkSimple : public ActuatorBulk
   ActDualViewHelper<ActuatorMemSpace> dvHelper_;
 };
 
-// helper functions to
-// squash calls to std::cout from TPL's aka OpenFAST
-inline
-void squash_simple_output(std::function<void()>func)
-{
-  std::stringstream buffer;
-  std::streambuf* sHoldCout = std::cout.rdbuf();
-  std::cout.rdbuf(buffer.rdbuf());
-  func();
-  std::cout.rdbuf(sHoldCout);
-}
 
 } // namespace nalu
 } // namespace sierra

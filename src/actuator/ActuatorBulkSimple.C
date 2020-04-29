@@ -36,7 +36,6 @@ ActuatorBulkSimple::ActuatorBulkSimple(
   const ActuatorMetaSimple& actMeta, double naluTimeStep)
   : ActuatorBulk(actMeta),
     turbineThrust_("turbineThrust", actMeta.numberOfActuators_),
-    turbineTorque_("turbineTorque", actMeta.numberOfActuators_),
     epsilonOpt_("epsilonOptimal", actMeta.numPointsTotal_),
     orientationTensor_(
       "orientationTensor",
@@ -45,7 +44,7 @@ ActuatorBulkSimple::ActuatorBulkSimple(
     num_blades_(actMeta.numberOfActuators_),
     debug_output_(actMeta.debug_output_),
     assignedProc_("assignedProcBulk", actMeta.numberOfActuators_),
-    localTurbineId_(// NaluEnv::self().parallel_rank()),
+    localTurbineId_(
       NaluEnv::self().parallel_rank() >= actMeta.numberOfActuators_
         ? -1
       : NaluEnv::self().parallel_rank()) // assign 1 turbine per rank for now Used to be ? -1
@@ -90,6 +89,7 @@ ActuatorBulkSimple::ActuatorBulkSimple(
 				     << std::endl; //LCCOUT
     }
   init_epsilon(actMeta);
+  init_points(actMeta);
   NaluEnv::self().naluOutputP0() << "Done ActuatorBulkSimple Init "
 				 << std::endl; // LCCOUT
 }
@@ -150,6 +150,51 @@ ActuatorBulkSimple::init_epsilon(const ActuatorMetaSimple& actMeta)
   searchRadius_.sync_host();
 }
 
+// Initializes the point coordinates
+void
+ActuatorBulkSimple::init_points(const ActuatorMetaSimple& actMeta)
+{
+  pointCentroid_.modify_host();
+
+  const int nBlades = actMeta.n_simpleblades_;
+  for (int iBlade = 0; iBlade<nBlades; iBlade++) {
+    if (NaluEnv::self().parallel_rank()==assignedProc_.h_view(iBlade)) { 
+      const int numForcePts = actMeta.num_force_pts_blade_.h_view(iBlade);
+      const int offset = turbIdOffset_.h_view(iBlade);      
+      const double denom = (double)numForcePts;
+
+      // Get p1 and p2 and dx for blade geometry
+      double p1[3];
+      double p2[3];
+      double dx[3];
+      for (int j=0; j<3; j++) { 
+	p1[j] = actMeta.p1_.h_view(iBlade, j);
+	p2[j] = actMeta.p2_.h_view(iBlade, j);
+	dx[j] = (p2[j] - p1[j])/denom; 
+      }
+
+      // set every pointCentroid
+      for (int np = 0; np < numForcePts; np++) {
+        auto pointLocal =
+          Kokkos::subview(pointCentroid_.view_host(), np + offset, Kokkos::ALL);
+
+	for (int i=0; i<3; i++) {
+	  pointLocal(i) = p1[i] + 0.5*dx[i] + dx[i]*(double)np;
+	}
+
+	NaluEnv::self().naluOutput() 
+	  << "Blade "<< iBlade  // LCCOUT
+	  << " pointId: " << np << std::scientific<< std::setprecision(5)
+	  << " point: "<<pointLocal(0)<<" "<<pointLocal(1)<<" "<<pointLocal(2)
+	  << std::endl;
+
+      }// loop over np
+    }
+  } // loop over iBlade
+  actuator_utils::reduce_view_on_host(pointCentroid_.view_host());
+  pointCentroid_.sync_host();
+}
+
 Kokkos::RangePolicy<ActuatorFixedExecutionSpace>
 ActuatorBulkSimple::local_range_policy()
 {
@@ -165,34 +210,21 @@ ActuatorBulkSimple::local_range_policy()
 }
 
 
-
-void
-ActuatorBulkSimple::output_torque_info()
-{
-  for (size_t iTurb = 0; iTurb < turbineThrust_.extent(0); iTurb++) {
-
-    if (NaluEnv::self().parallel_rank() == iTurb) {
-      auto thrust = Kokkos::subview(turbineThrust_, iTurb, Kokkos::ALL);
-      auto torque = Kokkos::subview(turbineTorque_, iTurb, Kokkos::ALL);
-      NaluEnv::self().naluOutput()
-        << std::endl
-        << "  Thrust[" << iTurb << "] = " << thrust(0) << " " << thrust(1)
-        << " " << thrust(2) << " " << std::endl;
-
-    }
-  }
-}
-
 void
 ActuatorBulkSimple::zero_open_fast_views()
 {
   dvHelper_.touch_dual_view(actuatorForce_);
-  dvHelper_.touch_dual_view(pointCentroid_);
   dvHelper_.touch_dual_view(velocity_);
+  dvHelper_.touch_dual_view(density_);
   Kokkos::deep_copy(dvHelper_.get_local_view(actuatorForce_),0.0);
-  Kokkos::deep_copy(dvHelper_.get_local_view(pointCentroid_),0.0);
   Kokkos::deep_copy(dvHelper_.get_local_view(velocity_),0.0);
-     
+  Kokkos::deep_copy(dvHelper_.get_local_view(density_),0.0);
+ 
+  // Uncomment this functor if you want to update the point positions
+  // -----------
+  //dvHelper_.touch_dual_view(pointCentroid_);
+  //Kokkos::deep_copy(dvHelper_.get_local_view(pointCentroid_),0.0);
+    
 }
 
 } // namespace nalu

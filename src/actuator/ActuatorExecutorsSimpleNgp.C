@@ -70,8 +70,6 @@ ActuatorLineSimpleNGP::operator()()
 void
 ActuatorLineSimpleNGP::update()
 {
-  NaluEnv::self().naluOutputP0()  // LCCOUT
-    << "Blade: " <<actBulk_.localTurbineId_ << std::endl;
 
   auto velReduce = actBulk_.velocity_.view_host();
   auto pointReduce = actBulk_.pointCentroid_.view_host();
@@ -80,19 +78,22 @@ ActuatorLineSimpleNGP::update()
   // set range policy to only operating over points owned by local fast turbine
   auto fastRangePolicy = actBulk_.local_range_policy();
 
-  // Get p1 and p2 for blade geometry
-  std::vector<double> p1(3);
-  std::vector<double> p2(3);
-  for (int j=0; j<3; j++) { 
-    p1[j] = actMeta_.p1_.h_view(actBulk_.localTurbineId_,j);
-    p2[j] = actMeta_.p2_.h_view(actBulk_.localTurbineId_,j);
-  }
-  int Npts=actMeta_.num_force_pts_blade_.h_view(actBulk_.localTurbineId_);
-
-  Kokkos::parallel_for(
-    "updatePointLocationsActuatorNgpSimple", fastRangePolicy,
-    ActSimpleUpdatePoints(actBulk_, p1, p2, Npts));
-  actuator_utils::reduce_view_on_host(pointReduce);
+  // Uncomment this section if you want to update the point positions
+  // ====
+  // -- Get p1 and p2 for blade geometry --
+  // double p1[3]; 
+  // double p2[3]; 
+  // for (int j=0; j<3; j++) { 
+  //   p1[j] = actMeta_.p1_.h_view(actBulk_.localTurbineId_,j);
+  //   p2[j] = actMeta_.p2_.h_view(actBulk_.localTurbineId_,j);
+  // }
+  // int Npts=actMeta_.num_force_pts_blade_.h_view(actBulk_.localTurbineId_);
+  // -- functor to update points -- 
+  // Kokkos::parallel_for(
+  //   "updatePointLocationsActuatorNgpSimple", fastRangePolicy,
+  //   ActSimpleUpdatePoints(actBulk_, p1, p2, Npts));
+  // actuator_utils::reduce_view_on_host(pointReduce);
+  // =====
   actBulk_.stk_search_act_pnts(actMeta_, stkBulk_);
 
   Kokkos::parallel_for(

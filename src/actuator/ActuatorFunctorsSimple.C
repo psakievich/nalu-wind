@@ -83,16 +83,18 @@ ActSimpleUpdatePoints::operator()(int index) const
   ThrowAssert(turbId_ >= 0);
   const int pointId = index - offsets_(turbId_);
   auto point = Kokkos::subview(points_, index, Kokkos::ALL);
-  std::vector<double> dx(3, 0.0);
-  double denom = (double)numpoints_;
 
-  for (int i=0; i<3; i++) {
-    dx[i] = (p2_[i] - p1_[i])/denom; 
-  }
-
-  for (int i=0; i<3; i++) {
-    point(i) = p1_[i] + 0.5*dx[i] + dx[i]*(float)pointId;
-  }
+  // Uncomment this section if you need to update point locations
+  // ------
+  // std::vector<double> dx(3, 0.0);
+  // double denom = (double)numpoints_;
+  // for (int i=0; i<3; i++) {
+  //   dx[i] = (p2_[i] - p1_[i])/denom; 
+  // }
+  // for (int i=0; i<3; i++) {
+  //   point(i) = p1_[i] + 0.5*dx[i] + dx[i]*(float)pointId;
+  // }
+  // ------
 
 }
 
@@ -216,7 +218,6 @@ ActSimpleComputeForce::operator()(int index) const
   
   // Calculate lift and drag forces
   double rho  = *density.data();
-  rho = 1.0;
   double area = elem_area_[localId];
   double Q    = 0.5*rho*ws2Dnorm*ws2Dnorm;
   double lift = cl*Q*area;
@@ -321,11 +322,9 @@ void
 ActSimpleSetUpThrustCalc::operator()(int index) const
 {
   auto thrust = Kokkos::subview(actBulk_.turbineThrust_, index, Kokkos::ALL);
-  auto torque = Kokkos::subview(actBulk_.turbineTorque_, index, Kokkos::ALL);
 
   for (int i = 0; i < 3; i++) {
     thrust(i) = 0.0;
-    torque(i) = 0.0;
   }
 }
 
@@ -343,20 +342,9 @@ ActSimpleComputeThrustInnerLoop::operator()(
   // shouldn't thrust and torque contribs only come from blades?
   // probably not worth worrying about since this is just a debug calculation
 
-  // determine turbine
-  /*
-  int turbId = 0;
-  const int nPointId = static_cast<int>(pointId);
-  for (; turbId < offsets.extent_int(0); turbId++) {
-    if (nPointId >= offsets(turbId)) {
-      break;
-    }
-  }
-  */
   if (NaluEnv::self().parallel_rank()<actBulk_.num_blades_) {
     int turbId = NaluEnv::self().parallel_rank();
-  auto thrust = Kokkos::subview(actBulk_.turbineThrust_, turbId, Kokkos::ALL);
-  auto torque = Kokkos::subview(actBulk_.turbineTorque_, turbId, Kokkos::ALL);
+    auto thrust = Kokkos::subview(actBulk_.turbineThrust_, turbId, Kokkos::ALL);
 
   double r[3], rPerpShaft[3], forceTerm[3];
 
@@ -367,9 +355,6 @@ ActSimpleComputeThrustInnerLoop::operator()(
     thrust(i) += forceTerm[i];
   }
 
-  torque(0) = 0.0;
-  torque(1) = 0.0;
-  torque(2) = 0.0;
   }
 }
 
