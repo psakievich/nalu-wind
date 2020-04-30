@@ -61,6 +61,7 @@ struct ActuatorBulkSimple : public ActuatorBulk
 
   void init_epsilon(const ActuatorMetaSimple& actMeta);
   void init_points(const ActuatorMetaSimple& actMeta);
+  void init_orientation(const ActuatorMetaSimple& actMeta);
   virtual void zero_open_fast_views();
 
   virtual ~ActuatorBulkSimple();

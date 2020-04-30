@@ -44,10 +44,20 @@ ActuatorLineSimpleNGP::operator()()
   const int localSizeCoarseSearch =
     actBulk_.coarseSearchElemIds_.view_host().extent_int(0);
 
-  if (actMeta_.isotropicGaussian_) {
-    Kokkos::parallel_for(
-      "spreadForcesActuatorNgpSimple", localSizeCoarseSearch,
-      SpreadActuatorForce(actBulk_, stkBulk_));
+  // === Always use SpreadActuatorForce() ===
+  // -- for both isotropic and anisotropic Guassians ---
+  Kokkos::parallel_for(
+    "spreadForcesActuatorNgpSimple", localSizeCoarseSearch,
+    SpreadActuatorForce(actBulk_, stkBulk_));
+  // -- Uncomment below to use ActSimpleSpreadForceWhProjection
+  // Kokkos::parallel_for(
+  //   "spreadForceUsingProjDistance", localSizeCoarseSearch,
+  //   ActSimpleSpreadForceWhProjection(actBulk_, stkBulk_));
+  // ====
+
+  /* //LCCDELETE  
+  //if (actMeta_.isotropicGaussian_) {
+  if (true) {
   } else {
     const int rank = NaluEnv::self().parallel_rank();
     Kokkos::deep_copy(actBulk_.orientationTensor_.view_host(),0.0);
@@ -57,11 +67,11 @@ ActuatorLineSimpleNGP::operator()()
 
     actuator_utils::reduce_view_on_host(
       actBulk_.orientationTensor_.view_host());
-
     Kokkos::parallel_for(
       "spreadForceUsingProjDistance", localSizeCoarseSearch,
       ActSimpleSpreadForceWhProjection(actBulk_, stkBulk_));
   }
+  */
 
   actBulk_.parallel_sum_source_term(stkBulk_);
 
@@ -91,7 +101,7 @@ ActuatorLineSimpleNGP::update()
   // -- functor to update points -- 
   // Kokkos::parallel_for(
   //   "updatePointLocationsActuatorNgpSimple", fastRangePolicy,
-  //   ActSimpleUpdatePoints(actBulk_, p1, p2, Npts));
+  //   ActSimpleUpdatePoints(actBulk_, Npts));
   // actuator_utils::reduce_view_on_host(pointReduce);
   // =====
   actBulk_.stk_search_act_pnts(actMeta_, stkBulk_);

@@ -63,14 +63,14 @@ InterpActuatorDensity::operator()(int index) const
 }
 
 ActSimpleUpdatePoints::ActSimpleUpdatePoints(ActuatorBulkSimple& actBulk, 
-					     std::vector<double> p1,
-					     std::vector<double> p2,
+					     // std::vector<double> p1,
+					     // std::vector<double> p2,
 					     int numpts)
   : points_(helper_.get_local_view(actBulk.pointCentroid_)),
     offsets_(helper_.get_local_view(actBulk.turbIdOffset_)),
     turbId_(actBulk.localTurbineId_),
-    p1_(p1),
-    p2_(p2),
+    // p1_(p1),
+    // p2_(p2),
     numpoints_(numpts)
 {
   helper_.touch_dual_view(actBulk.pointCentroid_);
@@ -137,31 +137,48 @@ ActSimpleComputeForce::ActSimpleComputeForce(ActuatorBulkSimple& actBulk,
     density_(helper_.get_local_view(actBulk.density_)),
     offset_(helper_.get_local_view(actBulk.turbIdOffset_)),
     turbId_(actBulk.localTurbineId_),
+    Npolartable(actMeta.polartable_size_.h_view(turbId_)),
+    aoa_polartableDv_("aoa_polartable_Dv", actMeta.polartable_size_.h_view(turbId_)),
+    // actMeta.n_simpleblades_, actMeta.max_polartable_size_),  //LCCDELETE
+    cl_polartableDv_("cl_polartable_Dv", actMeta.polartable_size_.h_view(turbId_)),
+	 // actMeta.n_simpleblades_, actMeta.max_polartable_size_),
+    cd_polartableDv_("cd_polartable_Dv", actMeta.polartable_size_.h_view(turbId_)),
+	 //      actMeta.n_simpleblades_, actMeta.max_polartable_size_),
+    Npts(actMeta.num_force_pts_blade_.h_view(turbId_)),
+    twist_tableDv_("twist_table_Dv", actMeta.num_force_pts_blade_.h_view(turbId_)),
+	 //actMeta.n_simpleblades_, actMeta.max_num_force_pts_blade_),
+    elem_areaDv_("elem_area_Dv", actMeta.num_force_pts_blade_.h_view(turbId_)),
+	 //actMeta.n_simpleblades_, actMeta.max_num_force_pts_blade_),
     debug_output_(actBulk.debug_output_)
 {
 
   helper_.touch_dual_view(actBulk.actuatorForce_);
   if (NaluEnv::self().parallel_rank() == turbId_) {
     // Set up the polar table arrays
-    size_t Npolartable = actMeta.polartable_size_.h_view(turbId_);
-    aoatable_.resize(Npolartable);
-    cltable_.resize(Npolartable);
-    cdtable_.resize(Npolartable);
+    // Npolartable = actMeta.polartable_size_.h_view(turbId_);  //LCCDELETE
+    // aoatable_.resize(Npolartable);   //LCCDELETE
+    // cltable_.resize(Npolartable);    //LCCDELETE
+    // cdtable_.resize(Npolartable);    //LCCDELETE
     // Copy over the polar tables
     for (size_t i=0; i<Npolartable; i++) {
-      aoatable_[i] = actMeta.aoa_polartableDv_.h_view(turbId_, i);
-      cltable_[i]  = actMeta.cl_polartableDv_.h_view(turbId_, i);
-      cdtable_[i]  = actMeta.cd_polartableDv_.h_view(turbId_, i);
-      
+      // aoatable_[i] = actMeta.aoa_polartableDv_.h_view(turbId_, i);//LCCDELETE
+      // cltable_[i]  = actMeta.cl_polartableDv_.h_view(turbId_, i); //LCCDELETE
+      // cdtable_[i]  = actMeta.cd_polartableDv_.h_view(turbId_, i); //LCCDELETE
+
+      aoa_polartableDv_.h_view(i) = actMeta.aoa_polartableDv_.h_view(turbId_,i);
+      cl_polartableDv_.h_view(i)  = actMeta.cl_polartableDv_.h_view(turbId_, i);
+      cd_polartableDv_.h_view(i)  = actMeta.cd_polartableDv_.h_view(turbId_, i);
     }
     // Copy over the twist/area tables
-    //size_t Npts = actMeta.twist_table_[actBulk.localTurbineId_].size();
-    size_t Npts = actMeta.num_force_pts_blade_.h_view(turbId_);
-    twist_table_.resize(Npts);
-    elem_area_.resize(Npts);
+    //Npts = actMeta.num_force_pts_blade_.h_view(turbId_);  //LCCDELETE
+    // twist_table_.resize(Npts);     //LCCDELETE
+    // elem_area_.resize(Npts);       //LCCDELETE
     for (size_t i=0; i<Npts; i++) {
-      twist_table_[i] = actMeta.twist_tableDv_.h_view(turbId_, i);
-      elem_area_[i]   = actMeta.elem_areaDv_.h_view(turbId_, i);
+      // twist_table_[i] = actMeta.twist_tableDv_.h_view(turbId_, i);//LCCDELETE
+      // elem_area_[i]   = actMeta.elem_areaDv_.h_view(turbId_, i);  //LCCDELETE
+
+      twist_tableDv_.h_view(i) = actMeta.twist_tableDv_.h_view(turbId_, i);
+      elem_areaDv_.h_view(i)   = actMeta.elem_areaDv_.h_view(turbId_, i);
     }
     
 
@@ -193,7 +210,8 @@ ActSimpleComputeForce::operator()(int index) const
 
   if (NaluEnv::self().parallel_rank() == turbId_) {
 
-  double twist = twist_table_[localId]; 
+  // double twist = twist_table_[localId]; //LCCDELETE
+  double twist = twist_tableDv_.h_view(localId); 
   Coordinates ws; // Total wind speed
   ws.x_ = vel(0);
   ws.y_ = vel(1);
@@ -205,10 +223,20 @@ ActSimpleComputeForce::operator()(int index) const
   AirfoilTheory2D::calculate_alpha(ws, p1zeroalphadir_, 
 				   spandir_, chordnormaldir_, twist, 
 				   ws2D, alpha);
+  // set up the polar tables
+  std::vector<double> aoatable;
+  std::vector<double> cltable;
+  std::vector<double> cdtable;
+  for (int i=0; i<Npolartable; i++) {
+    aoatable.push_back(aoa_polartableDv_.h_view(i));
+    cltable.push_back(cl_polartableDv_.h_view(i));
+    cdtable.push_back(cd_polartableDv_.h_view(i));
+  }
+
   // Calculate Cl and Cd
   double cl;
   double cd;
-  AirfoilTheory2D::calculate_cl_cd(alpha, aoatable_, cltable_, cdtable_,
+  AirfoilTheory2D::calculate_cl_cd(alpha, aoatable, cltable, cdtable,
 				   cl, cd);
 
   // Magnitude of wind speed
@@ -218,7 +246,8 @@ ActSimpleComputeForce::operator()(int index) const
   
   // Calculate lift and drag forces
   double rho  = *density.data();
-  double area = elem_area_[localId];
+  // double area = elem_area_[localId];
+  double area = elem_areaDv_.h_view(localId); 
   double Q    = 0.5*rho*ws2Dnorm*ws2Dnorm;
   double lift = cl*Q*area;
   double drag = cd*Q*area;
@@ -305,6 +334,7 @@ AirfoilTheory2D::calculate_cl_cd(
     double &cl,
     double &cd)
 {
+
   // Get cl and cd from the tables
   utils::linear_interp(aoatable, cltable, alpha, cl);
   utils::linear_interp(aoatable, cdtable, alpha, cd);
@@ -357,7 +387,7 @@ ActSimpleComputeThrustInnerLoop::operator()(
 
   }
 }
-
+  /* //LCCDELETE
 ActSimpleStashOrientationVectors::ActSimpleStashOrientationVectors(
   ActuatorBulkSimple& actBulk)
   : orientation_(helper_.get_local_view(actBulk.orientationTensor_)),
@@ -375,6 +405,9 @@ ActSimpleStashOrientationVectors::operator()(int index) const
   auto localOrientation = Kokkos::subview(orientation_, index, Kokkos::ALL);
   if(pointId>0){
 
+    localOrientation(0) = 1.0;
+    localOrientation(3) = 1.0;
+    localOrientation(6) = 1.0;
     // swap columns of matrix since openfast stores data
     // as (thick, chord, span) and we want (chord, thick, span)
     double colSwapTemp;
@@ -392,7 +425,7 @@ ActSimpleStashOrientationVectors::operator()(int index) const
   }
 
 }
-
+*/
 void
 ActSimpleSpreadForceWhProjInnerLoop::preloop()
 {

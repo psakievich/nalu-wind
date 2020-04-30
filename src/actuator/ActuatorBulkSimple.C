@@ -90,6 +90,7 @@ ActuatorBulkSimple::ActuatorBulkSimple(
     }
   init_epsilon(actMeta);
   init_points(actMeta);
+  init_orientation(actMeta);
   NaluEnv::self().naluOutputP0() << "Done ActuatorBulkSimple Init "
 				 << std::endl; // LCCOUT
 }
@@ -193,6 +194,40 @@ ActuatorBulkSimple::init_points(const ActuatorMetaSimple& actMeta)
   } // loop over iBlade
   actuator_utils::reduce_view_on_host(pointCentroid_.view_host());
   pointCentroid_.sync_host();
+}
+
+// Initializes the orientation matrices
+void
+ActuatorBulkSimple::init_orientation(const ActuatorMetaSimple& actMeta)
+{
+  // Bail out if this is isotropic
+  if (actMeta.isotropicGaussian_) return;
+
+  orientationTensor_.modify_host();
+  const int nBlades = actMeta.n_simpleblades_;
+  for (int iBlade = 0; iBlade<nBlades; iBlade++) {
+    if (NaluEnv::self().parallel_rank()==assignedProc_.h_view(iBlade)) { 
+      const int numForcePts = actMeta.num_force_pts_blade_.h_view(iBlade);
+      const int offset = turbIdOffset_.h_view(iBlade);      
+
+      // set every pointCentroid
+      for (int np = 0; np < numForcePts; np++) {
+	auto orientation = Kokkos::subview(
+            orientationTensor_.view_host(), np + offset, Kokkos::ALL);
+	// set orientation tensor to identity
+	orientation(0) = 1.0;
+	orientation(1) = 0.0;
+	orientation(2) = 0.0;
+	orientation(3) = 1.0;
+	orientation(4) = 0.0;
+	orientation(5) = 0.0;
+	orientation(6) = 1.0;
+      }
+
+    }
+  } // loop over iBlade
+  actuator_utils::reduce_view_on_host(orientationTensor_.view_host());
+  orientationTensor_.sync_host();
 }
 
 Kokkos::RangePolicy<ActuatorFixedExecutionSpace>
