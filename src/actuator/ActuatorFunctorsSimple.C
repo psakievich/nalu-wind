@@ -120,7 +120,7 @@ ActSimpleAssignVel::operator()(int index) const
       << " pointId: " << pointId << std::scientific<< std::setprecision(5)
       << " point: "<<point(0)<<" "<<point(1)<<" "<<point(2)<<" "
       << " vel: "<<vel(0)<<" "<<vel(1)<<" "<<vel(2)<<" "
-      << " rho: "<< *rho.data() //*rhoptr
+      << " rho: "<< *rho.data() 
       << std::endl;
   // Do nothing otherwise
 
@@ -164,19 +164,6 @@ ActSimpleComputeForce::ActSimpleComputeForce(ActuatorBulkSimple& actBulk,
       spandir[i]        = actMeta.spandir_.h_view(turbId_, i);
     }
 
-    // Set up the directions //LCCDELETE
-    // p1zeroalphadir_.x_ = actMeta.p1zeroalphadir_.h_view(turbId_, 0);
-    // p1zeroalphadir_.y_ = actMeta.p1zeroalphadir_.h_view(turbId_, 1);
-    // p1zeroalphadir_.z_ = actMeta.p1zeroalphadir_.h_view(turbId_, 2);
-
-    // chordnormaldir_.x_ = actMeta.chordnormaldir_.h_view(turbId_, 0);
-    // chordnormaldir_.y_ = actMeta.chordnormaldir_.h_view(turbId_, 1);
-    // chordnormaldir_.z_ = actMeta.chordnormaldir_.h_view(turbId_, 2);
-
-    // spandir_.x_        = actMeta.spandir_.h_view(turbId_, 0);
-    // spandir_.y_        = actMeta.spandir_.h_view(turbId_, 1);
-    // spandir_.z_        = actMeta.spandir_.h_view(turbId_, 2);
-
   }
 }
 
@@ -195,9 +182,6 @@ ActSimpleComputeForce::operator()(int index) const
   double twist = twist_tableDv_.h_view(localId); 
 
   double ws[3] = {vel(0), vel(1), vel(2)} ; // Total wind speed
-  // ws[0] = vel(0);  //LCCDELETE
-  // ws[1] = vel(1);
-  // ws[2] = vel(2);
  
   // Calculate the angle of attack (AOA)
   double alpha;
@@ -221,7 +205,6 @@ ActSimpleComputeForce::operator()(int index) const
   double cd;
   utils::linear_interp(aoatable, cltable, alpha, cl);
   utils::linear_interp(aoatable, cdtable, alpha, cd);
-  //AirfoilTheory2D::calculate_cl_cd(alpha, aoatable, cltable, cdtable, cl, cd);
 
   // Magnitude of wind speed
   double ws2Dnorm = sqrt(ws2D[0]*ws2D[0] + 
@@ -230,7 +213,6 @@ ActSimpleComputeForce::operator()(int index) const
   
   // Calculate lift and drag forces
   double rho  = *density.data();
-  // double area = elem_area_[localId];  //LCCDELETE
   double area = elem_areaDv_.h_view(localId); 
   double Q    = 0.5*rho*ws2Dnorm*ws2Dnorm;
   double lift = cl*Q*area;
@@ -247,12 +229,8 @@ ActSimpleComputeForce::operator()(int index) const
     ws2Ddir[1] = 0.0; 
     ws2Ddir[2] = 0.0; 
   }
-  //Coordinates liftdir;  // Direction of lift force
-  double liftdir[3];
+  double liftdir[3];      // Direction of lift force
   if (ws2Dnorm > 0.0) {
-    // liftdir[0] = ws2Ddir[1]*spandir_.z_ - ws2Ddir[2]*spandir_.y_; 
-    // liftdir[1] = ws2Ddir[2]*spandir_.x_ - ws2Ddir[0]*spandir_.z_; 
-    // liftdir[2] = ws2Ddir[0]*spandir_.y_ - ws2Ddir[1]*spandir_.x_; 
     liftdir[0] = ws2Ddir[1]*spandir[2] - ws2Ddir[2]*spandir[1]; 
     liftdir[1] = ws2Ddir[2]*spandir[0] - ws2Ddir[0]*spandir[2]; 
     liftdir[2] = ws2Ddir[0]*spandir[1] - ws2Ddir[1]*spandir[0]; 
@@ -269,7 +247,7 @@ ActSimpleComputeForce::operator()(int index) const
 
   if (debug_output_)
     NaluEnv::self().naluOutput() 
-      << "Blade "<< turbId_  // LCCOUT // << std::scientific
+      << "Blade "<< turbId_  // LCCOUT 
       << " pointId: " << localId << std::setprecision(5)
       << " alpha: "<<alpha
       << " ws2D: "<<ws2D[0]<<" "<<ws2D[1]<<" "<<ws2D[2]<<" "
@@ -281,15 +259,14 @@ ActSimpleComputeForce::operator()(int index) const
 
 void 
 AirfoilTheory2D::calculate_alpha(
-    double ws[],                 // Coordinates ws, 
-    const double zeroalphadir[], // Coordinates zeroalphadir, 
-    const double spandir[],      // Coordinates spandir,
-    const double chordnormaldir[],// Coordinates chordnormaldir, 
+    double ws[],                 
+    const double zeroalphadir[], 
+    const double spandir[],      
+    const double chordnormaldir[],
     double twist, 
-    double ws2D[],   //Coordinates &ws2Da,
+    double ws2D[],   
     double &alpha) 
 {
-  // Coordinates ws2D;  //LCCDELETE
   // Project WS onto 2D plane defined by zeroalpahdir and chordnormaldir
   double WSspan = ws[0]*spandir[0] + ws[1]*spandir[1] + ws[2]*spandir[2];
   ws2D[0] = ws[0] - WSspan*spandir[0];
@@ -301,42 +278,15 @@ AirfoilTheory2D::calculate_alpha(
     ws2D[0]*zeroalphadir[0] + 
     ws2D[1]*zeroalphadir[1] +  
     ws2D[2]*zeroalphadir[2] ;
-
-    // ws2D.x_*zeroalphadir[0] + 
-    // ws2D.y_*zeroalphadir[1] +  
-    // ws2D.z_*zeroalphadir[2] ;
   
   double WSnormal = 
     ws2D[0]*chordnormaldir[0] + 
     ws2D[1]*chordnormaldir[1] + 
     ws2D[2]*chordnormaldir[2] ;
-
-    // ws2D.x_*chordnormaldir[0] + 
-    // ws2D.y_*chordnormaldir[1] + 
-    // ws2D.z_*chordnormaldir[2] ;
   
   double alphaNoTwist = atan2(WSnormal, WStan)*180.0/M_PI;
 
   alpha = alphaNoTwist + twist;  
-}
-
-
-void 
-AirfoilTheory2D::calculate_cl_cd(
-    double alpha,
-    std::vector<double> aoatable,
-    std::vector<double> cltable,
-    std::vector<double> cdtable,
-    double &cl,
-    double &cd)
-{
-
-  // Get cl and cd from the tables
-  utils::linear_interp(aoatable, cltable, alpha, cl);
-  utils::linear_interp(aoatable, cdtable, alpha, cd);
-
-  // Do another other processing needed on cl/cd
-  // [..nothing at this time..]
 }
 
 ActSimpleSetUpThrustCalc::ActSimpleSetUpThrustCalc(ActuatorBulkSimple& actBulk)

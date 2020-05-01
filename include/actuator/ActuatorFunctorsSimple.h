@@ -35,22 +35,16 @@ namespace nalu {
 
   // Things to calculate lift, drag, and AOA based on 2D airfoil theory
   namespace AirfoilTheory2D {
-  void calculate_alpha(
-    double ws[],                 
-    const double zeroalphadir[], 
-    const double spandir[],      
-    const double chordnormaldir[], 
-    double twist, 
-    double ws2Da[],   
-    double &alpha);
-
-  void calculate_cl_cd(
-    double alpha,
-    std::vector<double> aoatable,
-    std::vector<double> cltable,
-    std::vector<double> cdtable,
-    double &cl,
-    double &cd);
+    // Can use this namespace to add functions relevant to 2D airfoil
+    // theory
+    void calculate_alpha(
+      double ws[],                 
+      const double zeroalphadir[], 
+      const double spandir[],      
+      const double chordnormaldir[], 
+      double twist, 
+      double ws2Da[],   
+      double &alpha);
   }
 
 struct ActSimpleUpdatePoints
