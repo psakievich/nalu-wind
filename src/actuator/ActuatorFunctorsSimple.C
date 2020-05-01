@@ -63,14 +63,10 @@ InterpActuatorDensity::operator()(int index) const
 }
 
 ActSimpleUpdatePoints::ActSimpleUpdatePoints(ActuatorBulkSimple& actBulk, 
-					     // std::vector<double> p1,
-					     // std::vector<double> p2,
 					     int numpts)
   : points_(helper_.get_local_view(actBulk.pointCentroid_)),
     offsets_(helper_.get_local_view(actBulk.turbIdOffset_)),
     turbId_(actBulk.localTurbineId_),
-    // p1_(p1),
-    // p2_(p2),
     numpoints_(numpts)
 {
   helper_.touch_dual_view(actBulk.pointCentroid_);
@@ -139,44 +135,24 @@ ActSimpleComputeForce::ActSimpleComputeForce(ActuatorBulkSimple& actBulk,
     turbId_(actBulk.localTurbineId_),
     Npolartable(actMeta.polartable_size_.h_view(turbId_)),
     aoa_polartableDv_("aoa_polartable_Dv", actMeta.polartable_size_.h_view(turbId_)),
-    // actMeta.n_simpleblades_, actMeta.max_polartable_size_),  //LCCDELETE
     cl_polartableDv_("cl_polartable_Dv", actMeta.polartable_size_.h_view(turbId_)),
-	 // actMeta.n_simpleblades_, actMeta.max_polartable_size_),
     cd_polartableDv_("cd_polartable_Dv", actMeta.polartable_size_.h_view(turbId_)),
-	 //      actMeta.n_simpleblades_, actMeta.max_polartable_size_),
     Npts(actMeta.num_force_pts_blade_.h_view(turbId_)),
     twist_tableDv_("twist_table_Dv", actMeta.num_force_pts_blade_.h_view(turbId_)),
-	 //actMeta.n_simpleblades_, actMeta.max_num_force_pts_blade_),
     elem_areaDv_("elem_area_Dv", actMeta.num_force_pts_blade_.h_view(turbId_)),
-	 //actMeta.n_simpleblades_, actMeta.max_num_force_pts_blade_),
     debug_output_(actBulk.debug_output_)
 {
 
   helper_.touch_dual_view(actBulk.actuatorForce_);
   if (NaluEnv::self().parallel_rank() == turbId_) {
     // Set up the polar table arrays
-    // Npolartable = actMeta.polartable_size_.h_view(turbId_);  //LCCDELETE
-    // aoatable_.resize(Npolartable);   //LCCDELETE
-    // cltable_.resize(Npolartable);    //LCCDELETE
-    // cdtable_.resize(Npolartable);    //LCCDELETE
-    // Copy over the polar tables
     for (size_t i=0; i<Npolartable; i++) {
-      // aoatable_[i] = actMeta.aoa_polartableDv_.h_view(turbId_, i);//LCCDELETE
-      // cltable_[i]  = actMeta.cl_polartableDv_.h_view(turbId_, i); //LCCDELETE
-      // cdtable_[i]  = actMeta.cd_polartableDv_.h_view(turbId_, i); //LCCDELETE
-
       aoa_polartableDv_.h_view(i) = actMeta.aoa_polartableDv_.h_view(turbId_,i);
       cl_polartableDv_.h_view(i)  = actMeta.cl_polartableDv_.h_view(turbId_, i);
       cd_polartableDv_.h_view(i)  = actMeta.cd_polartableDv_.h_view(turbId_, i);
     }
     // Copy over the twist/area tables
-    //Npts = actMeta.num_force_pts_blade_.h_view(turbId_);  //LCCDELETE
-    // twist_table_.resize(Npts);     //LCCDELETE
-    // elem_area_.resize(Npts);       //LCCDELETE
     for (size_t i=0; i<Npts; i++) {
-      // twist_table_[i] = actMeta.twist_tableDv_.h_view(turbId_, i);//LCCDELETE
-      // elem_area_[i]   = actMeta.elem_areaDv_.h_view(turbId_, i);  //LCCDELETE
-
       twist_tableDv_.h_view(i) = actMeta.twist_tableDv_.h_view(turbId_, i);
       elem_areaDv_.h_view(i)   = actMeta.elem_areaDv_.h_view(turbId_, i);
     }
@@ -210,7 +186,6 @@ ActSimpleComputeForce::operator()(int index) const
 
   if (NaluEnv::self().parallel_rank() == turbId_) {
 
-  // double twist = twist_table_[localId]; //LCCDELETE
   double twist = twist_tableDv_.h_view(localId); 
   Coordinates ws; // Total wind speed
   ws.x_ = vel(0);
@@ -369,9 +344,6 @@ ActSimpleComputeThrustInnerLoop::operator()(
 
   auto offsets = actBulk_.turbIdOffset_.view_host();
 
-  // shouldn't thrust and torque contribs only come from blades?
-  // probably not worth worrying about since this is just a debug calculation
-
   if (NaluEnv::self().parallel_rank()<actBulk_.num_blades_) {
     int turbId = NaluEnv::self().parallel_rank();
     auto thrust = Kokkos::subview(actBulk_.turbineThrust_, turbId, Kokkos::ALL);
@@ -379,53 +351,13 @@ ActSimpleComputeThrustInnerLoop::operator()(
   double r[3], rPerpShaft[3], forceTerm[3];
 
   for (int i = 0; i < 3; i++) {
-    //forceTerm[i] = sourceTerm[i] * scvIp;
     forceTerm[i] = sourceTerm[i]*scvIp;
-    //r[i] = nodeCoords[i] - hubLoc(i);
     thrust(i) += forceTerm[i];
   }
 
   }
 }
-  /* //LCCDELETE
-ActSimpleStashOrientationVectors::ActSimpleStashOrientationVectors(
-  ActuatorBulkSimple& actBulk)
-  : orientation_(helper_.get_local_view(actBulk.orientationTensor_)),
-    offset_(helper_.get_local_view(actBulk.turbIdOffset_)),
-    turbId_(actBulk.localTurbineId_)
-{
-  helper_.touch_dual_view(actBulk.orientationTensor_);
-  actBulk.turbIdOffset_.sync_host();
-}
 
-void
-ActSimpleStashOrientationVectors::operator()(int index) const
-{
-  const int pointId = index - offset_(turbId_);
-  auto localOrientation = Kokkos::subview(orientation_, index, Kokkos::ALL);
-  if(pointId>0){
-
-    localOrientation(0) = 1.0;
-    localOrientation(3) = 1.0;
-    localOrientation(6) = 1.0;
-    // swap columns of matrix since openfast stores data
-    // as (thick, chord, span) and we want (chord, thick, span)
-    double colSwapTemp;
-    for (int i = 0; i < 9;i+=3) {
-      colSwapTemp = localOrientation(i);
-      localOrientation(i) = localOrientation(i+1);
-      localOrientation(i+1) = colSwapTemp;
-    }
-  } else {
-    // identity matrix
-    // (all other terms should have already been set to zero)
-    localOrientation(0) = 1.0;
-    localOrientation(3) = 1.0;
-    localOrientation(6) = 1.0;
-  }
-
-}
-*/
 void
 ActSimpleSpreadForceWhProjInnerLoop::preloop()
 {

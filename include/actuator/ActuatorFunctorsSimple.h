@@ -58,8 +58,6 @@ struct ActSimpleUpdatePoints
   using execution_space = ActuatorFixedExecutionSpace;
 
   ActSimpleUpdatePoints(ActuatorBulkSimple& actBulk, 
-			// std::vector<double> p1,  //LCCDELETE
-			// std::vector<double> p2,  //LCCDELETE
 			int numpoints);
   void operator()(int index) const;
 
@@ -68,8 +66,6 @@ struct ActSimpleUpdatePoints
   ActFixScalarInt offsets_;
   const int turbId_;
   const int numpoints_;
-  //std::vector<double> p1_;
-  //std::vector<double> p2_;
 };
 
 struct ActSimpleAssignVel
@@ -104,19 +100,9 @@ struct ActSimpleComputeForce
   ActFixVectorDbl force_;
   ActFixScalarInt offset_;
   const int turbId_;
-  
-  //LCCDELETE
-  // std::vector<double> aoatable_;
-  // std::vector<double> cltable_;
-  // std::vector<double> cdtable_;
-  // std::vector<double> twist_table_;
-  // std::vector<double> elem_area_;
-  
+    
   // Dual view polar tables and blade definitions
   ActScalarIntDv   polartable_size_;
-  //Act2DArrayDblDv  aoa_polartableDv_;
-  //Act2DArrayDblDv  cl_polartableDv_;
-  //Act2DArrayDblDv  cd_polartableDv_;
   const int        Npolartable;
   ActScalarDblDv   aoa_polartableDv_;
   ActScalarDblDv   cl_polartableDv_;
@@ -142,21 +128,7 @@ struct ActSimpleSetUpThrustCalc
 
   ActuatorBulkSimple& actBulk_;
 };
-/* //LCCDELETE
-struct ActSimpleStashOrientationVectors
-{
-  using execution_space = ActuatorFixedExecutionSpace;
 
-  ActSimpleStashOrientationVectors(ActuatorBulkSimple& actBulk);
-
-  void operator()(int index) const;
-
-  ActDualViewHelper<ActuatorFixedMemSpace> helper_;
-  ActFixTensorDbl orientation_;
-  ActFixScalarInt offset_;
-  const int turbId_;
-};
-*/
 struct ActSimpleComputeThrustInnerLoop
 {
 

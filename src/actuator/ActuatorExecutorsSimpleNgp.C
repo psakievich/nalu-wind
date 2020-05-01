@@ -55,24 +55,6 @@ ActuatorLineSimpleNGP::operator()()
   //   ActSimpleSpreadForceWhProjection(actBulk_, stkBulk_));
   // ====
 
-  /* //LCCDELETE  
-  //if (actMeta_.isotropicGaussian_) {
-  if (true) {
-  } else {
-    const int rank = NaluEnv::self().parallel_rank();
-    Kokkos::deep_copy(actBulk_.orientationTensor_.view_host(),0.0);
-    Kokkos::parallel_for(
-      "gatherBladeOrientations", fastRangePolicy,
-      ActSimpleStashOrientationVectors(actBulk_));
-
-    actuator_utils::reduce_view_on_host(
-      actBulk_.orientationTensor_.view_host());
-    Kokkos::parallel_for(
-      "spreadForceUsingProjDistance", localSizeCoarseSearch,
-      ActSimpleSpreadForceWhProjection(actBulk_, stkBulk_));
-  }
-  */
-
   actBulk_.parallel_sum_source_term(stkBulk_);
 
 }
