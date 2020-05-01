@@ -157,19 +157,25 @@ ActSimpleComputeForce::ActSimpleComputeForce(ActuatorBulkSimple& actBulk,
       elem_areaDv_.h_view(i)   = actMeta.elem_areaDv_.h_view(turbId_, i);
     }
     
+    // extract the directions
+    for (int i=0; i<3; i++) {
+      p1zeroalphadir[i] = actMeta.p1zeroalphadir_.h_view(turbId_, i);
+      chordnormaldir[i] = actMeta.chordnormaldir_.h_view(turbId_, i);
+      spandir[i]        = actMeta.spandir_.h_view(turbId_, i);
+    }
 
-    // Set up the directions
-    p1zeroalphadir_.x_ = actMeta.p1zeroalphadir_.h_view(turbId_, 0);
-    p1zeroalphadir_.y_ = actMeta.p1zeroalphadir_.h_view(turbId_, 1);
-    p1zeroalphadir_.z_ = actMeta.p1zeroalphadir_.h_view(turbId_, 2);
+    // Set up the directions //LCCDELETE
+    // p1zeroalphadir_.x_ = actMeta.p1zeroalphadir_.h_view(turbId_, 0);
+    // p1zeroalphadir_.y_ = actMeta.p1zeroalphadir_.h_view(turbId_, 1);
+    // p1zeroalphadir_.z_ = actMeta.p1zeroalphadir_.h_view(turbId_, 2);
 
-    chordnormaldir_.x_ = actMeta.chordnormaldir_.h_view(turbId_, 0);
-    chordnormaldir_.y_ = actMeta.chordnormaldir_.h_view(turbId_, 1);
-    chordnormaldir_.z_ = actMeta.chordnormaldir_.h_view(turbId_, 2);
+    // chordnormaldir_.x_ = actMeta.chordnormaldir_.h_view(turbId_, 0);
+    // chordnormaldir_.y_ = actMeta.chordnormaldir_.h_view(turbId_, 1);
+    // chordnormaldir_.z_ = actMeta.chordnormaldir_.h_view(turbId_, 2);
 
-    spandir_.x_        = actMeta.spandir_.h_view(turbId_, 0);
-    spandir_.y_        = actMeta.spandir_.h_view(turbId_, 1);
-    spandir_.z_        = actMeta.spandir_.h_view(turbId_, 2);
+    // spandir_.x_        = actMeta.spandir_.h_view(turbId_, 0);
+    // spandir_.y_        = actMeta.spandir_.h_view(turbId_, 1);
+    // spandir_.z_        = actMeta.spandir_.h_view(turbId_, 2);
 
   }
 }
@@ -187,17 +193,19 @@ ActSimpleComputeForce::operator()(int index) const
   if (NaluEnv::self().parallel_rank() == turbId_) {
 
   double twist = twist_tableDv_.h_view(localId); 
-  Coordinates ws; // Total wind speed
-  ws.x_ = vel(0);
-  ws.y_ = vel(1);
-  ws.z_ = vel(2);
 
+  double ws[3] = {vel(0), vel(1), vel(2)} ; // Total wind speed
+  // ws[0] = vel(0);  //LCCDELETE
+  // ws[1] = vel(1);
+  // ws[2] = vel(2);
+ 
   // Calculate the angle of attack (AOA)
   double alpha;
-  Coordinates ws2D;
-  AirfoilTheory2D::calculate_alpha(ws, p1zeroalphadir_, 
-				   spandir_, chordnormaldir_, twist, 
+  double ws2D[3];
+  AirfoilTheory2D::calculate_alpha(ws, p1zeroalphadir, 
+				   spandir, chordnormaldir, twist, 
 				   ws2D, alpha);
+
   // set up the polar tables
   std::vector<double> aoatable;
   std::vector<double> cltable;
@@ -211,55 +219,60 @@ ActSimpleComputeForce::operator()(int index) const
   // Calculate Cl and Cd
   double cl;
   double cd;
-  AirfoilTheory2D::calculate_cl_cd(alpha, aoatable, cltable, cdtable,
-				   cl, cd);
+  utils::linear_interp(aoatable, cltable, alpha, cl);
+  utils::linear_interp(aoatable, cdtable, alpha, cd);
+  //AirfoilTheory2D::calculate_cl_cd(alpha, aoatable, cltable, cdtable, cl, cd);
 
   // Magnitude of wind speed
-  double ws2Dnorm = sqrt(ws2D.x_*ws2D.x_ + 
-			 ws2D.y_*ws2D.y_ +
-			 ws2D.z_*ws2D.z_);
+  double ws2Dnorm = sqrt(ws2D[0]*ws2D[0] + 
+			 ws2D[1]*ws2D[1] +
+			 ws2D[2]*ws2D[2]);
   
   // Calculate lift and drag forces
   double rho  = *density.data();
-  // double area = elem_area_[localId];
+  // double area = elem_area_[localId];  //LCCDELETE
   double area = elem_areaDv_.h_view(localId); 
   double Q    = 0.5*rho*ws2Dnorm*ws2Dnorm;
   double lift = cl*Q*area;
   double drag = cd*Q*area;
 
   // Set the directions
-  Coordinates ws2Ddir;  // Direction of drag force
+  double ws2Ddir[3];  // Direction of drag force
   if (ws2Dnorm > 0.0) {
-    ws2Ddir.x_ = ws2D.x_/ws2Dnorm;
-    ws2Ddir.y_ = ws2D.y_/ws2Dnorm;
-    ws2Ddir.z_ = ws2D.z_/ws2Dnorm;
+    ws2Ddir[0] = ws2D[0]/ws2Dnorm;
+    ws2Ddir[1] = ws2D[1]/ws2Dnorm;
+    ws2Ddir[2] = ws2D[2]/ws2Dnorm;
   } else {
-    ws2Ddir.x_ = 0.0; 
-    ws2Ddir.y_ = 0.0; 
-    ws2Ddir.z_ = 0.0; 
+    ws2Ddir[0] = 0.0; 
+    ws2Ddir[1] = 0.0; 
+    ws2Ddir[2] = 0.0; 
   }
-  Coordinates liftdir;  // Direction of lift force
+  //Coordinates liftdir;  // Direction of lift force
+  double liftdir[3];
   if (ws2Dnorm > 0.0) {
-    liftdir.x_ = ws2Ddir.y_*spandir_.z_ - ws2Ddir.z_*spandir_.y_; 
-    liftdir.y_ = ws2Ddir.z_*spandir_.x_ - ws2Ddir.x_*spandir_.z_; 
-    liftdir.z_ = ws2Ddir.x_*spandir_.y_ - ws2Ddir.y_*spandir_.x_; 
+    // liftdir[0] = ws2Ddir[1]*spandir_.z_ - ws2Ddir[2]*spandir_.y_; 
+    // liftdir[1] = ws2Ddir[2]*spandir_.x_ - ws2Ddir[0]*spandir_.z_; 
+    // liftdir[2] = ws2Ddir[0]*spandir_.y_ - ws2Ddir[1]*spandir_.x_; 
+    liftdir[0] = ws2Ddir[1]*spandir[2] - ws2Ddir[2]*spandir[1]; 
+    liftdir[1] = ws2Ddir[2]*spandir[0] - ws2Ddir[0]*spandir[2]; 
+    liftdir[2] = ws2Ddir[0]*spandir[1] - ws2Ddir[1]*spandir[0]; 
   } else {
-    liftdir.x_ = 0.0; 
-    liftdir.y_ = 0.0; 
-    liftdir.z_ = 0.0; 
+    liftdir[0] = 0.0; 
+    liftdir[1] = 0.0; 
+    liftdir[2] = 0.0; 
   }
 
   // Set the pointForce
-  pointForce(0) = -(lift*liftdir.x_ + drag*ws2Ddir.x_);
-  pointForce(1) = -(lift*liftdir.y_ + drag*ws2Ddir.y_);
-  pointForce(2) = -(lift*liftdir.z_ + drag*ws2Ddir.z_);
+  pointForce(0) = -(lift*liftdir[0] + drag*ws2Ddir[0]);
+  pointForce(1) = -(lift*liftdir[1] + drag*ws2Ddir[1]);
+  pointForce(2) = -(lift*liftdir[2] + drag*ws2Ddir[2]);
 
   if (debug_output_)
     NaluEnv::self().naluOutput() 
       << "Blade "<< turbId_  // LCCOUT // << std::scientific
       << " pointId: " << localId << std::setprecision(5)
       << " alpha: "<<alpha
-      << " ws2D: "<<ws2D.x_<<" "<<ws2D.y_<<" "<<ws2D.z_<<" "
+      << " ws2D: "<<ws2D[0]<<" "<<ws2D[1]<<" "<<ws2D[2]<<" "
       << " Cl, Cd: "<<cl<<" "<<cd
       << " lift, drag = "<<lift<<" "<<drag
       << std::endl;
@@ -268,32 +281,40 @@ ActSimpleComputeForce::operator()(int index) const
 
 void 
 AirfoilTheory2D::calculate_alpha(
-    Coordinates ws, 
-    Coordinates zeroalphadir, 
-    Coordinates spandir,
-    Coordinates chordnormaldir, 
+    double ws[],                 // Coordinates ws, 
+    const double zeroalphadir[], // Coordinates zeroalphadir, 
+    const double spandir[],      // Coordinates spandir,
+    const double chordnormaldir[],// Coordinates chordnormaldir, 
     double twist, 
-    Coordinates &ws2D, 
+    double ws2D[],   //Coordinates &ws2Da,
     double &alpha) 
 {
+  // Coordinates ws2D;  //LCCDELETE
   // Project WS onto 2D plane defined by zeroalpahdir and chordnormaldir
-  double WSspan = ws.x_*spandir.x_ + ws.y_*spandir.y_ + ws.z_*spandir.z_;
-  ws2D.x_ = ws.x_ - WSspan*spandir.x_;
-  ws2D.y_ = ws.y_ - WSspan*spandir.y_;
-  ws2D.z_ = ws.z_ - WSspan*spandir.z_;
+  double WSspan = ws[0]*spandir[0] + ws[1]*spandir[1] + ws[2]*spandir[2];
+  ws2D[0] = ws[0] - WSspan*spandir[0];
+  ws2D[1] = ws[1] - WSspan*spandir[1];
+  ws2D[2] = ws[2] - WSspan*spandir[2];
 
   // Project WS2D onto zeroalphadir and chordnormaldir
   double WStan = 
-    ws2D.x_*zeroalphadir.x_ + 
-    ws2D.y_*zeroalphadir.y_ +  
-    ws2D.z_*zeroalphadir.z_ ;
+    ws2D[0]*zeroalphadir[0] + 
+    ws2D[1]*zeroalphadir[1] +  
+    ws2D[2]*zeroalphadir[2] ;
+
+    // ws2D.x_*zeroalphadir[0] + 
+    // ws2D.y_*zeroalphadir[1] +  
+    // ws2D.z_*zeroalphadir[2] ;
   
   double WSnormal = 
-    ws2D.x_*chordnormaldir.x_ + 
-    ws2D.y_*chordnormaldir.y_ + 
-    ws2D.z_*chordnormaldir.z_ ;
-  
+    ws2D[0]*chordnormaldir[0] + 
+    ws2D[1]*chordnormaldir[1] + 
+    ws2D[2]*chordnormaldir[2] ;
 
+    // ws2D.x_*chordnormaldir[0] + 
+    // ws2D.y_*chordnormaldir[1] + 
+    // ws2D.z_*chordnormaldir[2] ;
+  
   double alphaNoTwist = atan2(WSnormal, WStan)*180.0/M_PI;
 
   alpha = alphaNoTwist + twist;  

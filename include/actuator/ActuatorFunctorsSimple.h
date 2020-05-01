@@ -36,12 +36,12 @@ namespace nalu {
   // Things to calculate lift, drag, and AOA based on 2D airfoil theory
   namespace AirfoilTheory2D {
   void calculate_alpha(
-    Coordinates ws, 
-    Coordinates zeroalphadir, 
-    Coordinates spandir,
-    Coordinates chordnormaldir, 
+    double ws[],                 
+    const double zeroalphadir[], 
+    const double spandir[],      
+    const double chordnormaldir[], 
     double twist, 
-    Coordinates &ws2D, 
+    double ws2Da[],   
     double &alpha);
 
   void calculate_cl_cd(
@@ -111,9 +111,10 @@ struct ActSimpleComputeForce
   ActScalarDblDv   twist_tableDv_;
   ActScalarDblDv   elem_areaDv_;
 
-  Coordinates p1zeroalphadir_;         // Directon of zero alpha at p1
-  Coordinates chordnormaldir_;         // Direction normal to chord
-  Coordinates spandir_;                // Direction in the span
+  double p1zeroalphadir[3];         // Directon of zero alpha at p1
+  double chordnormaldir[3];         // Direction normal to chord
+  double spandir[3];                // Direction in the span
+
   const int debug_output_;
 
 };
