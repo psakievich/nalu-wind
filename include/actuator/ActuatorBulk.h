@@ -49,8 +49,8 @@ struct ActuatorMeta
   stk::search::SearchMethod searchMethod_;
   ActScalarIntDv numPointsTurbine_;
   bool useFLLC_ = false;
-  ActVectorDblDv epsilonChord_;
   ActVectorDblDv epsilon_;
+  ActVectorDblDv epsilonChord_;
 };
 
 /*! \brief Where field data is stored and accessed for actuators
