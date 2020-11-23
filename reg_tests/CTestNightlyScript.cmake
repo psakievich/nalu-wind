@@ -16,6 +16,11 @@ else()
   message(FATAL_ERROR "You need to set the NALU_DIR variable. CMake will exit." )
 endif()
 
+if("${BUILD_DIR}" STREQUAL "")
+  set(BUILD_DIR, "${NALU_DIR}/build")
+endif()
+
+
 # -----------------------------------------------------------
 # -- Configure CTest
 # -----------------------------------------------------------
@@ -24,7 +29,7 @@ endif()
 set(CTEST_SITE "${HOST_NAME}")
 set(CTEST_BUILD_NAME "${CMAKE_SYSTEM_NAME}${EXTRA_BUILD_NAME}")
 set(CTEST_SOURCE_DIRECTORY "${NALU_DIR}")
-set(CTEST_BINARY_DIRECTORY "${NALU_DIR}/build")
+set(CTEST_BINARY_DIRECTORY "${BUILD_DIR}")
 set(CTEST_START_WITH_EMPTY_BINARY_DIRECTORY TRUE)
 find_program(CTEST_GIT_COMMAND NAMES git)
 find_program(MAKE NAMES make)
