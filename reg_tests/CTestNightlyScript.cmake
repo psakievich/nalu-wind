@@ -16,10 +16,8 @@ else()
   message(FATAL_ERROR "You need to set the NALU_DIR variable. CMake will exit." )
 endif()
 
-if(NOT "${BUILD_DIR}" STREQUAL "")
-  message("BUILD_DIR is ${BUILD_DIR}")
-else()
-  message(FATAL_ERROR "You need to set the BUILD_DIR variable. CMake will exit.")
+if("${BUILD_DIR}" STREQUAL "")
+  set(BUILD_DIR, "${NALU_DIR}/build")
 endif()
 
 # -----------------------------------------------------------
