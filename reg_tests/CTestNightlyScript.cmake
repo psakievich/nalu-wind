@@ -33,6 +33,7 @@ set(CTEST_START_WITH_EMPTY_BINARY_DIRECTORY TRUE)
 find_program(CTEST_GIT_COMMAND NAMES git)
 find_program(MAKE NAMES make)
 
+if(not "${CTEST_BUILD_FLAGS}" STREQUAL "") 
 # Add parallelism capability to testing
 include(ProcessorCount)
 ProcessorCount(NP)
@@ -42,6 +43,7 @@ if(CTEST_DISABLE_OVERLAPPING_TESTS)
   set(CTEST_PARALLEL_LEVEL 1)
 else()
   set(CTEST_PARALLEL_LEVEL ${NP})
+endif()
 endif()
 
 # Update Command
