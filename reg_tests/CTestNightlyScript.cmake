@@ -20,6 +20,8 @@ if("${BUILD_DIR}" STREQUAL "")
   set(BUILD_DIR, "${NALU_DIR}/build")
 endif()
 
+message("ctest paralllel level is ${CTEST_PARALLEL_LEVEL}")
+
 # -----------------------------------------------------------
 # -- Configure CTest
 # -----------------------------------------------------------
