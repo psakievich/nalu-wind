@@ -33,7 +33,7 @@ set(CTEST_START_WITH_EMPTY_BINARY_DIRECTORY TRUE)
 find_program(CTEST_GIT_COMMAND NAMES git)
 find_program(MAKE NAMES make)
 
-if(not "${CTEST_BUILD_FLAGS}" STREQUAL "") 
+if(NOT "${CTEST_BUILD_FLAGS}" STREQUAL "") 
 # Add parallelism capability to testing
 include(ProcessorCount)
 ProcessorCount(NP)
