@@ -20,8 +20,6 @@ if("${BUILD_DIR}" STREQUAL "")
   set(BUILD_DIR, "${NALU_DIR}/build")
 endif()
 
-message("ctest paralllel level is ${CTEST_PARALLEL_LEVEL}")
-
 # -----------------------------------------------------------
 # -- Configure CTest
 # -----------------------------------------------------------
@@ -36,8 +34,11 @@ find_program(CTEST_GIT_COMMAND NAMES git)
 find_program(MAKE NAMES make)
  
 # Add parallelism capability to testing
-include(ProcessorCount)
-ProcessorCount(NP)
+if("${NP}" STREQUAL "")
+  include(ProcessorCount)
+  ProcessorCount(NP)
+endif()
+
 message(STATUS "\nNumber of processors detected: ${NP}")
 set(CTEST_BUILD_FLAGS "-j${NP}")
 if(CTEST_DISABLE_OVERLAPPING_TESTS)
