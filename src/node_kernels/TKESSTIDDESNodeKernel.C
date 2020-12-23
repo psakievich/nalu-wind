@@ -29,6 +29,9 @@ TKESSTIDDESNodeKernel::TKESSTIDDESNodeKernel(const stk::mesh::MetaData& meta)
     maxLenScaleID_(get_field_ordinal(meta, "sst_max_length_scale")),
     fOneBlendID_(get_field_ordinal(meta, "sst_f_one_blending")),
     ransIndicatorID_(get_field_ordinal(meta, "iddes_rans_indicator")),
+    rDlID_(get_field_ordinal(meta, "rdl")),
+    rDtID_(get_field_ordinal(meta, "rdt")),
+    fe2ID_(get_field_ordinal(meta, "fe2")),
     nDim_(meta.spatial_dimension())
 {}
 
@@ -48,8 +51,14 @@ TKESSTIDDESNodeKernel::setup(Realm& realm)
   maxLenScale_     = fieldMgr.get_field<double>(maxLenScaleID_);
   fOneBlend_ = fieldMgr.get_field<double>(fOneBlendID_);
   ransIndicator_ = fieldMgr.get_field<double>(ransIndicatorID_);
+  rdl_ = fieldMgr.get_field<double>(rdlID_);
+  rdt_ = fieldMgr.get_field<double>(rdtID_);
+  fe2_ = fieldMgr.get_field<double>(fe2ID_);
   // call modify before this field gets modified in kernel execute phase
   ransIndicator_.modify_on_device();
+  rdl_.modify_on_device();
+  rdt_.modify_on_device();
+  fe2_.modify_on_device();
 
   const std::string dofName = "turbulent_ke";
   relaxFac_ = realm.solutionOptions_->get_relaxation_factor(dofName);
@@ -122,6 +131,10 @@ void TKESSTIDDESNodeKernel::execute(
   DblType fdt = 1.0 - stk::math::tanh( stk::math::pow(iddes_Cdt1_ * rdt, iddes_Cdt2_) );
   DblType fdHat = stk::math::max( (1.0 - fdt), fb);
   DblType delta = stk::math::min( iddes_Cw_ * stk::math::max(dw, maxLenScale), maxLenScale);
+
+  rdl_.get(node, 0) = rdl;
+  rdt_.get(node, 0) = rdt;
+  fe2_.get(node, 0) = fe2;
       
   // blend cDES constant
   const DblType cDES =

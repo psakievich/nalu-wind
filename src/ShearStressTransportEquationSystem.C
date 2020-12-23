@@ -520,10 +520,19 @@ ShearStressTransportEquationSystem::post_iter_work()
 
     ScalarFieldType* iddesRansInd = meta.get_field<ScalarFieldType>(
       stk::topology::NODE_RANK, "iddes_rans_indicator");
+    ScalarFieldType* rdl = meta.get_field<ScalarFieldType>(
+      stk::topology::NODE_RANK, "rdl");
+    ScalarFieldType* rdt = meta.get_field<ScalarFieldType>(
+      stk::topology::NODE_RANK, "rdt");
+    ScalarFieldType* fe2 = meta.get_field<ScalarFieldType>(
+      stk::topology::NODE_RANK, "fe2");
 
-    stk::mesh::copy_owned_to_shared(bulk, {iddesRansInd});
+    stk::mesh::copy_owned_to_shared(bulk, {iddesRansInd, rdl, rdt,fe2});
     if (realm_.hasPeriodic_) {
       realm_.periodic_delta_solution_update(iddesRansInd, 1);
+      realm_.periodic_delta_solution_update(rdl, 1);
+      realm_.periodic_delta_solution_update(rdt, 1);
+      realm_.periodic_delta_solution_update(fe2, 1);
     }
   }
 }

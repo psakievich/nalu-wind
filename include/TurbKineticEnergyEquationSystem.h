@@ -100,6 +100,9 @@ public:
   ScalarFieldType *visc_;
   ScalarFieldType *tvisc_;
   ScalarFieldType *evisc_;
+  ScalarFieldType *rDl_;
+  ScalarFieldType *rDt_;
+  ScalarFieldType *fe2_;
   
   ScalarNodalGradAlgDriver nodalGradAlgDriver_;
   std::unique_ptr<TKEWallFuncAlgDriver> wallFuncAlgDriver_;

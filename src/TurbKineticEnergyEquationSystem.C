@@ -227,6 +227,15 @@ TurbKineticEnergyEquationSystem::register_nodal_fields(
   evisc_ = &(meta_data.declare_field<ScalarFieldType>(stk::topology::NODE_RANK, "effective_viscosity_tke"));
   stk::mesh::put_field_on_mesh(*evisc_, *part, nullptr);
 
+  rDl_ = &(meta_data.declare_field<ScalarFieldType>()stk::topology::NODE_RANK, "rdl");
+  stk::mesh::put_field_on_mesh(*rDl_, *part, nullptr);
+
+  rDt_ = &(meta_data.declare_field<ScalarFieldType>()stk::topology::NODE_RANK, "rdt");
+  stk::mesh::put_field_on_mesh(*rDt_, *part, nullptr);
+
+  fe2_ = &(meta_data.declare_field<ScalarFieldType>()stk::topology::NODE_RANK, "fe2");
+  stk::mesh::put_field_on_mesh(*fe2_, *part, nullptr);
+
   // make sure all states are properly populated (restart can handle this)
   if ( numStates > 2 && (!realm_.restarted_simulation() || realm_.support_inconsistent_restart()) ) {
     ScalarFieldType &tkeN = tke_->field_of_state(stk::mesh::StateN);

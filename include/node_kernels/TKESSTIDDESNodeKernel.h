@@ -49,6 +49,9 @@ private:
   stk::mesh::NgpField<double> maxLenScale_;
   stk::mesh::NgpField<double> fOneBlend_;
   stk::mesh::NgpField<double> ransIndicator_;
+  stk::mesh::NgpField<double> rDl_;
+  stk::mesh::NgpField<double> rDt_;
+  stk::mesh::NgpField<double> fe2_;
 
   unsigned tkeID_             {stk::mesh::InvalidOrdinal};
   unsigned sdrID_             {stk::mesh::InvalidOrdinal};
@@ -61,6 +64,9 @@ private:
   unsigned maxLenScaleID_     {stk::mesh::InvalidOrdinal};
   unsigned fOneBlendID_       {stk::mesh::InvalidOrdinal};
   unsigned ransIndicatorID_   {stk::mesh::InvalidOrdinal};
+  unsigned rDlID_   {stk::mesh::InvalidOrdinal};
+  unsigned rDtID_   {stk::mesh::InvalidOrdinal};
+  unsigned fe2ID_   {stk::mesh::InvalidOrdinal};
 
   NodeKernelTraits::DblType betaStar_;
   NodeKernelTraits::DblType tkeProdLimitRatio_;
