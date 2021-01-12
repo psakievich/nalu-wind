@@ -29,6 +29,7 @@ TKESSTIDDESNodeKernel::TKESSTIDDESNodeKernel(const stk::mesh::MetaData& meta)
     maxLenScaleID_(get_field_ordinal(meta, "sst_max_length_scale")),
     fOneBlendID_(get_field_ordinal(meta, "sst_f_one_blending")),
     ransIndicatorID_(get_field_ordinal(meta, "iddes_rans_indicator")),
+    pecletFactorID_(get_field_ordinal(meta, "peclet_factor")),
     nDim_(meta.spatial_dimension())
 {}
 
@@ -48,8 +49,10 @@ TKESSTIDDESNodeKernel::setup(Realm& realm)
   maxLenScale_     = fieldMgr.get_field<double>(maxLenScaleID_);
   fOneBlend_ = fieldMgr.get_field<double>(fOneBlendID_);
   ransIndicator_ = fieldMgr.get_field<double>(ransIndicatorID_);
+  pecletFactor_ = fieldMgr.get_field<double>(pecletFactorID_);
   // call modify before this field gets modified in kernel execute phase
   ransIndicator_.modify_on_device();
+  pecletFactor_.modify_on_device();
 
   const std::string dofName = "turbulent_ke";
   relaxFac_ = realm.solutionOptions_->get_relaxation_factor(dofName);
@@ -135,6 +138,11 @@ void TKESSTIDDESNodeKernel::execute(
   // division by zero later on
   const DblType ransInd = fdHat * (1.0 + fe);
   ransIndicator_.get(node, 0) = ransInd;
+  const DblType pecFacOrg = pecletFactor_.get(node, 0);
+
+  // clip peclet factor so it is zero in the fully LES regions
+  pecletFactor_.get(node, 0) =
+    stk::math::min(1.0, stk::math::max(0.0, ransInd)) * pecFacOrg;
 
   const DblType lIDDES =
     stk::math::max(1.0e-16, ransInd * lSST + (1.0 - fdHat) * lLES);
