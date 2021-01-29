@@ -103,6 +103,7 @@ TKESSTIDDESNodeKernel::setup(Realm& realm)
   iddes_Cdt2_ = realm.get_turb_model_constant(TM_iddes_Cdt2);
   iddes_Cl_ = realm.get_turb_model_constant(TM_iddes_Cl);
   iddes_Ct_ = realm.get_turb_model_constant(TM_iddes_Ct);
+  feScaling_ = realm.solutionOptions_->iddesElevatingFuncScaling_;
 }
 
 void TKESSTIDDESNodeKernel::execute(
@@ -153,7 +154,7 @@ void TKESSTIDDESNodeKernel::execute(
   DblType alpha = 0.25 - dw/maxLenScale;
   DblType fe1 = (alpha < 0) ? 2.0 * stk::math::exp(-9.0 * alpha * alpha) : 2.0 * stk::math::exp(-11.09 * alpha * alpha);
   DblType fe2 = 1.0 - stk::math::max(ft,fl);
-  DblType fe = fe2 * stk::math::max( (fe1 - 1.0), 0.0);
+  DblType fe = fe2 * stk::math::max((fe1 - 1.0), 0.0) * feScaling_;
   DblType fb = stk::math::min(2.0 * stk::math::exp(-9.0 * alpha * alpha), 1.0);
   DblType fdt = 1.0 - stk::math::tanh( stk::math::pow(iddes_Cdt1_ * rdt, iddes_Cdt2_) );
   DblType fdHat = stk::math::max( (1.0 - fdt), fb);

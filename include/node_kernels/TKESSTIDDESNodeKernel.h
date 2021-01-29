@@ -93,6 +93,7 @@ private:
   NodeKernelTraits::DblType iddes_Cl_;    
   NodeKernelTraits::DblType iddes_Ct_;    
   NodeKernelTraits::DblType relaxFac_;
+  NodeKernelTraits::DblType feScaling_;
 
   const int nDim_;
 };

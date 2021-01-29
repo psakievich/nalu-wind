@@ -80,6 +80,7 @@ SolutionOptions::SolutionOptions()
     earthAngularVelocity_(7.2921159e-5),
     latitude_(0.0),
     raBoussinesqTimeScale_(-1.0),
+    iddesElevatingFuncScaling_(1.0),
     activateOpenMdotCorrection_(false),
     mdotAlgOpenCorrection_(0.0),
     explicitlyZeroOpenPressureGradient_(false),
@@ -111,7 +112,8 @@ SolutionOptions::load(const YAML::Node & y_node)
     get_if_present(y_solution_options,
                    "nearest_face_entrainment",
                    nearestFaceEntrain_, nearestFaceEntrain_);
-
+    get_if_present(
+      y_solution_options, "iddes_fe_scaling", iddesElevatingFuncScaling_);
     // divU factor for stress
     get_if_present(y_solution_options, "divU_stress_scaling", includeDivU_, includeDivU_);
 
