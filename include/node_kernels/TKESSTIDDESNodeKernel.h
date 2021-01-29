@@ -19,6 +19,10 @@ namespace nalu {
 
 class Realm;
 
+#define DECLARE_FIELD(NAME) \
+stk::mesh::NgpField<double> NAME##_; \
+unsigned NAME##ID_ {stk::mesh::InvalidOrdinal} \
+
 class TKESSTIDDESNodeKernel : public NGPNodeKernel<TKESSTIDDESNodeKernel>
 {
 public:
@@ -50,6 +54,22 @@ private:
   stk::mesh::NgpField<double> fOneBlend_;
   stk::mesh::NgpField<double> ransIndicator_;
 
+  DECLARE_FIELD(fl);
+  DECLARE_FIELD(ft);
+  DECLARE_FIELD(alpha);
+  DECLARE_FIELD(fe1);
+  DECLARE_FIELD(fe2);
+  DECLARE_FIELD(fe);
+  DECLARE_FIELD(fb);
+  DECLARE_FIELD(fdt);
+  DECLARE_FIELD(fdHat);
+  DECLARE_FIELD(delta);
+  DECLARE_FIELD(cDES);
+  DECLARE_FIELD(lSST);
+  DECLARE_FIELD(lLES);
+  DECLARE_FIELD(lIDDES);
+  DECLARE_FIELD(lRatio);
+
   unsigned tkeID_             {stk::mesh::InvalidOrdinal};
   unsigned sdrID_             {stk::mesh::InvalidOrdinal};
   unsigned densityID_         {stk::mesh::InvalidOrdinal};
@@ -76,6 +96,8 @@ private:
 
   const int nDim_;
 };
+
+#undef DECLARE_FIELD
 
 }  // nalu
 }  // sierra

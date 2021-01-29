@@ -18,6 +18,7 @@
 
 #include "ngp_algorithms/NodalGradAlgDriver.h"
 #include "ngp_algorithms/TKEWallFuncAlgDriver.h"
+#include <vector>
 
 namespace stk{
 struct topology;
@@ -30,7 +31,10 @@ class Realm;
 class LinearSystem;
 class EquationSystems;
 class ProjectedNodalGradientEquationSystem;
-
+struct FieldDefinition{
+std::string name_;
+ScalarFieldType* fieldPtr_;
+};
 class TurbKineticEnergyEquationSystem : public EquationSystem {
 
 public:
@@ -100,6 +104,24 @@ public:
   ScalarFieldType *visc_;
   ScalarFieldType *tvisc_;
   ScalarFieldType *evisc_;
+
+  std::vector<FieldDefinition> iddesFields_{
+    {"fl",nullptr},
+    {"ft",nullptr},
+    {"alpha",nullptr},
+    {"fe1",nullptr},
+    {"fe2",nullptr},
+    {"fe",nullptr}, // fig 6 shur
+    {"fb",nullptr},
+    {"fdt",nullptr},
+    {"fdHat",nullptr},
+    {"delta",nullptr},
+    {"cDES",nullptr},
+    {"lSST",nullptr},
+    {"lLES",nullptr},
+    {"lIDDES",nullptr},
+    {"lRatio",nullptr} // fig 6 shur l_Hybrid/l_RANS
+  };
   
   ScalarNodalGradAlgDriver nodalGradAlgDriver_;
   std::unique_ptr<TKEWallFuncAlgDriver> wallFuncAlgDriver_;

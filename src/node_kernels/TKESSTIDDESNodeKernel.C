@@ -16,6 +16,8 @@
 namespace sierra {
 namespace nalu {
 
+#define FILL_INIT(NAME) NAME##ID_(get_field_ordinal(meta, #NAME))
+
 TKESSTIDDESNodeKernel::TKESSTIDDESNodeKernel(const stk::mesh::MetaData& meta)
   : NGPNodeKernel<TKESSTIDDESNodeKernel>(),
     tkeID_(get_field_ordinal(meta, "turbulent_ke")),
@@ -29,9 +31,27 @@ TKESSTIDDESNodeKernel::TKESSTIDDESNodeKernel(const stk::mesh::MetaData& meta)
     maxLenScaleID_(get_field_ordinal(meta, "sst_max_length_scale")),
     fOneBlendID_(get_field_ordinal(meta, "sst_f_one_blending")),
     ransIndicatorID_(get_field_ordinal(meta, "iddes_rans_indicator")),
+    FILL_INIT(fl),
+    FILL_INIT(ft),
+    FILL_INIT(alpha),
+    FILL_INIT(fe1),
+    FILL_INIT(fe2),
+    FILL_INIT(fe),
+    FILL_INIT(fb),
+    FILL_INIT(fdt),
+    FILL_INIT(fdHat),
+    FILL_INIT(delta),
+    FILL_INIT(cDES),
+    FILL_INIT(lSST),
+    FILL_INIT(lLES),
+    FILL_INIT(lIDDES),
+    FILL_INIT(lRatio),
     nDim_(meta.spatial_dimension())
 {}
+#undef FILL_INIT
 
+#define INIT_FIELD(NAME) NAME##_ = fieldMgr.get_field<double>(NAME##ID_)
+#define ASSIGN_VALUE(NAME) NAME##_.get(node, 0) = NAME
 void
 TKESSTIDDESNodeKernel::setup(Realm& realm)
 {
@@ -48,6 +68,22 @@ TKESSTIDDESNodeKernel::setup(Realm& realm)
   maxLenScale_     = fieldMgr.get_field<double>(maxLenScaleID_);
   fOneBlend_ = fieldMgr.get_field<double>(fOneBlendID_);
   ransIndicator_ = fieldMgr.get_field<double>(ransIndicatorID_);
+  INIT_FIELD(fl);
+  INIT_FIELD(ft);
+  INIT_FIELD(alpha);
+  INIT_FIELD(fe1);
+  INIT_FIELD(fe2);
+  INIT_FIELD(fe);
+  INIT_FIELD(fb);
+  INIT_FIELD(fdt);
+  INIT_FIELD(fdHat);
+  INIT_FIELD(delta);
+  INIT_FIELD(cDES);
+  INIT_FIELD(lSST);
+  INIT_FIELD(lLES);
+  INIT_FIELD(lIDDES);
+  INIT_FIELD(lRatio);
+
   // call modify before this field gets modified in kernel execute phase
   ransIndicator_.modify_on_device();
 
@@ -141,12 +177,30 @@ void TKESSTIDDESNodeKernel::execute(
 
   DblType Dk = density * tke * sqrtTke / lIDDES;
 
+  ASSIGN_VALUE(fl);
+  ASSIGN_VALUE(ft);
+  ASSIGN_VALUE(alpha);
+  ASSIGN_VALUE(fe1);
+  ASSIGN_VALUE(fe2);
+  ASSIGN_VALUE(fe);
+  ASSIGN_VALUE(fb);
+  ASSIGN_VALUE(fdt);
+  ASSIGN_VALUE(fdHat);
+  ASSIGN_VALUE(delta);
+  ASSIGN_VALUE(cDES);
+  ASSIGN_VALUE(lSST);
+  ASSIGN_VALUE(lLES);
+  ASSIGN_VALUE(lIDDES);
+  lRatio_.get(node, 0) = lIDDES / lSST;
+
   // Clip production term
   Pk = stk::math::min(tkeProdLimitRatio_ * Dk, Pk);
 
   rhs(0) += (Pk - Dk) * dVol;
   lhs(0, 0) += 1.5 * density / lIDDES * sqrtTke * dVol;
 }
+#undef INIT_FIELD
+#undef ASSIGN_VALUE
 
 }  // nalu
 }  // sierra
