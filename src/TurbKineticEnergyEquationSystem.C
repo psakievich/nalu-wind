@@ -927,6 +927,13 @@ TurbKineticEnergyEquationSystem::solve_and_update()
 
     // projected nodal gradient
     compute_projected_nodal_gradient();
+
+    // sync fields
+    std::vector<const stk::mesh::FieldBase*> temp {};
+    for(auto&& f : iddesFields_){
+      temp.push_back(f.fieldPtr_);
+    }
+    stk::mesh::copy_owned_to_shared(realm_.bulk_data(), temp);
   }
 
 }
