@@ -928,12 +928,6 @@ TurbKineticEnergyEquationSystem::solve_and_update()
     // projected nodal gradient
     compute_projected_nodal_gradient();
 
-    // sync fields
-    std::vector<const stk::mesh::FieldBase*> temp {};
-    for(auto&& f : iddesFields_){
-      temp.push_back(f.fieldPtr_);
-    }
-    stk::mesh::copy_owned_to_shared(realm_.bulk_data(), temp);
   }
 
 }
@@ -1013,6 +1007,14 @@ TurbKineticEnergyEquationSystem::post_external_data_transfer_work()
       });
     ngpTkeBC.modify_on_device();
   }
+    // sync fields
+    std::vector<const stk::mesh::FieldBase*> temp {};
+    for(auto&& f : iddesFields_){
+      ThrowRequire(f.fieldPtr_);
+      temp.push_back(f.fieldPtr_);
+    }
+    ThrowRequire(temp[0]==iddesFields_[0].fieldPtr_);
+    stk::mesh::copy_owned_to_shared(realm_.bulk_data(), temp);
 }
 
 //--------------------------------------------------------------------------
