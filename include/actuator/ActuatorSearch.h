@@ -24,8 +24,10 @@ using Sphere = stk::search::Sphere<double>;
 using Box = stk::search::Box<double>;
 using boundingSphere = std::pair<Sphere, theKey>;
 using boundingElementBox = std::pair<Box, theKey>;
+using boundingBox = std::pair<Box, theKey>;
 using VecBoundSphere = std::vector<boundingSphere>;
 using VecBoundElemBox = std::vector<boundingElementBox>;
+using VecBoundBox = std::vector<boundingBox>;
 using SearchKeyPair = std::pair<theKey, theKey>;
 using VecSearchKeyPair = std::vector<SearchKeyPair>;
 
@@ -33,19 +35,19 @@ namespace sierra {
 namespace nalu {
 
 VecBoundSphere
-CreateBoundingSpheres(ActFixVectorDbl points, ActFixScalarDbl searchRadius);
+create_bounding_spheres(ActFixVectorDbl points, ActFixScalarDbl searchRadius);
 
-VecBoundElemBox CreateElementBoxes(
+VecBoundElemBox create_element_boxes(
   stk::mesh::BulkData& stkBulk, std::vector<std::string> partNameList);
 
-void ExecuteCoarseSearch(
+void execute_coarse_search(
   VecBoundSphere& spheres,
   VecBoundElemBox& elemBoxes,
   ActScalarU64Dv& coarsePointIds,
   ActScalarU64Dv& coarseElemIds,
   stk::search::SearchMethod searchMethod);
 
-void ExecuteFineSearch(
+void execute_fine_search(
   stk::mesh::BulkData& stkBulk,
   ActScalarU64Dv coarsePointIds,
   ActScalarU64Dv coarseElemIds,

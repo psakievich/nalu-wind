@@ -17,7 +17,7 @@ namespace sierra {
 namespace nalu {
 
 VecBoundSphere
-CreateBoundingSpheres(ActFixVectorDbl points, ActFixScalarDbl radius)
+create_bounding_spheres(ActFixVectorDbl points, ActFixScalarDbl radius)
 {
 
   const int nPoints = points.extent(0);
@@ -38,9 +38,30 @@ CreateBoundingSpheres(ActFixVectorDbl points, ActFixScalarDbl radius)
   return boundSphereVec;
 }
 
+VecBoundBox
+create_bounding_boxes(ActFixVectorDbl points, ActFixVectorDbl dX)
+{
+  const int nPoints = points.extent(0);
+  VecBoundBox boundBoxVec;
+
+  for (int i = 0; i < nPoints; i++) {
+    // ID is zero bc we are only doing a local search (COMM_SELF)
+    stk::search::IdentProc<uint64_t, int> theIdent((std::size_t)i, 0);
+    Point pointMin(
+      points(i, 0) - dX(i, 0), points(i, 1) - dX(i, 1),
+      points(i, 2) - dX(i, 2));
+    Point pointMax(
+      points(i, 0) + dX(i, 0), points(i, 1) + dX(i, 1),
+      points(i, 2) + dX(i, 2));
+    boundingBox aBox(Box(pointMin, pointMax), theIdent);
+    boundBoxVec.push_back(aBox);
+  }
+  return boundBoxVec;
+}
+
 // refactor later
 VecBoundElemBox
-CreateElementBoxes(
+create_element_boxes(
   stk::mesh::BulkData& stkBulk, std::vector<std::string> partNameList)
 {
   VecBoundElemBox boundElemBoxVec;
@@ -121,7 +142,7 @@ CreateElementBoxes(
 }
 
 void
-ExecuteCoarseSearch(
+execute_coarse_search(
   VecBoundSphere& spheres,
   VecBoundElemBox& elems,
   ActScalarU64Dv& coarsePointIds,
@@ -147,7 +168,7 @@ ExecuteCoarseSearch(
 }
 
 void
-ExecuteFineSearch(
+execute_fine_search(
   stk::mesh::BulkData& stkBulk,
   ActScalarU64Dv coarsePointIds,
   ActScalarU64Dv coarseElemIds,
@@ -186,7 +207,7 @@ ExecuteFineSearch(
       stkBulk.get_entity(stk::topology::ELEMENT_RANK, theBox);
     if (!(stkBulk.is_valid(elem)))
       throw std::runtime_error(
-        "ExecuteFineSearch:: no valid entry for element");
+        "execute_fine_search:: no valid entry for element");
 
     // extract topo and master element for this topo
     const stk::mesh::Bucket& theBucket = stkBulk.bucket(elem);

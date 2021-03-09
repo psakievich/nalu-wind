@@ -78,9 +78,9 @@ public:
   const unsigned slabSize;
 };
 
-TEST_F(ActuatorSearchTest, NGP_createBoundingSpheres)
+TEST_F(ActuatorSearchTest, NGP_create_bounding_spheres)
 {
-  auto spheres = CreateBoundingSpheres(points, radii);
+  auto spheres = create_bounding_spheres(points, radii);
   for (int i = 0; i < nPoints; i++) {
     auto center = spheres[i].first.center();
     EXPECT_DOUBLE_EQ(points(i, 0), center.get_x_min());
@@ -96,7 +96,7 @@ TEST_F(ActuatorSearchTest, NGP_createBoundingSpheres)
   }
 }
 
-TEST_F(ActuatorSearchTest, NGP_createElementBoxes)
+TEST_F(ActuatorSearchTest, NGP_create_element_boxes)
 {
   stk::mesh::BulkData& stkBulk = ioBroker.bulk_data();
   typedef stk::mesh::Field<double, stk::mesh::Cartesian> CoordFieldType;
@@ -105,7 +105,7 @@ TEST_F(ActuatorSearchTest, NGP_createElementBoxes)
       stk::topology::NODE_RANK, "coordinates");
   EXPECT_TRUE(coordField != nullptr);
   try {
-    auto elemVec = CreateElementBoxes(stkBulk, partNames);
+    auto elemVec = create_element_boxes(stkBulk, partNames);
     // ioBroker uses slab decomposition in z
     EXPECT_EQ(slabSize, elemVec.size());
     // confirm element center matches corresponding point's location
@@ -125,14 +125,14 @@ TEST_F(ActuatorSearchTest, NGP_createElementBoxes)
   }
 }
 
-TEST_F(ActuatorSearchTest, NGP_executeCoarseSearch)
+TEST_F(ActuatorSearchTest, NGP_execute_coarse_search)
 {
   stk::mesh::BulkData& stkBulk = ioBroker.bulk_data();
-  auto spheres = CreateBoundingSpheres(points, radii);
-  auto elemBoxes = CreateElementBoxes(stkBulk, partNames);
+  auto spheres = create_bounding_spheres(points, radii);
+  auto elemBoxes = create_element_boxes(stkBulk, partNames);
 
   try {
-    ExecuteCoarseSearch(
+    execute_coarse_search(
       spheres, elemBoxes, coarsePointIds, coarseElemIds, stk::search::KDTREE);
     // Each search should find one slab of element/point pairs
     EXPECT_EQ(slabSize, coarsePointIds.view_host().extent_int(0))
@@ -149,7 +149,7 @@ TEST_F(ActuatorSearchTest, NGP_executeCoarseSearch)
   }
 }
 
-TEST_F(ActuatorSearchTest, NGP_executeFineSearch)
+TEST_F(ActuatorSearchTest, NGP_execute_fine_search)
 {
   stk::mesh::BulkData& stkBulk = ioBroker.bulk_data();
   // increase radius to hit multiple elems in coarse search
@@ -158,14 +158,14 @@ TEST_F(ActuatorSearchTest, NGP_executeFineSearch)
   for (unsigned i = 0; i < radii2.extent(0); i++) {
     radii2(i) = 2.0;
   }
-  auto spheres = CreateBoundingSpheres(points, radii2);
-  auto elemBoxes = CreateElementBoxes(stkBulk, partNames);
-  ExecuteCoarseSearch(
+  auto spheres = create_bounding_spheres(points, radii2);
+  auto elemBoxes = create_element_boxes(stkBulk, partNames);
+  execute_coarse_search(
     spheres, elemBoxes, coarsePointIds, coarseElemIds, stk::search::KDTREE);
   ActFixElemIds matchElemIds("matchElemIds", nPoints);
   // this case should match coarse search
   try {
-    ExecuteFineSearch(
+    execute_fine_search(
       stkBulk, coarsePointIds, coarseElemIds, points, matchElemIds, localCoords,
       isLocal, localParallelRedundancy);
     int numLocal = 0;

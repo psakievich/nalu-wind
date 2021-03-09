@@ -90,14 +90,14 @@ ActuatorBulk::stk_search_act_pnts(
   auto points = pointCentroid_.template view<ActuatorFixedMemSpace>();
   auto radius = searchRadius_.template view<ActuatorFixedMemSpace>();
 
-  auto boundSpheres = CreateBoundingSpheres(points, radius);
-  auto elemBoxes = CreateElementBoxes(stkBulk, actMeta.searchTargetNames_);
+  auto boundSpheres = create_bounding_spheres(points, radius);
+  auto elemBoxes = create_element_boxes(stkBulk, actMeta.searchTargetNames_);
 
-  ExecuteCoarseSearch(
+  execute_coarse_search(
     boundSpheres, elemBoxes, coarseSearchPointIds_, coarseSearchElemIds_,
     actMeta.searchMethod_);
 
-  ExecuteFineSearch(
+  execute_fine_search(
     stkBulk, coarseSearchPointIds_, coarseSearchElemIds_, points,
     elemContainingPoint_, localCoords_, pointIsLocal_,
     localParallelRedundancy_);
