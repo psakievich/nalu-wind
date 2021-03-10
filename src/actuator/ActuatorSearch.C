@@ -8,7 +8,6 @@
 //
 
 #include <actuator/ActuatorSearch.h>
-#include <stk_search/CoarseSearch.hpp>
 #include <FieldTypeDef.h>
 #include <NaluEnv.h>
 #include <actuator/UtilitiesActuator.h>
@@ -139,32 +138,6 @@ create_element_boxes(
     }
   }
   return boundElemBoxVec;
-}
-
-void
-execute_coarse_search(
-  VecBoundSphere& spheres,
-  VecBoundElemBox& elems,
-  ActScalarU64Dv& coarsePointIds,
-  ActScalarU64Dv& coarseElemIds,
-  stk::search::SearchMethod searchMethod)
-{
-  VecSearchKeyPair searchKeyPair;
-  stk::search::coarse_search(
-    spheres, elems, searchMethod, MPI_COMM_SELF, searchKeyPair);
-
-  const std::size_t numLocalMatches = searchKeyPair.size();
-
-  coarsePointIds.resize(numLocalMatches);
-  coarseElemIds.resize(numLocalMatches);
-
-  coarsePointIds.modify_host();
-  coarseElemIds.modify_host();
-
-  for (std::size_t i = 0; i < numLocalMatches; i++) {
-    coarsePointIds.h_view(i) = searchKeyPair[i].first.id();
-    coarseElemIds.h_view(i) = searchKeyPair[i].second.id();
-  }
 }
 
 void

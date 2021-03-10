@@ -16,6 +16,7 @@
 #include <stk_search/BoundingBox.hpp>
 #include <stk_search/IdentProc.hpp>
 #include <stk_search/SearchMethod.hpp>
+#include <stk_search/CoarseSearch.hpp>
 
 // common type defs
 using theKey = stk::search::IdentProc<uint64_t, int>;
@@ -40,12 +41,31 @@ create_bounding_spheres(ActFixVectorDbl points, ActFixScalarDbl searchRadius);
 VecBoundElemBox create_element_boxes(
   stk::mesh::BulkData& stkBulk, std::vector<std::string> partNameList);
 
+template<typename T>
 void execute_coarse_search(
-  VecBoundSphere& spheres,
+  T& geoEntities,
   VecBoundElemBox& elemBoxes,
   ActScalarU64Dv& coarsePointIds,
   ActScalarU64Dv& coarseElemIds,
-  stk::search::SearchMethod searchMethod);
+  stk::search::SearchMethod searchMethod)
+{
+    VecSearchKeyPair searchKeyPair;
+  stk::search::coarse_search(
+    geoEntities, elemBoxes, searchMethod, MPI_COMM_SELF, searchKeyPair);
+
+  const std::size_t numLocalMatches = searchKeyPair.size();
+
+  coarsePointIds.resize(numLocalMatches);
+  coarseElemIds.resize(numLocalMatches);
+
+  coarsePointIds.modify_host();
+  coarseElemIds.modify_host();
+
+  for (std::size_t i = 0; i < numLocalMatches; i++) {
+    coarsePointIds.h_view(i) = searchKeyPair[i].first.id();
+    coarseElemIds.h_view(i) = searchKeyPair[i].second.id();
+  }
+}
 
 void execute_fine_search(
   stk::mesh::BulkData& stkBulk,
