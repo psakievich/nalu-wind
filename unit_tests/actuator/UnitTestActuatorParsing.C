@@ -90,6 +90,18 @@ TEST_F(ActuatorParsingTest, NGP_bareMinimumParse)
   test_wo_lines(inputFileLines_);
 }
 
+TEST_F(ActuatorParsingTest, NGP_thetaBasisCos2Parameter)
+{
+  inputFileLines_.push_back("   theta_basis:\n");
+  inputFileLines_.push_back("     type: cos2\n");
+  try {
+    auto y_actuator = create_yaml_node(inputFileLines_);
+    ActuatorMeta actMeta = actuator_parse(y_actuator);
+  } catch (std::exception const& err) {
+    FAIL() << err.what();
+  }
+}
+
 } // namespace
 
 } // namespace nalu

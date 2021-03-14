@@ -38,6 +38,8 @@ namespace nalu {
 VecBoundSphere
 create_bounding_spheres(ActFixVectorDbl points, ActFixScalarDbl searchRadius);
 
+VecBoundBox create_bounding_boxes(ActFixVectorDbl points, ActFixVectorDbl dX);
+
 VecBoundElemBox create_element_boxes(
   stk::mesh::BulkData& stkBulk, std::vector<std::string> partNameList);
 

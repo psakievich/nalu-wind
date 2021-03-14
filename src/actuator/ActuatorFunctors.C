@@ -81,7 +81,7 @@ SpreadForceInnerLoop::operator()(
 
   auto pointForce =
     Kokkos::subview(actBulk_.actuatorForce_.view_host(), pointId, Kokkos::ALL);
-
+  // replace start
   auto epsilon =
     Kokkos::subview(actBulk_.epsilon_.view_host(), pointId, Kokkos::ALL);
 
@@ -93,7 +93,10 @@ SpreadForceInnerLoop::operator()(
 
   const double gauss =
     actuator_utils::Gaussian_projection(3, &distance[0], epsilon.data());
-
+  // replace end
+  /*
+  actBulk_.actSpace_.get_interpolation_weight(pointId, *nodeCoords);
+  */
   for (int j = 0; j < 3; j++) {
     projectedForce[j] = gauss * pointForce(j);
   }
