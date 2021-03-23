@@ -7,8 +7,8 @@
 // for more details.
 //
 #include "gtest/gtest.h"
-#include <actuator/basis/Gaussian.h>
 #include <stk_math/StkMath.hpp>
+#include <actuator/basis/Gaussian.h>
 
 namespace sierra {
 namespace nalu {

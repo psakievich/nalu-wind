@@ -13,6 +13,7 @@ target_sources(nalu PRIVATE
    ${CMAKE_CURRENT_SOURCE_DIR}/ActuatorExecutorsSimpleNgp.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UtilitiesActuator.C
    ${CMAKE_CURRENT_SOURCE_DIR}/basis/Gaussian.C
+   ${CMAKE_CURRENT_SOURCE_DIR}/basis/CosineSquared.C
    )
 
 if(ENABLE_OPENFAST)

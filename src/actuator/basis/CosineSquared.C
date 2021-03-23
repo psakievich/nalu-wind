@@ -9,11 +9,12 @@
 #include <actuator/basis/CosineSquared.h>
 #include <math.h>
 #include <stk_math/StkMath.hpp>
+#include <iostream>
 
 namespace sierra {
 namespace nalu {
 namespace actuator {
-Cos2Basis::Cos2Basis(const bool periodic) : periodic_(periodic) {}
+Cos2Basis::Cos2Basis(const int N) : n_(N), dX_(2 * M_PI / N) {}
 
 double
 Cos2Basis::get_interpolation_weight(
@@ -21,23 +22,19 @@ Cos2Basis::get_interpolation_weight(
 {
   // shift point
   double x = *actPointCoord - *sampleCoord;
-  if (periodic_) {
-    if (x > length_ + dX_)
-      x -= length_ + dX_;
-    else if (x < length_ + dX_)
-      x += length_ + dX_;
-  }
+  if (x > M_PI)
+    x -= 2 * M_PI;
+  if (x < -M_PI)
+    x += 2 * M_PI;
   // scale
-  x *= M_PI / (2.0 * dX_);
+  x *= M_PI / (2.0 * dX_); // x*N/4
   // clip
-  if (x > M_PI_2)
-    x = M_PI_2;
-  if (x < -M_PI_2)
-    x = -M_PI_2;
+  if (x > dX_ || x < -dX_)
+    return 0.0;
   // compute
   const double val = stk::math::cos(x);
-  // TODO add scale
-  return val * val;
+  // 0.5 dX_ normalizes the integral
+  return val * val * 0.5 * dX_;
 }
 } // namespace actuator
 } // namespace nalu

@@ -9,6 +9,7 @@ target_sources(${utest_ex_name} PRIVATE
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestActuatorBladeDistributor.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestActuatorSpace.C
    ${CMAKE_CURRENT_SOURCE_DIR}/basis/UnitTestGaussian.C
+   ${CMAKE_CURRENT_SOURCE_DIR}/basis/UnitTestCosineSquared.C
 )
 if(ENABLE_OPENFAST)
    target_sources(${utest_ex_name} PRIVATE

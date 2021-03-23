@@ -16,12 +16,11 @@ namespace actuator {
 class Cos2Basis
 {
 private:
-  const bool periodic_;
-  const double length_;
+  const int n_;
   const double dX_;
 
 public:
-  Cos2Basis(const bool periodic);
+  Cos2Basis(const int N);
   double get_interpolation_weight(
     const double* actPointCoord, const double* sampleCoord);
 };
