@@ -55,7 +55,14 @@ void execute_coarse_search(
   stk::search::coarse_search(
     geoEntities, elemBoxes, searchMethod, MPI_COMM_SELF, searchKeyPair);
 
-  const std::size_t numLocalMatches = searchKeyPair.size();
+  // sort by actuator point id auto can be used with c++ 14
+  std::sort(
+    searchKeyPair.begin(), searchKeyPair.end(),
+    [](const SearchKeyPair& left, const SearchKeyPair& right) {
+      return left.second < right.second;
+    })
+
+    const std::size_t numLocalMatches = searchKeyPair.size();
 
   coarsePointIds.resize(numLocalMatches);
   coarseElemIds.resize(numLocalMatches);

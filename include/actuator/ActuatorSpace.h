@@ -12,6 +12,11 @@
 namespace sierra {
 namespace nalu {
 
+class ActuatorSpaceContainer
+{
+  virtual ~ActuatorSpaceContainer() = default;
+};
+
 template <typename...>
 class ActuatorSpace;
 
@@ -32,6 +37,23 @@ private:
   B0 basis0_;
   B1 basis1_;
   B2 basis2_;
+};
+
+template <typename B0, typename B1>
+class ActuatorSpace<B0, B1>
+{
+public:
+  ActuatorSpace(B0 b0, B1 b1) : basis0_(b0), basis1_(b1) {}
+  inline double get_interpolation_weight(
+    const double* actPointCoord, const double* sampleCoord)
+  {
+    return basis0_.get_interpolation_weight(actPointCoord, sampleCoord) *
+           basis1_.get_interpolation_weight(actPointCoord, sampleCoord);
+  }
+
+private:
+  B0 basis0_;
+  B1 basis1_;
 };
 
 template <typename B0>

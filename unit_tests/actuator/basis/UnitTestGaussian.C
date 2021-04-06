@@ -29,6 +29,21 @@ TEST(ActuatorIsotropicGaussian, NGP_unityGaussianTest)
   }
 }
 
+TEST(ActuatorIsotropicGaussian, NGP_gaussianSampling)
+{
+  const double epsilon = stk::math::pow(M_PI, -0.5);
+  IsotropicGaussianBasis b(1, epsilon);
+  const double actPointCoord = 0.0;
+  const int N = 1000;
+  const double dX = 2.0 / (N - 1);
+  double integral = 0.0;
+  for (int i = 0; i < N; ++i) {
+    const double x = -1.0 + i * dX;
+    integral += b.get_interpolation_weight(&actPointCoord, &x) * dX;
+  }
+  EXPECT_NEAR(1.0, integral, 1e-1);
+}
+
 } // namespace
 
 } // namespace actuator

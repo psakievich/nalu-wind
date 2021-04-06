@@ -15,11 +15,32 @@ namespace sierra {
 namespace nalu {
 namespace actuator {
 namespace {
+TEST(ActuatorBasisCos2, checkValuesBetweenPoints)
+{
+  for (int j = 3; j < 10; j++) {
+    const int nActPoints = j;
+    double dtheta = 2 * M_PI / nActPoints;
+    double actPointCoord[nActPoints];
+    for (int i = 0; i < nActPoints; i++) {
+      actPointCoord[i] = i * dtheta;
+    }
 
-TEST(ActuatorBasisCos2, DISABLED_intgralPeriodic3Points)
+    Cos2Basis b(nActPoints);
+    for (int i = 1; i < nActPoints; i++) {
+      EXPECT_NEAR(
+        0.0, b.get_interpolation_weight(&actPointCoord[0], &actPointCoord[i]),
+        1e-18);
+      EXPECT_DOUBLE_EQ(
+        1.0 / dtheta,
+        b.get_interpolation_weight(&actPointCoord[i], &actPointCoord[i]));
+      }
+  }
+}
+
+TEST(ActuatorBasisCos2, integralPeriodic3Points)
 {
   const int nActPoints = 3;
-  const int nSamplePoints = 1000;
+  const int nSamplePoints = 10000;
   double dtheta = 2 * M_PI / nActPoints;
   double actPointCoord[nActPoints];
   double integral[nActPoints];
@@ -27,57 +48,30 @@ TEST(ActuatorBasisCos2, DISABLED_intgralPeriodic3Points)
     actPointCoord[i] = i * dtheta;
     integral[i] = 0.0;
   }
-  double dx = 2 * M_PI / (nSamplePoints);
+  const double dx = 2 * M_PI / (nSamplePoints - 1);
 
   Cos2Basis b(nActPoints);
 
+  EXPECT_NEAR(
+    0.0, b.get_interpolation_weight(&actPointCoord[1], &actPointCoord[2]),
+    1e-18);
   EXPECT_DOUBLE_EQ(
-    0.0, b.get_interpolation_weight(&actPointCoord[1], &actPointCoord[2]));
-  EXPECT_DOUBLE_EQ(
-    0.5 * dtheta,
+    1.0 / dtheta,
     b.get_interpolation_weight(&actPointCoord[1], &actPointCoord[1]));
 
   for (int i = 0; i < nSamplePoints; i++) {
     const double x = i * dx;
     for (int j = 0; j < nActPoints; j++) {
-      integral[j] += b.get_interpolation_weight(&actPointCoord[j], &x);
+      integral[j] += b.get_interpolation_weight(&actPointCoord[j], &x) * dx;
     }
   }
 
-  const double exactIntegral = 1.0 / nActPoints;
+  const double exactIntegral = 1.0;
   for (int i = 0; i < nActPoints; i++) {
-    EXPECT_NEAR(exactIntegral, integral[i] / nSamplePoints, 1e-10)
-      << integral[i] / exactIntegral;
+    EXPECT_NEAR(exactIntegral, integral[i], 1e-1) << integral[i] / M_PI;
   }
 }
 
-TEST(ActuatorBasisCos2, DISABLED_intgralNonPeriodic3Points)
-{
-  const int nActPoints = 3;
-  const int nSamplePoints = 10;
-  double dtheta = 1.0 / (nActPoints - 1);
-  double actPointCoord[nActPoints];
-  double integral[nActPoints];
-  for (int i = 0; i < nActPoints; i++) {
-    actPointCoord[i] = i * dtheta;
-    integral[i] = 0.0;
-  }
-  double dx = 1.0 / (nSamplePoints - 1);
-
-  Cos2Basis b(nActPoints);
-  for (int i = 0; i < nSamplePoints; i++) {
-    const double x = i * dx;
-    for (int j = 0; j < nActPoints; j++) {
-      integral[j] += b.get_interpolation_weight(&actPointCoord[j], &x);
-    }
-  }
-
-  const double exactIntegral = 1.0 / nActPoints;
-  for (int i = 0; i < nActPoints; i++) {
-    EXPECT_NEAR(exactIntegral, integral[i], 1e-10)
-      << integral[i] / exactIntegral;
-  }
-}
 } // namespace
 } // namespace actuator
 } // namespace nalu

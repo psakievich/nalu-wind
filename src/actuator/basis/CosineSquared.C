@@ -27,14 +27,14 @@ Cos2Basis::get_interpolation_weight(
   if (x < -M_PI)
     x += 2 * M_PI;
   // scale
-  x *= M_PI / (2.0 * dX_); // x*N/4
+  x *= M_PI / (2.0 * dX_); // x*N/4 for periodic
   // clip
   if (x > dX_ || x < -dX_)
     return 0.0;
   // compute
   const double val = stk::math::cos(x);
-  // 0.5 dX_ normalizes the integral
-  return val * val * 0.5 * dX_;
+  // normalizes the integral dx = 2 pi /N
+  return val * val / dX_;
 }
 } // namespace actuator
 } // namespace nalu
