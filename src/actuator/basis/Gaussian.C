@@ -22,7 +22,7 @@ IsotropicGaussianBasis::IsotropicGaussianBasis(
 {
 }
 double
-IsotropicGaussianBasis::get_interpolation_weight_impl(
+IsotropicGaussianBasis::get_interpolation_weight(
   const double* actPointCoord, const double* sampleCoord)
 {
   double distance = 0;

@@ -15,7 +15,7 @@ namespace sierra {
 namespace nalu {
 namespace actuator {
 
-class IsotropicGaussianBasis : public Basis<IsotropicGaussianBasis>
+class IsotropicGaussianBasis : public Basis
 {
 private:
   const int nDim_;
@@ -25,8 +25,8 @@ private:
 public:
   IsotropicGaussianBasis(const int dimension, const double epsilon);
 
-  double get_interpolation_weight_impl(
-    const double* actPointCoord, const double* sampleCoord);
+  double get_interpolation_weight(
+    const double* actPointCoord, const double* sampleCoord) override;
 };
 
 } // namespace actuator

@@ -14,31 +14,20 @@ namespace sierra {
 namespace nalu {
 namespace actuator {
 
-/**
- * @brief Interface class for all bases using CRTP
- *
- * Thinking CRTP can be used for a pointer since template combinatorics may
- * explode as we add more basis. Right now CRTP not seeming necessary so may
- * remove with a refactor.
- */
-template <typename Derived>
 class Basis
 {
 public:
-  inline double get_interpolation_weight(
-    const double* actPointCoord, const double* sampleCoord)
-  {
-    return static_cast<Derived*>(this)->get_interpolation_weight_impl(
-      actPointCoord, sampleCoord);
-  };
+  virtual inline double get_interpolation_weight(
+    const double* actPointCoord, const double* sampleCoord) = 0;
+  virtual ~Basis() = default;
 };
 
-class NullBasis : public Basis<NullBasis>
+class NullBasis : public Basis
 {
 public:
   NullBasis() = default;
 
-  inline double get_interpolation_weight_impl(const double*, const double*)
+  inline double get_interpolation_weight(const double*, const double*) override
   {
     return 1.0;
   }

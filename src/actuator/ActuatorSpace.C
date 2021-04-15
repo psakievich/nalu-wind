@@ -6,26 +6,23 @@
 // This software is released under the BSD 3-clause license. See LICENSE file
 // for more details.
 //
+#include <actuator/ActuatorSpace.h>
+#include <actuator/basis/Gaussian.h>
 
-#ifndef COSINESQUARED_H_
-#define COSINESQUARED_H_
-#include <actuator/ActuatorBasis.h>
 namespace sierra {
 namespace nalu {
 namespace actuator {
-class Cos2Basis : public Basis
-{
-private:
-  const int n_;
-  const double dX_;
 
-public:
-  Cos2Basis(const int N);
-  double get_interpolation_weight(
-    const double* actPointCoord, const double* sampleCoord) override;
-};
+double
+ActuatorSpace::get_interpolation_weight(
+  const double* actPointCoord, const double* sampleCoord)
+{
+  double value{1.0};
+  for (auto&& b : bases_) {
+    value *= b->get_interpolation_weight(actPointCoord, sampleCoord);
+  }
+  return value;
+}
 } // namespace actuator
 } // namespace nalu
 } // namespace sierra
-
-#endif /* COSINESQUARED_H_ */

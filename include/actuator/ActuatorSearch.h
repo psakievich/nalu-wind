@@ -58,9 +58,9 @@ void execute_coarse_search(
   // sort by actuator point id auto can be used with c++ 14
   std::sort(
     searchKeyPair.begin(), searchKeyPair.end(),
-    [](const SearchKeyPair& left, const SearchKeyPair& right) {
+    [](const auto& left, const auto& right) {
       return left.second < right.second;
-    })
+    });
 
     const std::size_t numLocalMatches = searchKeyPair.size();
 

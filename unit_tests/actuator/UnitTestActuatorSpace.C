@@ -17,19 +17,15 @@ namespace {
 
 TEST(ActuatorSpaceTest, construction)
 {
-  {
-    actuator::NullBasis b;
-    ActuatorSpace<actuator::NullBasis> s(b);
-    double x = 1.0;
-    EXPECT_EQ(1.0, s.get_interpolation_weight(&x, &x));
-  }
-  {
-    actuator::NullBasis b;
-    ActuatorSpace<actuator::NullBasis, actuator::NullBasis, actuator::NullBasis>
-      s(b, b, b);
-    double x = 1.0;
-    EXPECT_EQ(1.0, s.get_interpolation_weight(&x, &x));
-  }
+  actuator::NullBasis b;
+  actuator::ActuatorSpace s;
+  s.add_basis<actuator::NullBasis>(b);
+  double x = 1.0;
+  EXPECT_EQ(1.0, s.get_interpolation_weight(&x, &x));
+  s.add_basis<actuator::NullBasis>(b);
+  EXPECT_EQ(1.0, s.get_interpolation_weight(&x, &x));
+  s.add_basis<actuator::NullBasis>(b);
+  EXPECT_EQ(1.0, s.get_interpolation_weight(&x, &x));
 }
 } // namespace
 } // namespace nalu

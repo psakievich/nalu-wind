@@ -9,68 +9,32 @@
 #ifndef ACTUATORSPACE_H_
 #define ACTUATORSPACE_H_
 
+#include <actuator/ActuatorBasis.h>
+#include <memory>
+#include <vector>
 namespace sierra {
 namespace nalu {
+namespace actuator {
 
-class ActuatorSpaceContainer
-{
-  virtual ~ActuatorSpaceContainer() = default;
-};
-
-template <typename...>
-class ActuatorSpace;
-
-template <typename B0, typename B1, typename B2>
-class ActuatorSpace<B0, B1, B2>
+// use polymorphism for development. probably should figure out how to do this
+// with templates later for gpu compatibility
+class ActuatorSpace
 {
 public:
-  ActuatorSpace(B0 b0, B1 b1, B2 b2) : basis0_(b0), basis1_(b1), basis2_(b2) {}
-  inline double get_interpolation_weight(
-    const double* actPointCoord, const double* sampleCoord)
+  ActuatorSpace(){};
+  template <typename T>
+  inline void add_basis(T b)
   {
-    return basis0_.get_interpolation_weight(actPointCoord, sampleCoord) *
-           basis1_.get_interpolation_weight(actPointCoord, sampleCoord) *
-           basis2_.get_interpolation_weight(actPointCoord, sampleCoord);
+    // add via copy constructor
+    bases_.push_back(std::make_unique<T>(b));
   }
+  double get_interpolation_weight(
+    const double* actPointCoord, const double* sampleCoord);
 
 private:
-  B0 basis0_;
-  B1 basis1_;
-  B2 basis2_;
+  std::vector<std::unique_ptr<Basis>> bases_;
 };
-
-template <typename B0, typename B1>
-class ActuatorSpace<B0, B1>
-{
-public:
-  ActuatorSpace(B0 b0, B1 b1) : basis0_(b0), basis1_(b1) {}
-  inline double get_interpolation_weight(
-    const double* actPointCoord, const double* sampleCoord)
-  {
-    return basis0_.get_interpolation_weight(actPointCoord, sampleCoord) *
-           basis1_.get_interpolation_weight(actPointCoord, sampleCoord);
-  }
-
-private:
-  B0 basis0_;
-  B1 basis1_;
-};
-
-template <typename B0>
-class ActuatorSpace<B0>
-{
-public:
-  ActuatorSpace(B0 b0) : basis0_(b0) {}
-  inline double get_interpolation_weight(
-    const double* actPointCoord, const double* sampleCoord)
-  {
-    return basis0_.get_interpolation_weight(actPointCoord, sampleCoord);
-  }
-
-private:
-  B0 basis0_;
-};
-
+} // namespace actuator
 } // namespace nalu
 } // namespace sierra
 
