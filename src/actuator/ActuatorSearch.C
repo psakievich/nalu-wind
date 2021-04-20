@@ -37,6 +37,7 @@ create_bounding_spheres(ActFixVectorDbl points, ActFixScalarDbl radius)
   return boundSphereVec;
 }
 
+// TODO need normal computation for non grid aligned turbines
 VecBoundBox
 create_bounding_boxes(ActFixVectorDbl points, ActFixVectorDbl dX)
 {
@@ -138,6 +139,67 @@ create_element_boxes(
     }
   }
   return boundElemBoxVec;
+}
+
+VecSearchKeyPair
+get_unique_elements(VecSearchKeyPair input)
+{
+  std::sort(
+    input.begin(), input.end(), [](const auto& left, const auto& right) {
+      return left.second < right.second;
+    });
+  auto ip = std::unique(
+    input.begin(), input.end(), [](const auto& left, const auto& right) {
+      return left.second == right.second;
+    });
+  input.resize(std::distance(input.begin(), ip));
+  return input;
+}
+
+VecSearchKeyPair
+compute_unique_intersections(
+  VecBoundBox& boundBoxes,
+  VecBoundElemBox& elemBoxes,
+  const stk::search::SearchMethod searchMethod)
+{
+  VecSearchKeyPair searchKeyPair;
+  stk::search::coarse_search(
+    boundBoxes, elemBoxes, searchMethod, MPI_COMM_SELF, searchKeyPair);
+
+  return get_unique_elements(searchKeyPair);
+}
+
+void
+execute_coarse_search(
+  VecBoundSphere& spheres,
+  VecBoundElemBox& elemBoxes,
+  ActScalarU64Dv& coarsePointIds,
+  ActScalarU64Dv& coarseElemIds,
+  stk::search::SearchMethod searchMethod)
+{
+  VecSearchKeyPair searchKeyPair;
+  stk::search::coarse_search(
+    spheres, elemBoxes, searchMethod, MPI_COMM_SELF, searchKeyPair);
+
+  // sort by actuator point id auto can be used with c++ 14
+  std::sort(
+    searchKeyPair.begin(), searchKeyPair.end(),
+    [](const auto& left, const auto& right) {
+      return left.second < right.second;
+    });
+
+  const std::size_t numLocalMatches = searchKeyPair.size();
+
+  coarsePointIds.resize(numLocalMatches);
+  coarseElemIds.resize(numLocalMatches);
+
+  coarsePointIds.modify_host();
+  coarseElemIds.modify_host();
+
+  for (std::size_t i = 0; i < numLocalMatches; i++) {
+    coarsePointIds.h_view(i) = searchKeyPair[i].first.id();
+    coarseElemIds.h_view(i) = searchKeyPair[i].second.id();
+  }
 }
 
 void

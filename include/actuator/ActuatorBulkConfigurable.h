@@ -9,24 +9,24 @@
 #ifndef ACTUATORBULKCONFIGURABLE_H_
 #define ACTUATORBULKCONFIGURABLE_H_
 
-#include <actuator/ActuatorBulk.h>
+#include <actuator/ActuatorBulkFAST.h>
 #include <actuator/ActuatorSpace.h>
 
 namespace sierra {
 namespace nalu {
 
-struct ActuatorMetaConfigurable : public ActuatorMeta
+struct ActuatorBulkConfigurable : public ActuatorBulkFAST
 {
-  bool hasMotion_ = false;
-  bool usesOpenFast_ = false;
-};
-
-struct ActuatorBulkConfigurable : public ActuatorBulk
-{
-  ActuatorBulkConfigurable(const ActuatorMetaConfigurable& actMeta);
+  ActuatorBulkConfigurable(
+    const ActuatorMetaFAST& actMeta, const double naluTimeStep);
+  VecBoundBox discretize_disk_section_with_boxes(
+    const double r,
+    const double dr,
+    const double dTheta,
+    const double thetaStart,
+    const double zRef,
+    const double dz);
   std::vector<actuator::ActuatorSpace> actuatorSpaces_;
-  // TODO add customizable stk-search
-  // TODO add aero model support
 };
 } // namespace nalu
 } // namespace sierra

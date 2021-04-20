@@ -183,6 +183,26 @@ TEST_F(ActuatorSearchTest, NGP_execute_fine_search)
   }
 }
 
+TEST_F(ActuatorSearchTest, NGP_unique_intersections_with_large_search)
+{
+  stk::mesh::BulkData& stkBulk = ioBroker.bulk_data();
+  ActFixVectorDbl dX("dx", nPoints);
+  for (unsigned i = 0; i < nPoints; i++) {
+    for (unsigned j = 0; j < 3; j++) {
+      dX(i, j) = 4.0;
+    }
+  }
+  auto boxes = create_bounding_boxes(points, dX);
+  auto elemBoxes = create_element_boxes(stkBulk, partNames);
+  auto results =
+    compute_unique_intersections(boxes, elemBoxes, stk::search::KDTREE);
+  EXPECT_EQ(results.size(), slabSize);
+  VecSearchKeyPair results2;
+  stk::search::coarse_search(
+    boxes, elemBoxes, stk::search::KDTREE, MPI_COMM_SELF, results2);
+  EXPECT_NE(results.size(), results2.size());
+}
+
 } // namespace
 
 } // namespace nalu

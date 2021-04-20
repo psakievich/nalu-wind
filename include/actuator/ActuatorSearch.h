@@ -43,38 +43,20 @@ VecBoundBox create_bounding_boxes(ActFixVectorDbl points, ActFixVectorDbl dX);
 VecBoundElemBox create_element_boxes(
   stk::mesh::BulkData& stkBulk, std::vector<std::string> partNameList);
 
-template<typename T>
-void execute_coarse_search(
-  T& geoEntities,
+VecSearchKeyPair get_unique_elements(VecSearchKeyPair input);
+
+VecSearchKeyPair compute_unique_intersections(
+  VecBoundBox& boundBoxes,
+  VecBoundElemBox& elemBoxes,
+  const stk::search::SearchMethod searchMethod);
+
+void
+execute_coarse_search(
+  VecBoundSphere& spheres,
   VecBoundElemBox& elemBoxes,
   ActScalarU64Dv& coarsePointIds,
   ActScalarU64Dv& coarseElemIds,
-  stk::search::SearchMethod searchMethod)
-{
-    VecSearchKeyPair searchKeyPair;
-  stk::search::coarse_search(
-    geoEntities, elemBoxes, searchMethod, MPI_COMM_SELF, searchKeyPair);
-
-  // sort by actuator point id auto can be used with c++ 14
-  std::sort(
-    searchKeyPair.begin(), searchKeyPair.end(),
-    [](const auto& left, const auto& right) {
-      return left.second < right.second;
-    });
-
-    const std::size_t numLocalMatches = searchKeyPair.size();
-
-  coarsePointIds.resize(numLocalMatches);
-  coarseElemIds.resize(numLocalMatches);
-
-  coarsePointIds.modify_host();
-  coarseElemIds.modify_host();
-
-  for (std::size_t i = 0; i < numLocalMatches; i++) {
-    coarsePointIds.h_view(i) = searchKeyPair[i].first.id();
-    coarseElemIds.h_view(i) = searchKeyPair[i].second.id();
-  }
-}
+  stk::search::SearchMethod searchMethod);
 
 void execute_fine_search(
   stk::mesh::BulkData& stkBulk,
