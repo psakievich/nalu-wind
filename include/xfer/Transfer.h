@@ -70,6 +70,8 @@ public:
   std::string transferType_;
   std::string transferObjective_;
   std::string searchMethodName_;
+  std::string fromSearchCoordinates_;
+  std::string toSearchCoordinates_;
   double searchTolerance_;
   double searchExpansionFactor_;
   std::pair<std::string, std::string> realmPairName_;

@@ -47,8 +47,7 @@ namespace nalu{
 //--------------------------------------------------------------------------
 //-------- constructor -----------------------------------------------------
 //--------------------------------------------------------------------------
-Transfer::Transfer(
-  Transfers &transfers)
+Transfer::Transfer(Transfers& transfers)
   : transfers_(transfers),
     couplingPhysicsSpecified_(false),
     transferVariablesSpecified_(false),
@@ -90,6 +89,11 @@ Transfer::load(const YAML::Node & node)
     couplingPhysicsName_ = node["coupling_physics"].as<std::string>() ;
     couplingPhysicsSpecified_ = true;
   }
+
+  get_if_present_no_default(
+    node, "from_search_coordinates", fromSearchCoordinates_);
+  get_if_present_no_default(
+    node, "to_search_coordinates", toSearchCoordinates_);
 
   // realm names
   const YAML::Node realmPair = node["realm_pair"];
@@ -338,37 +342,61 @@ Transfer::breadboard()
 void Transfer::allocate_stk_transfer() {
 
   const stk::mesh::MetaData    &fromMetaData = fromRealm_->meta_data();
-        stk::mesh::BulkData    &fromBulkData = fromRealm_->bulk_data();
-  const std::string            &fromcoordName   = fromRealm_->get_coordinates_name();
-  const std::vector<std::pair<std::string, std::string> > &FromVar = transferVariablesPairName_;
-  const stk::ParallelMachine    &fromComm    = fromRealm_->bulk_data().parallel();
+  stk::mesh::BulkData& fromBulkData = fromRealm_->bulk_data();
 
-  std::shared_ptr<FromMesh >
-    from_mesh (new FromMesh(fromMetaData, fromBulkData, *fromRealm_, fromcoordName, FromVar, fromPartVec_, fromComm));
+  const std::string& fromcoordName = fromSearchCoordinates_.empty()
+                                       ? fromRealm_->get_coordinates_name()
+                                       : fromSearchCoordinates_;
+  const std::vector<std::pair<std::string, std::string>>& fromVar =
+    transferVariablesPairName_;
+  const stk::ParallelMachine& fromComm = fromRealm_->bulk_data().parallel();
 
-  stk::mesh::MetaData    &toMetaData = toRealm_->meta_data();
-  stk::mesh::BulkData    &toBulkData = toRealm_->bulk_data();
-  const std::string             &tocoordName   = toRealm_->get_coordinates_name();
-  const std::vector<std::pair<std::string, std::string> > &toVar = transferVariablesPairName_;
-  const stk::ParallelMachine    &toComm    = toRealm_->bulk_data().parallel();
+  if (!fromMetaData.get_field<VectorFieldType>(
+        stk::topology::NODE_RANK, fromcoordName)) {
+    throw std::runtime_error(
+      "Transfer from mesh coordinate field does not exist: " + fromcoordName);
+  }
+  std::shared_ptr<FromMesh> from_mesh(new FromMesh(
+    fromMetaData, fromBulkData, *fromRealm_, fromcoordName, fromVar,
+    fromPartVec_, fromComm));
 
-  std::shared_ptr<ToMesh >
-    to_mesh (new ToMesh(toMetaData, toBulkData, *toRealm_, tocoordName, toVar, toPartVec_, toComm, searchTolerance_));
+  stk::mesh::MetaData& toMetaData = toRealm_->meta_data();
+  stk::mesh::BulkData& toBulkData = toRealm_->bulk_data();
+  const std::string& tocoordName = toSearchCoordinates_.empty()
+                                     ? toRealm_->get_coordinates_name()
+                                     : toSearchCoordinates_;
+  if (!toMetaData.get_field<VectorFieldType>(
+        stk::topology::NODE_RANK, tocoordName)) {
+    throw std::runtime_error(
+      "Transfer to mesh coordinate field does not exist: " + tocoordName);
+  }
+  const std::vector<std::pair<std::string, std::string>>& toVar =
+    transferVariablesPairName_;
+  const stk::ParallelMachine& toComm = toRealm_->bulk_data().parallel();
 
-  typedef stk::transfer::GeometricTransfer< class LinInterp< class FromMesh, class ToMesh > > STKTransfer;
+  std::shared_ptr<ToMesh> to_mesh(new ToMesh(
+    toMetaData, toBulkData, *toRealm_, tocoordName, toVar, toPartVec_, toComm,
+    searchTolerance_));
+
+  typedef stk::transfer::GeometricTransfer<
+    class LinInterp<class FromMesh, class ToMesh>>
+    STKTransfer;
 
   // extract search type
   stk::search::SearchMethod searchMethod = stk::search::KDTREE;
-  if ( searchMethodName_ == "boost_rtree" ) {
+  if (searchMethodName_ == "boost_rtree") {
     searchMethod = stk::search::KDTREE;
-    NaluEnv::self().naluOutputP0() << "Warning: search method 'boost_rtree' has been deprecated"
-          <<", switching to 'stk_kdtree'" << std::endl;
-  }
-  else if ( searchMethodName_ == "stk_kdtree" )
+    NaluEnv::self().naluOutputP0()
+      << "Warning: search method 'boost_rtree' has been deprecated"
+      << ", switching to 'stk_kdtree'" << std::endl;
+  } else if (searchMethodName_ == "stk_kdtree")
     searchMethod = stk::search::KDTREE;
   else
-    NaluEnv::self().naluOutputP0() << "Transfer::search method not declared; will use stk_kdtree" << std::endl;
-  transfer_.reset(new STKTransfer(from_mesh, to_mesh, name_, searchExpansionFactor_, searchMethod));
+    NaluEnv::self().naluOutputP0()
+      << "Transfer::search method not declared; will use stk_kdtree"
+      << std::endl;
+  transfer_.reset(new STKTransfer(
+    from_mesh, to_mesh, name_, searchExpansionFactor_, searchMethod));
 }
 
 //--------------------------------------------------------------------------
