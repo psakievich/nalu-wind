@@ -347,15 +347,14 @@ void Transfer::allocate_stk_transfer() {
   const std::string& fromcoordName = fromSearchCoordinates_.empty()
                                        ? fromRealm_->get_coordinates_name()
                                        : fromSearchCoordinates_;
+
+  ThrowAssert(fromcoordName == fromMetaData.coordinate_field_name());
+  std::cout << "From coord name: " << fromcoordName << std::endl;
+
   const std::vector<std::pair<std::string, std::string>>& fromVar =
     transferVariablesPairName_;
   const stk::ParallelMachine& fromComm = fromRealm_->bulk_data().parallel();
 
-  if (!fromMetaData.get_field<VectorFieldType>(
-        stk::topology::NODE_RANK, fromcoordName)) {
-    throw std::runtime_error(
-      "Transfer from mesh coordinate field does not exist: " + fromcoordName);
-  }
   std::shared_ptr<FromMesh> from_mesh(new FromMesh(
     fromMetaData, fromBulkData, *fromRealm_, fromcoordName, fromVar,
     fromPartVec_, fromComm));
@@ -365,11 +364,9 @@ void Transfer::allocate_stk_transfer() {
   const std::string& tocoordName = toSearchCoordinates_.empty()
                                      ? toRealm_->get_coordinates_name()
                                      : toSearchCoordinates_;
-  if (!toMetaData.get_field<VectorFieldType>(
-        stk::topology::NODE_RANK, tocoordName)) {
-    throw std::runtime_error(
-      "Transfer to mesh coordinate field does not exist: " + tocoordName);
-  }
+  ThrowAssert(tocoordName == toMetaData.coordinate_field_name());
+  std::cout << "Too coord name: " << tocoordName << std::endl;
+
   const std::vector<std::pair<std::string, std::string>>& toVar =
     transferVariablesPairName_;
   const stk::ParallelMachine& toComm = toRealm_->bulk_data().parallel();

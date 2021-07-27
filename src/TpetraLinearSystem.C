@@ -306,19 +306,28 @@ void TpetraLinearSystem::beginLinearSystemConstruction()
   std::vector<stk::mesh::Entity>::iterator iter = std::unique(shared_not_owned_nodes.begin(), shared_not_owned_nodes.end(), CompareEntityEqualById(bulkData, realm_.naluGlobalId_));
   shared_not_owned_nodes.erase(iter, shared_not_owned_nodes.end());
 
-  for (unsigned inode=0; inode < shared_not_owned_nodes.size(); ++inode) {
+  unsigned snon_size = shared_not_owned_nodes.size();
+
+  for (unsigned inode = 0; inode < snon_size; ++inode) {
     stk::mesh::Entity entity = shared_not_owned_nodes[inode];
     const stk::mesh::EntityId naluId = *stk::mesh::field_data(*realm_.naluGlobalId_, entity);
     auto masterentity = get_entity_master(bulkData, entity, naluId);
     myLIDs_[naluId] = numDof_*localId++;
     int owner = bulkData.parallel_owner_rank(masterentity);
-    auto basegid = *stk::mesh::field_data(*realm_.tpetGlobalId_, masterentity);
+    const auto basegid =
+      *stk::mesh::field_data(*realm_.tpetGlobalId_, masterentity);
 
     if(entity != masterentity) 
       *stk::mesh::field_data(*realm_.tpetGlobalId_, entity) = basegid;
     
     for(unsigned idof=0; idof < numDof_; ++ idof) {
+      std::cout << "pre basegid: " << basegid << " idof: " << idof << std::endl;
       GlobalOrdinal gid = basegid+idof;
+      std::cout << "post basegid: " << basegid << " idof: " << idof
+                << std::endl;
+      if (gid == 0) {
+        std::cout << "Houston we have a problem\n";
+      }
       sharedNotOwnedGids.push_back(gid);
       sharedPids_.push_back(owner);
     }
