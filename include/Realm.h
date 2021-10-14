@@ -83,7 +83,6 @@ class TurbulenceAveragingPostProcessing;
 class SurfaceFMPostProcessing;
 class DataProbePostProcessing;
 struct ActuatorModel;
-class Actuator;
 class OpenfastFSI;
 class ABLForcingAlgorithm;
 class BdyLayerStatistics;
@@ -455,7 +454,6 @@ class Realm {
   DataProbePostProcessing* dataProbePostProcessing_;
   std::unique_ptr<ActuatorModel> actuatorModel_;
   std::unique_ptr<SurfaceFMPostProcessing> surfaceFMPostProcessing_;
-  Actuator *actuator_;
   OpenfastFSI *openfast_;
   ABLForcingAlgorithm *ablForcingAlg_;
   BdyLayerStatistics* bdyLayerStats_{nullptr};

@@ -81,6 +81,15 @@ void squash_fast_output(std::function<void()>func)
   func();
   std::cout.rdbuf(sHoldCout);
 }
+inline void
+squash_fast_output(std::function<void(bool)> func)
+{
+  std::stringstream buffer;
+  std::streambuf* sHoldCout = std::cout.rdbuf();
+  std::cout.rdbuf(buffer.rdbuf());
+  func();
+  std::cout.rdbuf(sHoldCout);
+}
 
 } // namespace nalu
 } // namespace sierra

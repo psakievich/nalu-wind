@@ -47,7 +47,6 @@
 #include <NonConformalInfo.h>
 #include <PeriodicManager.h>
 #include <ProjectedNodalGradientEquationSystem.h>
-#include <PostProcessingData.h>
 #include <Realm.h>
 #include <Realms.h>
 #include <Simulation.h>
@@ -466,7 +465,7 @@ LowMachEquationSystem::register_open_bc(
 //--------------------------------------------------------------------------
 //-------- register_surface_pp_algorithm ----------------------
 //--------------------------------------------------------------------------
-void
+/*void
 LowMachEquationSystem::register_surface_pp_algorithm(
   const PostProcessingData &theData,
   stk::mesh::PartVector &partVector)
@@ -475,16 +474,25 @@ LowMachEquationSystem::register_surface_pp_algorithm(
 
   // register nodal fields in common
   stk::mesh::MetaData &meta_data = realm_.meta_data();
-  VectorFieldType *pressureForce =  &(meta_data.declare_field<VectorFieldType>(stk::topology::NODE_RANK, "pressure_force"));
-  stk::mesh::put_field_on_mesh(*pressureForce, stk::mesh::selectUnion(partVector), meta_data.spatial_dimension(), nullptr);
-  VectorFieldType *viscousForce =  &(meta_data.declare_field<VectorFieldType>(stk::topology::NODE_RANK, "viscous_force"));
-  stk::mesh::put_field_on_mesh(*viscousForce, stk::mesh::selectUnion(partVector), meta_data.spatial_dimension(), nullptr);
-  VectorFieldType *tauWallVector =  &(meta_data.declare_field<VectorFieldType>(stk::topology::NODE_RANK, "tau_wall_vector"));
-  stk::mesh::put_field_on_mesh(*tauWallVector, stk::mesh::selectUnion(partVector), meta_data.spatial_dimension(), nullptr);
-  ScalarFieldType *tauWall =  &(meta_data.declare_field<ScalarFieldType>(stk::topology::NODE_RANK, "tau_wall"));
-  stk::mesh::put_field_on_mesh(*tauWall, stk::mesh::selectUnion(partVector), nullptr);
-  ScalarFieldType *yplus =  &(meta_data.declare_field<ScalarFieldType>(stk::topology::NODE_RANK, "yplus"));
-  stk::mesh::put_field_on_mesh(*yplus, stk::mesh::selectUnion(partVector), nullptr);
+  VectorFieldType *pressureForce =
+&(meta_data.declare_field<VectorFieldType>(stk::topology::NODE_RANK,
+"pressure_force")); stk::mesh::put_field_on_mesh(*pressureForce,
+stk::mesh::selectUnion(partVector), meta_data.spatial_dimension(), nullptr);
+  VectorFieldType *viscousForce =
+&(meta_data.declare_field<VectorFieldType>(stk::topology::NODE_RANK,
+"viscous_force")); stk::mesh::put_field_on_mesh(*viscousForce,
+stk::mesh::selectUnion(partVector), meta_data.spatial_dimension(), nullptr);
+  VectorFieldType *tauWallVector =
+&(meta_data.declare_field<VectorFieldType>(stk::topology::NODE_RANK,
+"tau_wall_vector")); stk::mesh::put_field_on_mesh(*tauWallVector,
+stk::mesh::selectUnion(partVector), meta_data.spatial_dimension(), nullptr);
+  ScalarFieldType *tauWall =
+&(meta_data.declare_field<ScalarFieldType>(stk::topology::NODE_RANK,
+"tau_wall")); stk::mesh::put_field_on_mesh(*tauWall,
+stk::mesh::selectUnion(partVector), nullptr); ScalarFieldType *yplus =
+&(meta_data.declare_field<ScalarFieldType>(stk::topology::NODE_RANK, "yplus"));
+  stk::mesh::put_field_on_mesh(*yplus, stk::mesh::selectUnion(partVector),
+nullptr);
 
   // force output for these variables
   realm_.augment_output_variable_list(pressureForce->name());
@@ -496,35 +504,40 @@ LowMachEquationSystem::register_surface_pp_algorithm(
 
   if ( thePhysics == "surface_force_and_moment" ) {
     if (RANSAblBcApproach) {
-      std::cout << "surface_force_and_moment not implemented with RANS_abl_bc." << std::endl;
+      std::cout << "surface_force_and_moment not implemented with RANS_abl_bc."
+<< std::endl;
     }
 
-    ScalarFieldType *assembledArea =  &(meta_data.declare_field<ScalarFieldType>(stk::topology::NODE_RANK, "assembled_area_force_moment"));
-    stk::mesh::put_field_on_mesh(*assembledArea, stk::mesh::selectUnion(partVector), nullptr);
-	    if ( NULL == surfaceForceAndMomentAlgDriver_ )
-      surfaceForceAndMomentAlgDriver_ = new SurfaceForceAndMomentAlgorithmDriver(realm_);
-    SurfaceForceAndMomentAlgorithm *ppAlg
-      = new SurfaceForceAndMomentAlgorithm(
-          realm_, partVector, theData.outputFileName_, theData.frequency_,
-          theData.parameters_, realm_.realmUsesEdges_);
+    ScalarFieldType *assembledArea =
+&(meta_data.declare_field<ScalarFieldType>(stk::topology::NODE_RANK,
+"assembled_area_force_moment")); stk::mesh::put_field_on_mesh(*assembledArea,
+stk::mesh::selectUnion(partVector), nullptr); if ( NULL ==
+surfaceForceAndMomentAlgDriver_ ) surfaceForceAndMomentAlgDriver_ = new
+SurfaceForceAndMomentAlgorithmDriver(realm_); SurfaceForceAndMomentAlgorithm
+*ppAlg = new SurfaceForceAndMomentAlgorithm( realm_, partVector,
+theData.outputFileName_, theData.frequency_, theData.parameters_,
+realm_.realmUsesEdges_);
     surfaceForceAndMomentAlgDriver_->algVec_.push_back(ppAlg);
   }
   else if ( thePhysics == "surface_force_and_moment_wall_function" ) {
     if (RANSAblBcApproach) {
-      std::cout << "surface_force_and_moment_wall_function not implemented with RANS_abl_bc." << std::endl;
+      std::cout << "surface_force_and_moment_wall_function not implemented with
+RANS_abl_bc." << std::endl;
     }
 
-    ScalarFieldType *assembledArea =  &(meta_data.declare_field<ScalarFieldType>(stk::topology::NODE_RANK, "assembled_area_force_moment_wf"));
-    stk::mesh::put_field_on_mesh(*assembledArea, stk::mesh::selectUnion(partVector), nullptr);
-    if ( NULL == surfaceForceAndMomentAlgDriver_ )
-      surfaceForceAndMomentAlgDriver_ = new SurfaceForceAndMomentAlgorithmDriver(realm_);
+    ScalarFieldType *assembledArea =
+&(meta_data.declare_field<ScalarFieldType>(stk::topology::NODE_RANK,
+"assembled_area_force_moment_wf")); stk::mesh::put_field_on_mesh(*assembledArea,
+stk::mesh::selectUnion(partVector), nullptr); if ( NULL ==
+surfaceForceAndMomentAlgDriver_ ) surfaceForceAndMomentAlgDriver_ = new
+SurfaceForceAndMomentAlgorithmDriver(realm_);
     SurfaceForceAndMomentWallFunctionAlgorithm *ppAlg
       = new SurfaceForceAndMomentWallFunctionAlgorithm(
           realm_, partVector, theData.outputFileName_, theData.frequency_,
           theData.parameters_, realm_.realmUsesEdges_);
     surfaceForceAndMomentAlgDriver_->algVec_.push_back(ppAlg);
   }
-}
+}*/
 
 //--------------------------------------------------------------------------
 //-------- register_initial_condition_fcn ----------------------------------

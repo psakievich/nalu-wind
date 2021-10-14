@@ -11,6 +11,7 @@
 #include <actuator/UtilitiesActuator.h>
 #include <actuator/ActuatorFunctorsFAST.h>
 #include <NaluEnv.h>
+#include <functional>
 
 namespace sierra {
 namespace nalu {
@@ -53,7 +54,7 @@ ActuatorBulkFAST::ActuatorBulkFAST(
     orientationTensor_(
       "orientationTensor",
       actMeta.isotropicGaussian_ ? 0 : actMeta.numPointsTotal_),
-    tStepRatio_(std::round(naluTimeStep / actMeta.fastInputs_.dtFAST))
+    tStepRatio_(-1)
 {
   init_openfast(actMeta, naluTimeStep);
   init_epsilon(actMeta);
@@ -75,13 +76,6 @@ ActuatorBulkFAST::init_openfast(
   const ActuatorMetaFAST& actMeta, const double naluTimeStep)
 {
   openFast_.setInputs(actMeta.fastInputs_);
-  if (!is_tstep_ratio_admissable(actMeta.fastInputs_.dtFAST, naluTimeStep)) {
-    throw std::runtime_error("ActuatorFAST: Ratio of Nalu's time step is not "
-                             "an integral multiple of FAST time step.");
-  } else {
-    NaluEnv::self().naluOutputP0()
-      << "Time step ratio  dtNalu/dtFAST: " << tStepRatio_ << std::endl;
-  }
 
   const int nProcs = NaluEnv::self().parallel_size();
   const int nTurb = actMeta.numberOfActuators_;
@@ -107,6 +101,13 @@ ActuatorBulkFAST::init_openfast(
     openFast_.init();
   } else {
     squash_fast_output(std::bind(&fast::OpenFAST::init, &openFast_));
+  }
+  if (!is_tstep_ratio_admissable(openFast_.get_timestep(), naluTimeStep)) {
+    throw std::runtime_error("ActuatorFAST: Ratio of Nalu's time step is not "
+                             "an integral multiple of FAST time step.");
+  } else {
+    NaluEnv::self().naluOutputP0()
+      << "Time step ratio  dtNalu/dtFAST: " << tStepRatio_ << std::endl;
   }
   /* TODO update/uncomment this check once openfast adds in a way 
   to get the actual time step from fast::OpenFAST
@@ -267,7 +268,8 @@ ActuatorBulkFAST::interpolate_velocities_to_fast()
     if (openFast_.isDebug()) {
       openFast_.solution0();
     } else {
-      squash_fast_output(std::bind(&fast::OpenFAST::solution0, &openFast_));
+      squash_fast_output(
+        std::bind(&fast::OpenFAST::solution0, false, &openFast_));
     }
   }
 }
@@ -281,7 +283,7 @@ ActuatorBulkFAST::step_fast()
     }
   } else {
     for (int j = 0; j < tStepRatio_; j++) {
-      squash_fast_output(std::bind(&fast::OpenFAST::step, &openFast_));
+      squash_fast_output(std::bind(&fast::OpenFAST::step, false, &openFast_));
     }
   }
 }

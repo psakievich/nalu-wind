@@ -463,7 +463,7 @@ void OpenfastFSI::map_loads(const int tStep, const double curTime)
         if(fsiTurbineData_[i] != nullptr) {// This may not be a turbine intended for blade-resolved simulation
             int turbProc = fsiTurbineData_[i]->getProc();
             fsiTurbineData_[i]->mapLoads();
-            int nTotBldNodes = fsiTurbineData_[i]->params_.nTotBRfsiPtsBlade;
+            size_t nTotBldNodes = fsiTurbineData_[i]->params_.nTotBRfsiPtsBlade;
             if (bulk_.parallel_rank() == turbProc) {
                 std::cerr << "nTotBldNodes = " << nTotBldNodes << std::endl ;
                 int iError = MPI_Reduce(MPI_IN_PLACE, fsiTurbineData_[i]->brFSIdata_.twr_ld.data(), (fsiTurbineData_[i]->params_.nBRfsiPtsTwr)*6, MPI_DOUBLE, MPI_SUM, turbProc, bulk_.parallel());

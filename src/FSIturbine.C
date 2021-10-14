@@ -1,7 +1,6 @@
 #include "FSIturbine.h"
 
 #include "SurfaceFMPostProcessing.h"
-#include <nalu_make_unique.h>
 #include "utils/ComputeVectorDivergence.h"
 
 #include "stk_util/parallel/ParallelReduce.hpp"
@@ -402,13 +401,13 @@ void fsiTurbine::write_nc_ref_pos() {
     const int iproc = bulk_.parallel_rank();
     if ( iproc != turbineProc_) return;
 
-    int nTwrPts = params_.nBRfsiPtsTwr;
+    size_t nTwrPts = params_.nBRfsiPtsTwr;
     int nBlades = params_.numBlades;
     int nTotBldPts = 0;
     for (int i=0; i < nBlades; i++) {
         nTotBldPts += params_.nBRfsiPtsBlade[i];
     }
-    int nBldPts = nTotBldPts/nBlades;
+    size_t nBldPts = nTotBldPts/nBlades;
     int ncid, ierr;
 
     std::stringstream defloads_fstream;
@@ -426,17 +425,21 @@ void fsiTurbine::write_nc_ref_pos() {
     tmpArray.resize(nTwrPts);
     {
         std::vector<size_t> count_dim{1,nTwrPts};
-        for (auto idim=0;idim < 3; idim++) {
-            for (auto i=0; i < nTwrPts; i++)
-                tmpArray[i] = brFSIdata_.twr_ref_pos[i*6+idim] ;
-            std::vector<size_t> start_dim{idim,0};
-            ierr = nc_put_vara_double(ncid, ncVarIDs_["twr_ref_pos"], start_dim.data(), count_dim.data(), tmpArray.data());
+        for (size_t idim = 0; idim < 3; idim++) {
+          for (auto i = 0; i < nTwrPts; i++)
+            tmpArray[i] = brFSIdata_.twr_ref_pos[i * 6 + idim];
+          std::vector<size_t> start_dim{idim, 0};
+          ierr = nc_put_vara_double(
+            ncid, ncVarIDs_["twr_ref_pos"], start_dim.data(), count_dim.data(),
+            tmpArray.data());
         }
-        for (auto idim=0;idim < 3; idim++) {
-            for (auto i=0; i < nTwrPts; i++)
-                tmpArray[i] = brFSIdata_.twr_ref_pos[i*6+3+idim] ;
-            std::vector<size_t> start_dim{idim,0};
-            ierr = nc_put_vara_double(ncid, ncVarIDs_["twr_ref_orient"], start_dim.data(), count_dim.data(), tmpArray.data());
+        for (size_t idim = 0; idim < 3; idim++) {
+          for (auto i = 0; i < nTwrPts; i++)
+            tmpArray[i] = brFSIdata_.twr_ref_pos[i * 6 + 3 + idim];
+          std::vector<size_t> start_dim{idim, 0};
+          ierr = nc_put_vara_double(
+            ncid, ncVarIDs_["twr_ref_orient"], start_dim.data(),
+            count_dim.data(), tmpArray.data());
         }
     }
 
@@ -444,7 +447,7 @@ void fsiTurbine::write_nc_ref_pos() {
     {
         std::vector<size_t> count_dim{1,1,nBldPts};
         for (auto iDim=0;iDim < 3; iDim++) {
-            int iStart = 0 ;
+            size_t iStart = 0 ;
             for (auto iBlade=0; iBlade < nBlades; iBlade++) {
                 for (auto i=0; i < nBldPts; i++) {
                     tmpArray[i] = brFSIdata_.bld_ref_pos[(iStart*6)+iDim];
@@ -455,7 +458,7 @@ void fsiTurbine::write_nc_ref_pos() {
             }
         }
         for (auto iDim=0;iDim < 3; iDim++) {
-            int iStart = 0 ;
+            size_t iStart = 0 ;
             for (auto iBlade=0; iBlade < nBlades; iBlade++) {
                 for (auto i=0; i < nBldPts; i++) {
                     tmpArray[i] = brFSIdata_.bld_ref_pos[(iStart*6)+iDim+3];
@@ -467,7 +470,7 @@ void fsiTurbine::write_nc_ref_pos() {
         }
 
         std::vector<size_t> param_count_dim{1,nBldPts};
-        int iStart = 0 ;
+        size_t iStart = 0 ;
         for (auto iBlade=0; iBlade < nBlades; iBlade++) {
             for (auto i=0; i < nBldPts; i++) {
                 tmpArray[i] = brFSIdata_.bld_chord[iStart];

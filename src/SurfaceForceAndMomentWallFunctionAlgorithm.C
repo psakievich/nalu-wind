@@ -425,7 +425,7 @@ SurfaceForceAndMomentWallFunctionAlgorithm::execute()
 //--------------------------------------------------------------------------
 //-------- pre_work --------------------------------------------------------
 //--------------------------------------------------------------------------
-void
+/*void
 SurfaceForceAndMomentWallFunctionAlgorithm::pre_work()
 {
 
@@ -449,8 +449,9 @@ SurfaceForceAndMomentWallFunctionAlgorithm::pre_work()
     stk::mesh::Bucket & b = **ib ;
 
     // face master element
-    MasterElement *meFC = sierra::nalu::MasterElementRepo::get_surface_master_element(b.topology());
-    const int numScsBip = meFC->num_integration_points();
+    MasterElement *meFC =
+sierra::nalu::MasterElementRepo::get_surface_master_element(b.topology()); const
+int numScsBip = meFC->num_integration_points();
 
     // mapping from ip to nodes for this ordinal
     const int *faceIpNodeMap = meFC->ipNodeMap();
@@ -490,7 +491,7 @@ SurfaceForceAndMomentWallFunctionAlgorithm::pre_work()
        }
      }
    }
-}
+}*/
 
 //--------------------------------------------------------------------------
 //-------- cross_product ----------------------------------------------------
