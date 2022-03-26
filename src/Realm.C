@@ -2337,6 +2337,8 @@ Realm::set_current_coordinates(
   VectorFieldType *currentCoords = metaData_->get_field<VectorFieldType>(stk::topology::NODE_RANK, "current_coordinates");
   VectorFieldType *displacement = metaData_->get_field<VectorFieldType>(stk::topology::NODE_RANK, "mesh_displacement");
 
+  currentCoords->sync_to_host();
+
   stk::mesh::Selector s_all_nodes = stk::mesh::Selector(*targetPart);
 
   stk::mesh::BucketVector const& node_buckets = bulkData_->get_buckets( stk::topology::NODE_RANK, s_all_nodes );
@@ -2353,6 +2355,8 @@ Realm::set_current_coordinates(
         cCoords[offSet+j] = mCoords[offSet+j] + dx[offSet+j];
     }
   }
+
+  currentCoords->modify_on_host();
 }
 
 //--------------------------------------------------------------------------
