@@ -2415,6 +2415,9 @@ Realm::init_current_coordinates()
   VectorFieldType *currentCoords = metaData_->get_field<VectorFieldType>(stk::topology::NODE_RANK, "current_coordinates");
   VectorFieldType *displacement = metaData_->get_field<VectorFieldType>(stk::topology::NODE_RANK, "mesh_displacement");
 
+  currentCoords->sync_to_host();
+  displacement->sync_to_host();
+
   stk::mesh::Selector s_all_nodes
     = (metaData_->locally_owned_part() | metaData_->globally_shared_part()) &
     stk::mesh::selectField(*currentCoords);
