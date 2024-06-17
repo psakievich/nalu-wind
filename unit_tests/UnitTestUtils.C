@@ -59,7 +59,7 @@ perturb_coord_hex_8(stk::mesh::BulkData& bulk, double perturbSize)
   const auto& meta = bulk.mesh_meta_data();
   const sierra::nalu::VectorFieldType* coordField =
     dynamic_cast<const sierra::nalu::VectorFieldType*>(meta.coordinate_field());
-  ThrowRequire(coordField != nullptr);
+  STK_ThrowRequire(coordField != nullptr);
 
   for (const auto* ib :
        bulk.get_buckets(stk::topology::NODE_RANK, meta.locally_owned_part())) {
@@ -157,16 +157,17 @@ create_one_element(
   }
   auto elem = stk::mesh::declare_element(
     bulk, block_1, bulk.parallel_rank() + 1, nodeIds);
-  stk::mesh::create_all_sides(bulk, block_1, allSurfaces, false);
 
   bulk.modification_end();
+
+  stk::mesh::create_all_sides(bulk, block_1, allSurfaces, false);
 
   auto surfaceSelector = stk::mesh::selectUnion(allSurfaces);
   stk::mesh::EntityVector all_faces;
   stk::mesh::get_selected_entities(
     surfaceSelector, bulk.get_buckets(meta.side_rank(), surfaceSelector),
     all_faces);
-  ThrowRequire(all_faces.size() == topo.num_sides());
+  STK_ThrowRequire(all_faces.size() == topo.num_sides());
 
   bulk.modification_begin();
   for (unsigned k = 0u; k < all_faces.size(); ++k) {
