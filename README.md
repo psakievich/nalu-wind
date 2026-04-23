@@ -57,19 +57,19 @@ libraries (MPI, HDF5, NetCDF, parallel NetCDF), and YAML-CPP. In addition, it
 has the following optional dependencies: hypre, TIOGA, and OpenFAST. Detailed
 build instructions are available in the [user
 manual](https://kynema.github.io/kynema-ugf/source/user/building.html).
-We recommend using [Spack](https://spack.io/) package manager to install
+We recommend using the [Spack](https://spack.io/) package manager to install
 Kynema-UGF on your system.
 
 ### Testing and quality assurance
 
 Kynema-UGF comes with a comprehensive unit test and regression test suite that
-exercise almost all major components of the code. The `master` branch is
+exercise almost all major components of the code. The `main` branch is
 compiled and run through a regression test suite with different compilers
 ([GCC](https://gcc.gnu.org/), [LLVM/Clang](https://clang.llvm.org/), and
 [Intel](https://software.intel.com/en-us/compilers)) on Linux and MacOS
-operating systems, against both the `master` and `develop` branches of
+operating systems, against the latest versions of
 [Trilinos](https://github.com/trilinos/Trilinos). Tests are performed both using
-flat MPI and hybrid MPI-GPU hardware configurations. The results of the nightly
+MPI on CPUs and GPU hardware configurations. The results of the nightly
 testing are publicly available on [CDash
 dashboard](http://my.cdash.org/index.php?project=Kynema).
 
