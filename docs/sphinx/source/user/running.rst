@@ -1,5 +1,5 @@
 Running Kynema-UGF
-=================
+==================
 
 This section describes the general process of setting up and executing Kynema-UGF,
 understanding the various input file options available to the user, and how to
@@ -16,7 +16,7 @@ additional files:
 .. toctree::
    :maxdepth: 4
 
-   kynema-ugf_run/kynema-ugf_mesh
-   kynema-ugf_run/kynema-ugfx
-   kynema-ugf_run/kynema-ugf_inp
-   kynema-ugf_run/McAlisterLessonsLearned
+   kynema-ugf-run/kynema-ugf-mesh
+   kynema-ugf-run/kynema-ugf
+   kynema-ugf-run/kynema-ugf-inp
+   kynema-ugf-run/McAlisterLessonsLearned
