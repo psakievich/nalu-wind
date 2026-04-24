@@ -1,8 +1,8 @@
-# Kynema-UGF 
+# Kynema-UGF (formerly Nalu-Wind)
 
 [Documentation](https://kynema.github.io/kynema-ugf/) | [Nightly test dashboard](http://my.cdash.org/index.php?project=Kynema) 
 
-Kynema-UGF, wherein UGF stands for unstructured-grid fluid dynamics, is a generalized, unstructured-grid, massively parallel, incompressible-flow solver. The codebase was initiated in 2018 from [NaluCFD](https://github.com/NaluCFD/Nalu), which was developed by Sandia National Laboratories. Kynema-UGF is being actively
+Kynema-UGF (formerly Nalu-Wind), wherein UGF stands for unstructured-grid fluid dynamics, is a generalized, unstructured-grid, massively parallel, incompressible-flow solver. The codebase was initiated in 2018 from [NaluCFD](https://github.com/NaluCFD/Nalu), which was developed by Sandia National Laboratories. Kynema-UGF is being actively
 developed and maintained by a dedicated, multi-institutional team from [National Laboratory of the Rockies](https://nlr.gov) and [Sandia National Laboratories](https://sandia.gov).
 
 Kynema-UGF was originally called Nalu-Wind (as part of the ExaWind stack), but was renamed in 2026 in order to reflect its broader, general computational-fluid-dynamics (CFD) capabilities. 
