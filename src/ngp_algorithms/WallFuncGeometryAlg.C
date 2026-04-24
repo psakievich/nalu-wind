@@ -10,7 +10,7 @@
 #include "ngp_algorithms/WallFuncGeometryAlg.h"
 
 #include "BuildTemplates.h"
-#include "master_element/MasterElementFactory.h"
+#include "master_element/MasterElementRepo.h"
 #include "ngp_utils/NgpLoopUtils.h"
 #include "ngp_utils/NgpFieldOps.h"
 #include "ngp_utils/NgpFieldManager.h"
@@ -19,7 +19,7 @@
 #include "stk_mesh/base/NgpMesh.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 template <typename BcAlgTraits>
 WallFuncGeometryAlg<BcAlgTraits>::WallFuncGeometryAlg(
@@ -38,10 +38,12 @@ WallFuncGeometryAlg<BcAlgTraits>::WallFuncGeometryAlg(
     wallArea_(get_field_ordinal(realm.meta_data(), "assembled_wall_area_wf")),
     wallNormDist_(
       get_field_ordinal(realm.meta_data(), "assembled_wall_normal_distance")),
-    meFC_(MasterElementRepo::get_surface_master_element<
-          typename BcAlgTraits::FaceTraits>()),
-    meSCS_(MasterElementRepo::get_surface_master_element<
-           typename BcAlgTraits::ElemTraits>()),
+    meFC_(
+      MasterElementRepo::get_surface_master_element_on_dev(
+        BcAlgTraits::FaceTraits::topo_)),
+    meSCS_(
+      MasterElementRepo::get_surface_master_element_on_dev(
+        BcAlgTraits::ElemTraits::topo_)),
     RANSAblBcApproach_(RANSAblBcApproach),
     z0_(z0)
 {
@@ -61,7 +63,7 @@ template <typename BcAlgTraits>
 void
 WallFuncGeometryAlg<BcAlgTraits>::execute()
 {
-  using SimdDataType = nalu_ngp::FaceElemSimdData<stk::mesh::NgpMesh>;
+  using SimdDataType = kynema_ugf_ngp::FaceElemSimdData<stk::mesh::NgpMesh>;
 
   const auto& meta = realm_.meta_data();
 
@@ -72,11 +74,11 @@ WallFuncGeometryAlg<BcAlgTraits>::execute()
   auto wdist = fieldMgr.template get_field<double>(wallNormDist_);
   auto warea = fieldMgr.template get_field<double>(wallArea_);
   const auto areaOps =
-    nalu_ngp::simd_face_elem_nodal_field_updater(ngpMesh, warea);
+    kynema_ugf_ngp::simd_face_elem_nodal_field_updater(ngpMesh, warea);
   const auto distOps =
-    nalu_ngp::simd_face_elem_nodal_field_updater(ngpMesh, wdist);
+    kynema_ugf_ngp::simd_face_elem_nodal_field_updater(ngpMesh, wdist);
   const auto dBipOps =
-    nalu_ngp::simd_face_elem_field_updater(ngpMesh, wdistBip);
+    kynema_ugf_ngp::simd_face_elem_field_updater(ngpMesh, wdistBip);
 
   const stk::mesh::Selector sel =
     meta.locally_owned_part() & stk::mesh::selectUnion(partVec_);
@@ -93,7 +95,7 @@ WallFuncGeometryAlg<BcAlgTraits>::execute()
                               std::to_string(BcAlgTraits::faceTopo_) + "_" +
                               std::to_string(BcAlgTraits::elemTopo_);
 
-  nalu_ngp::run_face_elem_algorithm(
+  kynema_ugf_ngp::run_face_elem_algorithm(
     algName, meshInfo, faceData_, elemData_, sel,
     KOKKOS_LAMBDA(SimdDataType & fdata) {
       auto& v_coord = fdata.simdElemView.get_scratch_view_2D(coordsID);
@@ -137,5 +139,5 @@ WallFuncGeometryAlg<BcAlgTraits>::execute()
 
 INSTANTIATE_KERNEL_FACE_ELEMENT(WallFuncGeometryAlg)
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

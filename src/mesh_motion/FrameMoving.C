@@ -10,7 +10,7 @@
 #include <cassert>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 void
 FrameMoving::update_coordinates_velocity(const double time)
@@ -19,7 +19,7 @@ FrameMoving::update_coordinates_velocity(const double time)
 
   // create NGP view of motion kernels
   const size_t numKernels = motionKernels_.size();
-  auto ngpKernels = nalu_ngp::create_ngp_view<NgpMotion>(motionKernels_);
+  auto ngpKernels = kynema_ugf_ngp::create_ngp_view<NgpMotion>(motionKernels_);
 
   // define mesh entities
   const int nDim = meta_.spatial_dimension();
@@ -34,16 +34,16 @@ FrameMoving::update_coordinates_velocity(const double time)
   // get the field from the NGP mesh
   stk::mesh::NgpField<double> modelCoords =
     stk::mesh::get_updated_ngp_field<double>(
-      *meta_.get_field<VectorFieldType>(entityRank, "coordinates"));
+      *meta_.get_field<double>(entityRank, "coordinates"));
   stk::mesh::NgpField<double> currCoords =
     stk::mesh::get_updated_ngp_field<double>(
-      *meta_.get_field<VectorFieldType>(entityRank, "current_coordinates"));
+      *meta_.get_field<double>(entityRank, "current_coordinates"));
   stk::mesh::NgpField<double> displacement =
     stk::mesh::get_updated_ngp_field<double>(
-      *meta_.get_field<VectorFieldType>(entityRank, "mesh_displacement"));
+      *meta_.get_field<double>(entityRank, "mesh_displacement"));
   stk::mesh::NgpField<double> meshVelocity =
     stk::mesh::get_updated_ngp_field<double>(
-      *meta_.get_field<VectorFieldType>(entityRank, "mesh_velocity"));
+      *meta_.get_field<double>(entityRank, "mesh_velocity"));
 
   // sync fields to device
   modelCoords.sync_to_device();
@@ -52,19 +52,19 @@ FrameMoving::update_coordinates_velocity(const double time)
   meshVelocity.sync_to_device();
 
   // always reset velocity field
-  nalu_ngp::run_entity_algorithm(
+  kynema_ugf_ngp::run_entity_algorithm(
     "FrameMoving_reset_velocity", ngpMesh, entityRank, sel,
     KOKKOS_LAMBDA(
-      const nalu_ngp::NGPMeshTraits<stk::mesh::NgpMesh>::MeshIndex& mi) {
+      const kynema_ugf_ngp::NGPMeshTraits<stk::mesh::NgpMesh>::MeshIndex& mi) {
       for (int d = 0; d < nDim; ++d)
         meshVelocity.get(mi, d) = 0.0;
     });
 
   // NGP for loop to update coordinates and velocity
-  nalu_ngp::run_entity_algorithm(
+  kynema_ugf_ngp::run_entity_algorithm(
     "FrameMoving_update_coordinates_velocity", ngpMesh, entityRank, sel,
     KOKKOS_LAMBDA(
-      const nalu_ngp::NGPMeshTraits<stk::mesh::NgpMesh>::MeshIndex& mi) {
+      const kynema_ugf_ngp::NGPMeshTraits<stk::mesh::NgpMesh>::MeshIndex& mi) {
       // temporary current and model coords for a generic 2D and 3D
       // implementation
       mm::ThreeDVecType mX;
@@ -132,13 +132,13 @@ FrameMoving::post_compute_geometry()
       continue;
 
     // compute divergence of mesh velocity
-    ScalarFieldType* meshDivVelocity = meta_.get_field<ScalarFieldType>(
-      stk::topology::NODE_RANK, "div_mesh_velocity");
-    GenericFieldType* faceVelMag = meta_.get_field<GenericFieldType>(
-      stk::topology::ELEMENT_RANK, "face_velocity_mag");
+    ScalarFieldType* meshDivVelocity =
+      meta_.get_field<double>(stk::topology::NODE_RANK, "div_mesh_velocity");
+    GenericFieldType* faceVelMag =
+      meta_.get_field<double>(stk::topology::ELEMENT_RANK, "face_velocity_mag");
 
     if (faceVelMag == NULL) {
-      faceVelMag = meta_.get_field<GenericFieldType>(
+      faceVelMag = meta_.get_field<double>(
         stk::topology::EDGE_RANK, "edge_face_velocity_mag");
       compute_edge_scalar_divergence(
         bulk_, partVec_, partVecBc_, faceVelMag, meshDivVelocity);
@@ -151,7 +151,7 @@ FrameMoving::post_compute_geometry()
     // is computed for the aggregated mesh velocity
     break;
   }
-} // namespace nalu
+} // namespace kynema_ugf
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

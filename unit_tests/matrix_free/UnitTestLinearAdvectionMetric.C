@@ -14,15 +14,15 @@
 #include "matrix_free/LinearAreas.h"
 #include "matrix_free/LinearDiffusionMetric.h"
 #include "matrix_free/LobattoQuadratureRule.h"
-#include "matrix_free/LocalArray.h"
-#include "matrix_free/StkSimdComparisons.h"
+#include "ArrayND.h"
+#include "StkSimdComparisons.h"
 #include "matrix_free/TensorOperations.h"
 
 #include "Kokkos_Core.hpp"
 #include "stk_simd/Simd.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 namespace {
 
@@ -31,7 +31,7 @@ void
 advection_single_cube_hex_p()
 {
   constexpr int poly = p;
-  LocalArray<double[3][3]> jac = {{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}}};
+  ArrayND<double[3][3]> jac = {{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}}};
 
   constexpr auto nodes = GLL<poly>::nodes;
   const int num_elems_1D = 32 / poly;
@@ -102,5 +102,5 @@ TEST(linear_advection_metric, single_cube_hex64)
 
 } // namespace
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

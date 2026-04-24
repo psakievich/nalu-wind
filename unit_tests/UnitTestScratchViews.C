@@ -7,7 +7,7 @@
 #include "UnitTestUtils.h"
 #include "UnitTestHelperObjects.h"
 
-#include <master_element/MasterElementFactory.h>
+#include <master_element/MasterElementRepo.h>
 #include <SimdInterface.h>
 #include <ElemDataRequestsGPU.h>
 #include <ScratchViews.h>
@@ -17,8 +17,8 @@
 #include <stk_mesh/base/Ngp.hpp>
 #include <stk_mesh/base/NgpMesh.hpp>
 
-using TeamType = sierra::nalu::DeviceTeamHandleType;
-using ShmemType = sierra::nalu::DeviceShmem;
+using TeamType = sierra::kynema_ugf::DeviceTeamHandleType;
+using ShmemType = sierra::kynema_ugf::DeviceShmem;
 
 class TestKernel
 {
@@ -30,24 +30,24 @@ public:
 
   KOKKOS_FUNCTION
   void execute(
-    sierra::nalu::SharedMemView<double**, ShmemType>& /* lhs */,
-    sierra::nalu::SharedMemView<double*, ShmemType>& /* rhs */,
-    sierra::nalu::
+    sierra::kynema_ugf::SharedMemView<double**, ShmemType>& /* lhs */,
+    sierra::kynema_ugf::SharedMemView<double*, ShmemType>& /* rhs */,
+    sierra::kynema_ugf::
       ScratchViews<DoubleType, TeamType, ShmemType>& /* scratchViews */) const
   {
   }
 
   KOKKOS_FUNCTION
   void execute(
-    sierra::nalu::SharedMemView<DoubleType**, ShmemType>& /* lhs */,
-    sierra::nalu::SharedMemView<DoubleType*, ShmemType>& rhs,
-    sierra::nalu::ScratchViews<DoubleType, TeamType, ShmemType>& scratchViews)
-    const
+    sierra::kynema_ugf::SharedMemView<DoubleType**, ShmemType>& /* lhs */,
+    sierra::kynema_ugf::SharedMemView<DoubleType*, ShmemType>& rhs,
+    sierra::kynema_ugf::ScratchViews<DoubleType, TeamType, ShmemType>&
+      scratchViews) const
   {
     auto& v_vel = scratchViews.get_scratch_view_2D(velocityOrdinal);
     auto& v_pres = scratchViews.get_scratch_view_1D(pressureOrdinal);
 
-    rhs(0) += v_vel(0, 0) + v_pres(0);
+    rhs(0) = v_vel(0, 0) + v_pres(0);
   }
 
 private:
@@ -55,41 +55,43 @@ private:
   unsigned pressureOrdinal;
 };
 
-typedef Kokkos::DualView<int*, Kokkos::LayoutRight, sierra::nalu::DeviceSpace>
-  IntViewType;
 typedef Kokkos::
-  DualView<double*, Kokkos::LayoutRight, sierra::nalu::DeviceSpace>
+  DualView<int*, Kokkos::LayoutRight, sierra::kynema_ugf::DeviceSpace>
+    IntViewType;
+typedef Kokkos::
+  DualView<double*, Kokkos::LayoutRight, sierra::kynema_ugf::DeviceSpace>
     DoubleTypeView;
 
 void
 do_the_test(
   stk::mesh::BulkData& bulk,
-  sierra::nalu::ScalarFieldType* pressure,
-  sierra::nalu::VectorFieldType* velocity)
+  const sierra::kynema_ugf::FieldManager& fieldManager,
+  sierra::kynema_ugf::ScalarFieldType* pressure,
+  sierra::kynema_ugf::VectorFieldType* velocity)
 {
   stk::topology elemTopo = stk::topology::HEX_8;
-  sierra::nalu::ElemDataRequests dataReq(bulk.mesh_meta_data());
-  const int nodesPerElement = sierra::nalu::AlgTraitsHex8::nodesPerElement_;
-  auto meSCV = sierra::nalu::MasterElementRepo::get_volume_master_element<
-    sierra::nalu::AlgTraitsHex8>();
+  sierra::kynema_ugf::ElemDataRequests dataReq(bulk.mesh_meta_data());
+  const int nodesPerElement =
+    sierra::kynema_ugf::AlgTraitsHex8::nodesPerElement_;
+  auto meSCV =
+    sierra::kynema_ugf::MasterElementRepo::get_volume_master_element_on_dev(
+      sierra::kynema_ugf::AlgTraitsHex8::topo_);
   dataReq.add_cvfem_volume_me(meSCV);
 
   auto* coordsField = bulk.mesh_meta_data().coordinate_field();
 
   dataReq.add_coordinates_field(
-    *coordsField, 3, sierra::nalu::CURRENT_COORDINATES);
+    *coordsField, 3, sierra::kynema_ugf::CURRENT_COORDINATES);
   dataReq.add_gathered_nodal_field(*velocity, 3);
   dataReq.add_gathered_nodal_field(*pressure, 1);
   dataReq.add_master_element_call(
-    sierra::nalu::SCV_VOLUME, sierra::nalu::CURRENT_COORDINATES);
+    sierra::kynema_ugf::SCV_VOLUME, sierra::kynema_ugf::CURRENT_COORDINATES);
 
   EXPECT_EQ(3u, dataReq.get_fields().size());
 
   const stk::mesh::MetaData& meta = bulk.mesh_meta_data();
-  sierra::nalu::nalu_ngp::FieldManager fieldMgr(bulk);
 
-  sierra::nalu::ElemDataRequestsGPU dataNGP(
-    fieldMgr, dataReq, meta.get_fields().size());
+  sierra::kynema_ugf::ElemDataRequestsGPU dataNGP(fieldManager, dataReq);
 
   const int numNodes = elemTopo.num_nodes();
   const int rhsSize = numNodes;
@@ -97,14 +99,13 @@ do_the_test(
 
   const unsigned velocityOrdinal = velocity->mesh_meta_data_ordinal();
   const unsigned pressureOrdinal = pressure->mesh_meta_data_ordinal();
-
   const int bytes_per_team = 0;
   const int bytes_per_thread =
-    (sierra::nalu::calculate_shared_mem_bytes_per_thread(
+    (sierra::kynema_ugf::calculate_shared_mem_bytes_per_thread(
        lhsSize, rhsSize, rhsSize, meta.spatial_dimension(), dataNGP) +
-     (rhsSize + lhsSize) * sizeof(double) * sierra::nalu::simdLen);
+     (rhsSize + lhsSize) * sizeof(double) * sierra::kynema_ugf::simdLen);
 
-  int numResults = 5;
+  int numResults = 7;
   IntViewType result("result", numResults);
 
   Kokkos::deep_copy(result.h_view, 0);
@@ -116,36 +117,40 @@ do_the_test(
   TestKernel testKernel(velocityOrdinal, pressureOrdinal);
 
   int threads_per_team = 1;
-  auto team_exec = sierra::nalu::get_device_team_policy(
+  auto team_exec = sierra::kynema_ugf::get_device_team_policy(
     ngpMesh.num_buckets(stk::topology::ELEM_RANK), bytes_per_team,
     bytes_per_thread, threads_per_team);
 
   Kokkos::parallel_for(
-    team_exec, KOKKOS_LAMBDA(const sierra::nalu::DeviceTeamHandleType& team) {
+    team_exec,
+    KOKKOS_LAMBDA(const sierra::kynema_ugf::DeviceTeamHandleType& team) {
       const stk::mesh::NgpMesh::BucketType& b =
         ngpMesh.get_bucket(stk::topology::ELEM_RANK, team.league_rank());
 
-      sierra::nalu::ScratchViews<DoubleType, TeamType, ShmemType> scrviews(
-        team, ngpMesh.get_spatial_dimension(), nodesPerElement, dataNGP);
+      sierra::kynema_ugf::ScratchViews<DoubleType, TeamType, ShmemType>
+        scrviews(
+          team, ngpMesh.get_spatial_dimension(), nodesPerElement, dataNGP);
 
-      sierra::nalu::SharedMemView<DoubleType**, ShmemType> simdlhs =
-        sierra::nalu::get_shmem_view_2D<DoubleType, TeamType, ShmemType>(
+      sierra::kynema_ugf::SharedMemView<DoubleType**, ShmemType> simdlhs =
+        sierra::kynema_ugf::get_shmem_view_2D<DoubleType, TeamType, ShmemType>(
           team, rhsSize, rhsSize);
-      sierra::nalu::SharedMemView<DoubleType*, ShmemType> simdrhs =
-        sierra::nalu::get_shmem_view_1D<DoubleType, TeamType, ShmemType>(
+      sierra::kynema_ugf::SharedMemView<DoubleType*, ShmemType> simdrhs =
+        sierra::kynema_ugf::get_shmem_view_1D<DoubleType, TeamType, ShmemType>(
           team, rhsSize);
+      for (int i = 0; i < rhsSize; i++) {
+        simdrhs(i) = 0.0;
+      }
 
-      NGP_ThrowAssert(scrviews.total_bytes() != 0);
+      STK_NGP_ThrowAssert(scrviews.total_bytes() != 0);
       const size_t bucketLen = b.size();
 
       Kokkos::parallel_for(
         Kokkos::TeamThreadRange(team, bucketLen), [&](const size_t& bktIndex) {
           stk::mesh::Entity element = b[bktIndex];
-          sierra::nalu::fill_pre_req_data(
+          sierra::kynema_ugf::fill_pre_req_data(
             dataNGP, ngpMesh, stk::topology::ELEM_RANK, element, scrviews);
           auto& velocityView = scrviews.get_scratch_view_2D(velocityOrdinal);
           auto& pressureView = scrviews.get_scratch_view_1D(pressureOrdinal);
-
           result.d_view(0) =
             stk::simd::get_data((pressureView(0) - 1.0), 0) < 1.e-9 ? 1 : 0;
           result.d_view(1) =
@@ -159,6 +164,11 @@ do_the_test(
 
           testKernel.execute(simdlhs, simdrhs, scrviews);
         });
+
+      result.d_view(5) =
+        stk::simd::get_data((simdrhs(0) - 16.0), 0) < 1.e-9 ? 1 : 0;
+      result.d_view(6) =
+        stk::simd::get_data((simdrhs(1) - 0.0), 0) < 1.e-9 ? 1 : 0;
     });
 
   result.modify<IntViewType::execution_space>();
@@ -176,6 +186,10 @@ TEST_F(Hex8MeshWithNSOFields, NGPScratchViews)
   const int nDim = 3;
   const double velVec[nDim] = {1.0, 0.0, 0.0};
 
+  const int numStates = 2;
+  stk::mesh::MetaData& meta = bulk->mesh_meta_data();
+  const sierra::kynema_ugf::FieldManager fieldManager(meta, numStates);
+
   stk::mesh::EntityVector nodes;
   stk::mesh::get_entities(*bulk, stk::topology::NODE_RANK, nodes);
 
@@ -187,23 +201,24 @@ TEST_F(Hex8MeshWithNSOFields, NGPScratchViews)
     }
   }
 
-  do_the_test(*bulk, pressure, velocity);
+  do_the_test(*bulk, fieldManager, pressure, velocity);
 }
 
 void
 do_assemble_elem_solver_test(
   stk::mesh::BulkData& bulk,
-  sierra::nalu::AssembleElemSolverAlgorithm& solverAlg,
+  sierra::kynema_ugf::AssembleElemSolverAlgorithm& solverAlg,
   unsigned velocityOrdinal,
   unsigned pressureOrdinal)
 {
   TestKernel testKernel(velocityOrdinal, pressureOrdinal);
 
   solverAlg.run_algorithm(
-    bulk,
-    KOKKOS_LAMBDA(sierra::nalu::SharedMemData<TeamType, ShmemType> & smdata) {
+    bulk, KOKKOS_LAMBDA(
+            sierra::kynema_ugf::SharedMemData<TeamType, ShmemType> & smdata) {
       auto& scv_volume =
-        smdata.simdPrereqData.get_me_views(sierra::nalu::CURRENT_COORDINATES)
+        smdata.simdPrereqData
+          .get_me_views(sierra::kynema_ugf::CURRENT_COORDINATES)
           .scv_volume;
 
       printf(
@@ -222,17 +237,18 @@ TEST_F(Hex8MeshWithNSOFields, NGPAssembleElemSolver)
   auto* assembleElemSolverAlg = helperObjs.assembleElemSolverAlg;
   auto& dataNeeded = assembleElemSolverAlg->dataNeededByKernels_;
 
-  auto meSCV = sierra::nalu::MasterElementRepo::get_volume_master_element<
-    sierra::nalu::AlgTraitsHex8>();
+  auto meSCV =
+    sierra::kynema_ugf::MasterElementRepo::get_volume_master_element_on_dev(
+      sierra::kynema_ugf::AlgTraitsHex8::topo_);
   dataNeeded.add_cvfem_volume_me(meSCV);
   auto* coordsField = bulk->mesh_meta_data().coordinate_field();
 
   dataNeeded.add_coordinates_field(
-    *coordsField, 3, sierra::nalu::CURRENT_COORDINATES);
+    *coordsField, 3, sierra::kynema_ugf::CURRENT_COORDINATES);
   dataNeeded.add_gathered_nodal_field(*velocity, 3);
   dataNeeded.add_gathered_nodal_field(*pressure, 1);
   dataNeeded.add_master_element_call(
-    sierra::nalu::SCV_VOLUME, sierra::nalu::CURRENT_COORDINATES);
+    sierra::kynema_ugf::SCV_VOLUME, sierra::kynema_ugf::CURRENT_COORDINATES);
 
   EXPECT_EQ(3u, dataNeeded.get_fields().size());
 
@@ -244,31 +260,31 @@ TEST_F(Hex8MeshWithNSOFields, NGPAssembleElemSolver)
 void
 do_the_smdata_test(
   stk::mesh::BulkData& bulk,
-  sierra::nalu::ScalarFieldType* pressure,
-  sierra::nalu::VectorFieldType* velocity)
+  const std::shared_ptr<sierra::kynema_ugf::FieldManager> fieldManager,
+  sierra::kynema_ugf::ScalarFieldType* pressure,
+  sierra::kynema_ugf::VectorFieldType* velocity)
 {
   stk::topology elemTopo = stk::topology::HEX_8;
-  sierra::nalu::ElemDataRequests dataReq(bulk.mesh_meta_data());
-  auto meSCV = sierra::nalu::MasterElementRepo::get_volume_master_element<
-    sierra::nalu::AlgTraitsHex8>();
+  sierra::kynema_ugf::ElemDataRequests dataReq(bulk.mesh_meta_data());
+  auto meSCV =
+    sierra::kynema_ugf::MasterElementRepo::get_volume_master_element_on_dev(
+      sierra::kynema_ugf::AlgTraitsHex8::topo_);
   dataReq.add_cvfem_volume_me(meSCV);
 
   auto* coordsField = bulk.mesh_meta_data().coordinate_field();
 
   dataReq.add_coordinates_field(
-    *coordsField, 3, sierra::nalu::CURRENT_COORDINATES);
+    *coordsField, 3, sierra::kynema_ugf::CURRENT_COORDINATES);
   dataReq.add_gathered_nodal_field(*velocity, 3);
   dataReq.add_gathered_nodal_field(*pressure, 1);
   dataReq.add_master_element_call(
-    sierra::nalu::SCV_VOLUME, sierra::nalu::CURRENT_COORDINATES);
+    sierra::kynema_ugf::SCV_VOLUME, sierra::kynema_ugf::CURRENT_COORDINATES);
 
   EXPECT_EQ(3u, dataReq.get_fields().size());
 
   const stk::mesh::MetaData& meta = bulk.mesh_meta_data();
-  sierra::nalu::nalu_ngp::FieldManager fieldMgr(bulk);
 
-  sierra::nalu::ElemDataRequestsGPU dataNGP(
-    fieldMgr, dataReq, meta.get_fields().size());
+  sierra::kynema_ugf::ElemDataRequestsGPU dataNGP(*fieldManager, dataReq);
 
   const int numNodes = elemTopo.num_nodes();
   const int rhsSize = numNodes;
@@ -279,11 +295,11 @@ do_the_smdata_test(
 
   const int bytes_per_team = 0;
   const int bytes_per_thread =
-    (sierra::nalu::calculate_shared_mem_bytes_per_thread(
+    (sierra::kynema_ugf::calculate_shared_mem_bytes_per_thread(
        lhsSize, rhsSize, rhsSize, meta.spatial_dimension(), dataNGP) +
-     (rhsSize + lhsSize) * sizeof(double) * sierra::nalu::simdLen);
+     (rhsSize + lhsSize) * sizeof(double) * sierra::kynema_ugf::simdLen);
 
-  int numResults = sierra::nalu::AlgTraitsHex8::numScvIp_;
+  int numResults = sierra::kynema_ugf::AlgTraitsHex8::numScvIp_;
   DoubleTypeView scv_check("scv_volume", numResults);
   Kokkos::deep_copy(scv_check.h_view, 0.0);
   scv_check.template modify<typename DoubleTypeView::host_mirror_space>();
@@ -294,43 +310,45 @@ do_the_smdata_test(
   TestKernel testKernel(velocityOrdinal, pressureOrdinal);
 
   int threads_per_team = 1;
-  auto team_exec = sierra::nalu::get_device_team_policy(
+  auto team_exec = sierra::kynema_ugf::get_device_team_policy(
     ngpMesh.num_buckets(stk::topology::ELEM_RANK), bytes_per_team,
     bytes_per_thread, threads_per_team);
 
   Kokkos::parallel_for(
-    team_exec, KOKKOS_LAMBDA(const sierra::nalu::DeviceTeamHandleType& team) {
+    team_exec,
+    KOKKOS_LAMBDA(const sierra::kynema_ugf::DeviceTeamHandleType& team) {
       const stk::mesh::NgpMesh::BucketType& b =
         ngpMesh.get_bucket(stk::topology::ELEM_RANK, team.league_rank());
 
-      sierra::nalu::SharedMemData<TeamType, ShmemType> smdata(
+      sierra::kynema_ugf::SharedMemData<TeamType, ShmemType> smdata(
         team, ngpMesh.get_spatial_dimension(), dataNGP, numNodes, rhsSize);
 
-      NGP_ThrowAssert(smdata.simdPrereqData.total_bytes() != 0);
+      STK_NGP_ThrowAssert(smdata.simdPrereqData.total_bytes() != 0);
       const size_t bucketLen = b.size();
 
       Kokkos::parallel_for(
         Kokkos::TeamThreadRange(team, bucketLen), [&](const size_t& bktIndex) {
           stk::mesh::Entity element = b[bktIndex];
-          sierra::nalu::fill_pre_req_data(
+          sierra::kynema_ugf::fill_pre_req_data(
             dataNGP, ngpMesh, stk::topology::ELEM_RANK, element,
             *smdata.prereqData[0]);
 
 #if !defined(KOKKOS_ENABLE_GPU)
           // no copy-interleave needed on GPU since no simd.
-          sierra::nalu::copy_and_interleave(
+          sierra::kynema_ugf::copy_and_interleave(
             smdata.prereqData, 1, smdata.simdPrereqData);
 #endif
-          sierra::nalu::fill_master_element_views(
+          sierra::kynema_ugf::fill_master_element_views(
             dataNGP, smdata.simdPrereqData);
 
           // Copy over SCV volume to temporary array for checking on host
           //
           // This assumes that the test mesh has 8 (2x2x2) elements, and so we
           // save off one integration point from each element for checks on GPU.
-          auto& scv_volume = smdata.simdPrereqData
-                               .get_me_views(sierra::nalu::CURRENT_COORDINATES)
-                               .scv_volume;
+          auto& scv_volume =
+            smdata.simdPrereqData
+              .get_me_views(sierra::kynema_ugf::CURRENT_COORDINATES)
+              .scv_volume;
           scv_check.d_view(bktIndex % numResults) =
             stk::simd::get_data(scv_volume(bktIndex % numResults), 0);
 
@@ -351,7 +369,7 @@ TEST_F(Hex8MeshWithNSOFields, NGPSharedMemData)
   if (stk::parallel_machine_size(comm) == 1) {
     fill_mesh_and_initialize_test_fields("generated:2x2x2");
 
-    do_the_smdata_test(*bulk, pressure, velocity);
+    do_the_smdata_test(*bulk, fieldManager, pressure, velocity);
   }
 }
 

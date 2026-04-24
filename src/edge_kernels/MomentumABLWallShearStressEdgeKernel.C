@@ -9,7 +9,7 @@
 
 #include "edge_kernels/MomentumABLWallShearStressEdgeKernel.h"
 #include "master_element/MasterElement.h"
-#include "master_element/MasterElementFactory.h"
+#include "master_element/MasterElementRepo.h"
 #include "SolutionOptions.h"
 
 #include "BuildTemplates.h"
@@ -20,7 +20,7 @@
 #include "stk_mesh/base/Field.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 template <typename BcAlgTraits>
 MomentumABLWallShearStressEdgeKernel<BcAlgTraits>::
@@ -35,10 +35,12 @@ MomentumABLWallShearStressEdgeKernel<BcAlgTraits>::
       get_field_ordinal(meta, "exposed_area_vector", meta.side_rank())),
     wallShearStress_(
       get_field_ordinal(meta, "wall_shear_stress_bip", meta.side_rank())),
-    meFC_(MasterElementRepo::get_surface_master_element<
-          typename BcAlgTraits::FaceTraits>()),
-    meSCS_(MasterElementRepo::get_surface_master_element<
-           typename BcAlgTraits::ElemTraits>())
+    meFC_(
+      MasterElementRepo::get_surface_master_element_on_dev(
+        BcAlgTraits::FaceTraits::topo_)),
+    meSCS_(
+      MasterElementRepo::get_surface_master_element_on_dev(
+        BcAlgTraits::ElemTraits::topo_))
 {
   faceDataPreReqs.add_cvfem_face_me(meFC_);
   elemData.add_cvfem_surface_me(meSCS_);
@@ -61,7 +63,7 @@ MomentumABLWallShearStressEdgeKernel<BcAlgTraits>::execute(
     DeviceShmem>& /* elemScratchViews */,
   int elemFaceOrdinal)
 {
-  NALU_ALIGNED DoubleType tauWall[BcAlgTraits::nDim_];
+  DoubleType tauWall[BcAlgTraits::nDim_];
 
   const auto& v_areavec = scratchViews.get_scratch_view_2D(exposedAreaVec_);
   const auto& v_wallshearstress =
@@ -92,5 +94,5 @@ MomentumABLWallShearStressEdgeKernel<BcAlgTraits>::execute(
 
 INSTANTIATE_KERNEL_FACE_ELEMENT(MomentumABLWallShearStressEdgeKernel)
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

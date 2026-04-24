@@ -13,7 +13,7 @@
 #include <SimdInterface.h>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 namespace ams_utils {
 
@@ -21,7 +21,8 @@ template <class T, int dim = 3>
 KOKKOS_FUNCTION T
 get_M43_constant(T D[dim][dim], const double CMdeg)
 {
-  NGP_ThrowRequireMsg(dim == 3, "Compute of M43 constant requires 3D problem");
+  STK_NGP_ThrowRequireMsg(
+    dim == 3, "Compute of M43 constant requires 3D problem");
 
   // Coefficients for the polynomial
   double c[15] = {0.971903113666644,  0.065591700544879,  0.071103489538998,
@@ -60,7 +61,7 @@ get_M43_constant(T D[dim][dim], const double CMdeg)
 
 } // namespace ams_utils
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif /* AMSUTILS_H */

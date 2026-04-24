@@ -15,7 +15,7 @@
 #include <cmath>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //==========================================================================
 // Class Definition
@@ -73,10 +73,8 @@ TanhFunction<T>::execute(const T indVar)
 template class ClassicPecletFunction<double>;
 template class TanhFunction<double>;
 
-#ifdef STK_HAVE_SIMD
 template class ClassicPecletFunction<DoubleType>;
 template class TanhFunction<DoubleType>;
-#endif
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

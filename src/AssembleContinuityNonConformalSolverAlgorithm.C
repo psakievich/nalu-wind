@@ -7,13 +7,13 @@
 // for more details.
 //
 
-// nalu
+// kynema_ugf
 #include <AssembleContinuityNonConformalSolverAlgorithm.h>
 #include <EquationSystem.h>
 #include <DgInfo.h>
 #include <FieldTypeDef.h>
 #include <LinearSystem.h>
-#include <NaluEnv.h>
+#include <KynemaUGFEnv.h>
 #include <NonConformalInfo.h>
 #include <NonConformalManager.h>
 #include <Realm.h>
@@ -28,7 +28,7 @@
 #include <stk_mesh/base/Part.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //==========================================================================
 // Class Definition
@@ -63,24 +63,22 @@ AssembleContinuityNonConformalSolverAlgorithm::
   // save off fields
   stk::mesh::MetaData& meta_data = realm_.meta_data();
 
-  velocity_ =
-    meta_data.get_field<VectorFieldType>(stk::topology::NODE_RANK, "velocity");
+  velocity_ = meta_data.get_field<double>(stk::topology::NODE_RANK, "velocity");
   if (meshMotion_) {
     meshMotionFac_ = 1.0;
-    meshVelocity_ = meta_data.get_field<VectorFieldType>(
-      stk::topology::NODE_RANK, "mesh_velocity");
+    meshVelocity_ =
+      meta_data.get_field<double>(stk::topology::NODE_RANK, "mesh_velocity");
   } else {
     meshMotionFac_ = 0.0;
-    meshVelocity_ = meta_data.get_field<VectorFieldType>(
-      stk::topology::NODE_RANK, "velocity");
+    meshVelocity_ =
+      meta_data.get_field<double>(stk::topology::NODE_RANK, "velocity");
   }
 
-  coordinates_ = meta_data.get_field<VectorFieldType>(
+  coordinates_ = meta_data.get_field<double>(
     stk::topology::NODE_RANK, realm_.get_coordinates_name());
-  density_ =
-    meta_data.get_field<ScalarFieldType>(stk::topology::NODE_RANK, "density");
-  exposedAreaVec_ = meta_data.get_field<GenericFieldType>(
-    meta_data.side_rank(), "exposed_area_vector");
+  density_ = meta_data.get_field<double>(stk::topology::NODE_RANK, "density");
+  exposedAreaVec_ =
+    meta_data.get_field<double>(meta_data.side_rank(), "exposed_area_vector");
 
   // what do we need ghosted for this alg to work?
   ghostFieldVec_.push_back(pressure_);
@@ -90,14 +88,15 @@ AssembleContinuityNonConformalSolverAlgorithm::
   ghostFieldVec_.push_back(density_);
 
   if (useCurrentNormal_)
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << "AssembleContinuityNonConformalSolverAlgorithm::Options: "
          "use_current_normal is active"
       << std::endl;
   if (includePstab_)
-    NaluEnv::self().naluOutputP0() << "AssembleContinuityNonConformalSolverAlgo"
-                                      "rithm::Options: include_pstab is active"
-                                   << std::endl;
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
+      << "AssembleContinuityNonConformalSolverAlgo"
+         "rithm::Options: include_pstab is active"
+      << std::endl;
 }
 
 //--------------------------------------------------------------------------
@@ -125,7 +124,7 @@ AssembleContinuityNonConformalSolverAlgorithm::execute()
   const double interpTogether = realm_.get_mdot_interp();
   const double om_interpTogether = 1.0 - interpTogether;
 
-  // Classic Nalu projection timescale
+  // Classic KynemaUGF projection timescale
   const double dt = realm_.get_time_step();
   const double gamma1 = realm_.get_gamma1();
   const double tauScale = dt / gamma1;
@@ -197,8 +196,8 @@ AssembleContinuityNonConformalSolverAlgorithm::execute()
 
   // deal with state
   ScalarFieldType& pressureNp1 = pressure_->field_of_state(stk::mesh::StateNP1);
-  ScalarFieldType* Udiag = meta_data.get_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, "momentum_diag");
+  ScalarFieldType* Udiag =
+    meta_data.get_field<double>(stk::topology::NODE_RANK, "momentum_diag");
 
   // parallel communicate ghosted entities
   if (NULL != realm_.nonConformalManager_->nonConformalGhosting_)
@@ -694,5 +693,5 @@ AssembleContinuityNonConformalSolverAlgorithm::execute()
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

@@ -7,12 +7,14 @@
 // for more details.
 //
 
+#include "master_element/CompileTimeElements.h"
+#include "master_element/IntegrationRules.h"
 #include <master_element/Tri32DCVFEM.h>
 #include <master_element/MasterElementFunctions.h>
 
 #include <AlgTraits.h>
 
-#include <NaluEnv.h>
+#include <KynemaUGFEnv.h>
 
 #include <stk_util/util/ReportHandler.hpp>
 #include <stk_topology/topology.hpp>
@@ -26,7 +28,7 @@
 #include <memory>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //-------- tri_derivative -----------------------------------------------------
 template <typename DBLTYPE, typename SHMEM>
@@ -310,12 +312,9 @@ void
 Tri32DSCV::grad_op(
   const SharedMemView<DoubleType**, DeviceShmem>& coords,
   SharedMemView<DoubleType***, DeviceShmem>& gradop,
-  SharedMemView<DoubleType***, DeviceShmem>& deriv)
+  SharedMemView<DoubleType***, DeviceShmem>& /*deriv*/)
 {
-  tri_derivative(deriv);
-  DoubleType det[numIntPoints_];
-  SharedMemView<DoubleType*, DeviceShmem> det_j(det, numIntPoints_);
-  tri_gradient_operator(coords, deriv, gradop, det_j);
+  impl::grad_op<AlgTraitsTri3_2D, QuadRank::SCV, QuadType::MID>(coords, gradop);
 }
 
 //--------------------------------------------------------------------------
@@ -326,12 +325,10 @@ void
 Tri32DSCV::shifted_grad_op(
   SharedMemView<DoubleType**, DeviceShmem>& coords,
   SharedMemView<DoubleType***, DeviceShmem>& gradop,
-  SharedMemView<DoubleType***, DeviceShmem>& deriv)
+  SharedMemView<DoubleType***, DeviceShmem>& /*deriv*/)
 {
-  tri_derivative(deriv);
-  DoubleType det[numIntPoints_];
-  SharedMemView<DoubleType*, DeviceShmem> det_j(det, numIntPoints_);
-  tri_gradient_operator(coords, deriv, gradop, det_j);
+  impl::grad_op<AlgTraitsTri3_2D, QuadRank::SCV, QuadType::SHIFTED>(
+    coords, gradop);
 }
 
 //--------------------------------------------------------------------------
@@ -339,7 +336,7 @@ Tri32DSCV::shifted_grad_op(
 //--------------------------------------------------------------------------
 // This function computes the metric tensor Mij = (J J^T)^(1/2) where J is
 // the Jacobian.  This is needed for the UT-A Hybrid LES model.  For
-// reference please consult the Nalu theory manual description of the UT-A
+// reference please consult the KynemaUGF theory manual description of the UT-A
 // Hybrid LES model or S. Haering's PhD thesis: Anisotropic hybrid turbulence
 // modeling with specific application to the simulation of pulse-actuated
 // dynamic stall control.
@@ -495,24 +492,18 @@ void
 Tri32DSCS::grad_op(
   const SharedMemView<DoubleType**, DeviceShmem>& coords,
   SharedMemView<DoubleType***, DeviceShmem>& gradop,
-  SharedMemView<DoubleType***, DeviceShmem>& deriv)
+  SharedMemView<DoubleType***, DeviceShmem>& /*deriv*/)
 {
-  tri_derivative(deriv);
-  DoubleType det[numIntPoints_];
-  SharedMemView<DoubleType*, DeviceShmem> det_j(det, numIntPoints_);
-  tri_gradient_operator(coords, deriv, gradop, det_j);
+  impl::grad_op<AlgTraitsTri3_2D, QuadRank::SCS, QuadType::MID>(coords, gradop);
 }
 
 void
 Tri32DSCS::grad_op(
   const SharedMemView<double**>& coords,
   SharedMemView<double***>& gradop,
-  SharedMemView<double***>& deriv)
+  SharedMemView<double***>& /*deriv*/)
 {
-  tri_derivative(deriv);
-  double det[numIntPoints_];
-  SharedMemView<double*> det_j(det, numIntPoints_);
-  tri_gradient_operator(coords, deriv, gradop, det_j);
+  impl::grad_op<AlgTraitsTri3_2D, QuadRank::SCS, QuadType::MID>(coords, gradop);
 }
 
 //--------------------------------------------------------------------------
@@ -523,12 +514,10 @@ void
 Tri32DSCS::shifted_grad_op(
   SharedMemView<DoubleType**, DeviceShmem>& coords,
   SharedMemView<DoubleType***, DeviceShmem>& gradop,
-  SharedMemView<DoubleType***, DeviceShmem>& deriv)
+  SharedMemView<DoubleType***, DeviceShmem>& /*deriv*/)
 {
-  tri_derivative(deriv);
-  DoubleType det[numIntPoints_];
-  SharedMemView<DoubleType*, DeviceShmem> det_j(det, numIntPoints_);
-  tri_gradient_operator(coords, deriv, gradop, det_j);
+  impl::grad_op<AlgTraitsTri3_2D, QuadRank::SCS, QuadType::SHIFTED>(
+    coords, gradop);
 }
 
 //--------------------------------------------------------------------------
@@ -569,8 +558,10 @@ Tri32DSCS::gij(
   const SharedMemView<DoubleType**, DeviceShmem>& coords,
   SharedMemView<DoubleType***, DeviceShmem>& gupper,
   SharedMemView<DoubleType***, DeviceShmem>& glower,
-  SharedMemView<DoubleType***, DeviceShmem>& deriv)
+  SharedMemView<DoubleType***, DeviceShmem>& /*deriv*/)
 {
+  constexpr auto deriv =
+    elem_data_t<AlgTraitsTri3_2D, QuadType::MID>::scs_deriv;
 
   const int npe = nodesPerElement_;
   const int nint = numIntPoints_;
@@ -622,15 +613,17 @@ Tri32DSCS::gij(
 //--------------------------------------------------------------------------
 // This function computes the metric tensor Mij = (J J^T)^(1/2) where J is
 // the Jacobian.  This is needed for the UT-A Hybrid LES model.  For
-// reference please consult the Nalu theory manual description of the UT-A
+// reference please consult the KynemaUGF theory manual description of the UT-A
 // Hybrid LES model or S. Haering's PhD thesis: Anisotropic hybrid turbulence
 // modeling with specific application to the simulation of pulse-actuated
 // dynamic stall control.
 //--------------------------------------------------------------------------
 void
-Tri32DSCS::Mij(const double* coords, double* metric, double* deriv)
+Tri32DSCS::Mij(const double* coords, double* metric, double* /*deriv*/)
 {
-  generic_Mij_2d<AlgTraitsTri3_2D>(numIntPoints_, deriv, coords, metric);
+  constexpr auto deriv =
+    elem_data_t<AlgTraitsTri3_2D, QuadType::MID>::scs_deriv;
+  generic_Mij_2d<AlgTraitsTri3_2D>(numIntPoints_, deriv.data(), coords, metric);
 }
 //-------------------------------------------------------------------------
 KOKKOS_FUNCTION
@@ -638,8 +631,10 @@ void
 Tri32DSCS::Mij(
   SharedMemView<DoubleType**, DeviceShmem>& coords,
   SharedMemView<DoubleType***, DeviceShmem>& metric,
-  SharedMemView<DoubleType***, DeviceShmem>& deriv)
+  SharedMemView<DoubleType***, DeviceShmem>& /*deriv*/)
 {
+  constexpr auto deriv =
+    elem_data_t<AlgTraitsTri3_2D, QuadType::MID>::scs_deriv;
   generic_Mij_2d<AlgTraitsTri3_2D>(deriv, coords, metric);
 }
 
@@ -900,7 +895,7 @@ Tri32DSCS::general_face_grad_op(
   lerr = tri_gradient_operator(cordel, deriv, grad, det);
 
   if (lerr)
-    NaluEnv::self().naluOutput()
+    KynemaUGFEnv::self().kynema_ugfOutput()
       << "sorry, issue with face_grad_op.." << std::endl;
 }
 
@@ -938,5 +933,5 @@ Tri32DSCS::sidePcoords_to_elemPcoords(
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

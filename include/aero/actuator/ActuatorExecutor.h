@@ -13,7 +13,7 @@
 #include <aero/actuator/ActuatorFLLC.h>
 #include <aero/actuator/ActuatorBulk.h>
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 /**
  * @brief Interface class for actuator execution model
@@ -27,7 +27,7 @@ class ActuatorExecutor
 public:
   ActuatorExecutor(const ActuatorMeta& actMeta, ActuatorBulk& actBulk);
   ActuatorExecutor() = delete;
-  virtual ~ActuatorExecutor(){};
+  virtual ~ActuatorExecutor() {};
   virtual void operator()() = 0;
   void compute_fllc();
   void apply_fllc(ActuatorBulk& actBulk);
@@ -36,6 +36,6 @@ private:
   FilteredLiftingLineCorrection fLiftLineCorr_;
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 #endif /* ACTUATOREXECUTOR_H_ */

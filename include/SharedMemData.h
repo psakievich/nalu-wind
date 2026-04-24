@@ -19,7 +19,7 @@
 #include <memory>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 template <typename TEAMHANDLETYPE, typename SHMEM>
 struct SharedMemData
@@ -54,8 +54,6 @@ struct SharedMemData
     scratchIds = get_shmem_view_1D<int, TEAMHANDLETYPE, SHMEM>(team, rhsSize);
     sortPermutation =
       get_shmem_view_1D<int, TEAMHANDLETYPE, SHMEM>(team, rhsSize);
-
-    simdPrereqData.fill_static_meviews(dataNeededByKernels);
   }
 
   KOKKOS_DEFAULTED_FUNCTION
@@ -120,9 +118,6 @@ struct SharedMemData_FaceElem
     scratchIds = get_shmem_view_1D<int, TEAMHANDLETYPE, SHMEM>(team, rhsSize);
     sortPermutation =
       get_shmem_view_1D<int, TEAMHANDLETYPE, SHMEM>(team, rhsSize);
-
-    simdFaceViews.fill_static_meviews(faceDataNeeded);
-    simdElemViews.fill_static_meviews(elemDataNeeded);
   }
 
   KOKKOS_DEFAULTED_FUNCTION
@@ -172,7 +167,7 @@ struct SharedMemData_Edge
   SharedMemView<int*, SHMEM> scratchIds;
   SharedMemView<int*, SHMEM> sortPermutation;
 };
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

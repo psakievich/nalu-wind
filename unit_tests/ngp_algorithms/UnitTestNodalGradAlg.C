@@ -38,13 +38,14 @@ TEST_F(SSTKernelHex8Mesh, NGP_nodal_grad_edge)
   stk::mesh::field_fill(0.0, *dkdx_);
 
   // Reference values from original AssembleNodalGradEdge
-  // sierra::nalu::AssembleNodalGradEdgeAlgorithm edgeAlg(
+  // sierra::kynema_ugf::AssembleNodalGradEdgeAlgorithm edgeAlg(
   //   helperObjs.realm, partVec_[0], tke_, dkdx_);
   // edgeAlg.execute();
 
-  sierra::nalu::ScalarNodalGradAlgDriver algDriver(helperObjs.realm, "dkdx");
-  algDriver.register_edge_algorithm<sierra::nalu::ScalarNodalGradEdgeAlg>(
-    sierra::nalu::INTERIOR, partVec_[0], "nodal_grad", tke_, dkdx_);
+  sierra::kynema_ugf::ScalarNodalGradAlgDriver algDriver(
+    helperObjs.realm, tke_->name(), "dkdx");
+  algDriver.register_edge_algorithm<sierra::kynema_ugf::ScalarNodalGradEdgeAlg>(
+    sierra::kynema_ugf::INTERIOR, partVec_[0], "nodal_grad", tke_, dkdx_);
   algDriver.execute();
 
   {
@@ -90,13 +91,14 @@ TEST_F(MomentumKernelHex8Mesh, NGP_nodal_grad_edge_vec)
   dudx_->sync_to_device();
 
   // Reference values from original AssembleNodalGradEdge
-  // sierra::nalu::AssembleNodalGradUEdgeAlgorithm edgeAlg(
+  // sierra::kynema_ugf::AssembleNodalGradUEdgeAlgorithm edgeAlg(
   //   helperObjs.realm, partVec_[0], velocity_, dudx_);
   // edgeAlg.execute();
 
-  sierra::nalu::VectorNodalGradAlgDriver algDriver(helperObjs.realm, "dudx");
-  algDriver.register_edge_algorithm<sierra::nalu::VectorNodalGradEdgeAlg>(
-    sierra::nalu::INTERIOR, partVec_[0], "nodal_grad", velocity_, dudx_);
+  sierra::kynema_ugf::TensorNodalGradAlgDriver algDriver(
+    helperObjs.realm, velocity_->name(), "dudx");
+  algDriver.register_edge_algorithm<sierra::kynema_ugf::TensorNodalGradEdgeAlg>(
+    sierra::kynema_ugf::INTERIOR, partVec_[0], "nodal_grad", velocity_, dudx_);
   algDriver.execute();
 
   {
@@ -139,13 +141,14 @@ TEST_F(SSTKernelHex8Mesh, NGP_nodal_grad_elem)
   stk::mesh::field_fill(0.0, *dkdx_);
 
   // Reference values from original AssembleNodalGradElem
-  // sierra::nalu::AssembleNodalGradElemAlgorithm elemAlg(
+  // sierra::kynema_ugf::AssembleNodalGradElemAlgorithm elemAlg(
   //   helperObjs.realm, partVec_[0], tke_, dkdx_);
   // elemAlg.execute();
 
-  sierra::nalu::ScalarNodalGradAlgDriver algDriver(helperObjs.realm, "dkdx");
-  algDriver.register_elem_algorithm<sierra::nalu::ScalarNodalGradElemAlg>(
-    sierra::nalu::INTERIOR, partVec_[0], "nodal_grad", tke_, dkdx_);
+  sierra::kynema_ugf::ScalarNodalGradAlgDriver algDriver(
+    helperObjs.realm, tke_->name(), "dkdx");
+  algDriver.register_elem_algorithm<sierra::kynema_ugf::ScalarNodalGradElemAlg>(
+    sierra::kynema_ugf::INTERIOR, partVec_[0], "nodal_grad", tke_, dkdx_);
   algDriver.execute();
 
   {
@@ -189,13 +192,15 @@ TEST_F(SSTKernelHex8Mesh, NGP_nodal_grad_elem_shifted)
   stk::mesh::field_fill(0.0, *dkdx_);
 
   // Reference values from original AssembleNodalGradElem
-  // sierra::nalu::AssembleNodalGradElemAlgorithm elemAlg(
+  // sierra::kynema_ugf::AssembleNodalGradElemAlgorithm elemAlg(
   //   helperObjs.realm, partVec_[0], tke_, dkdx_, useShifted);
   // elemAlg.execute();
 
-  sierra::nalu::ScalarNodalGradAlgDriver algDriver(helperObjs.realm, "dkdx");
-  algDriver.register_elem_algorithm<sierra::nalu::ScalarNodalGradElemAlg>(
-    sierra::nalu::INTERIOR, partVec_[0], "nodal_grad", tke_, dkdx_, useShifted);
+  sierra::kynema_ugf::ScalarNodalGradAlgDriver algDriver(
+    helperObjs.realm, tke_->name(), "dkdx");
+  algDriver.register_elem_algorithm<sierra::kynema_ugf::ScalarNodalGradElemAlg>(
+    sierra::kynema_ugf::INTERIOR, partVec_[0], "nodal_grad", tke_, dkdx_,
+    useShifted);
   algDriver.execute();
 
   {
@@ -242,13 +247,14 @@ TEST_F(MomentumKernelHex8Mesh, NGP_nodal_grad_elem_vec)
   dudx_->sync_to_device();
 
   // Reference values from original AssembleNodalGradEdge
-  // sierra::nalu::AssembleNodalGradUElemAlgorithm elemAlg(
+  // sierra::kynema_ugf::AssembleNodalGradUElemAlgorithm elemAlg(
   //   helperObjs.realm, partVec_[0], velocity_, dudx_, useShifted);
   // elemAlg.execute();
 
-  sierra::nalu::VectorNodalGradAlgDriver algDriver(helperObjs.realm, "dudx");
-  algDriver.register_elem_algorithm<sierra::nalu::VectorNodalGradElemAlg>(
-    sierra::nalu::INTERIOR, partVec_[0], "nodal_grad", velocity_, dudx_,
+  sierra::kynema_ugf::TensorNodalGradAlgDriver algDriver(
+    helperObjs.realm, velocity_->name(), "dudx");
+  algDriver.register_elem_algorithm<sierra::kynema_ugf::TensorNodalGradElemAlg>(
+    sierra::kynema_ugf::INTERIOR, partVec_[0], "nodal_grad", velocity_, dudx_,
     useShifted);
   algDriver.execute();
 
@@ -297,13 +303,14 @@ TEST_F(MomentumKernelHex8Mesh, NGP_nodal_grad_elem_shifted_vec)
   dudx_->sync_to_device();
 
   // Reference values from original AssembleNodalGradEdge
-  // sierra::nalu::AssembleNodalGradUEdgeAlgorithm edgeAlg(
+  // sierra::kynema_ugf::AssembleNodalGradUEdgeAlgorithm edgeAlg(
   //   helperObjs.realm, partVec_[0], velocity_, dudx_);
   // edgeAlg.execute();
 
-  sierra::nalu::VectorNodalGradAlgDriver algDriver(helperObjs.realm, "dudx");
-  algDriver.register_elem_algorithm<sierra::nalu::VectorNodalGradElemAlg>(
-    sierra::nalu::INTERIOR, partVec_[0], "nodal_grad", velocity_, dudx_,
+  sierra::kynema_ugf::TensorNodalGradAlgDriver algDriver(
+    helperObjs.realm, velocity_->name(), "dudx");
+  algDriver.register_elem_algorithm<sierra::kynema_ugf::TensorNodalGradElemAlg>(
+    sierra::kynema_ugf::INTERIOR, partVec_[0], "nodal_grad", velocity_, dudx_,
     useShifted);
   algDriver.execute();
 
@@ -351,14 +358,17 @@ TEST_F(SSTKernelHex8Mesh, NGP_nodal_grad_bndry)
   stk::mesh::field_fill(0.0, *dkdx_);
 
   // Reference values from original AssembleNodalGradBoundary
-  // sierra::nalu::AssembleNodalGradBoundaryAlgorithm elemAlg(
+  // sierra::kynema_ugf::AssembleNodalGradBoundaryAlgorithm elemAlg(
   //   helperObjs.realm, part, tke_, dkdx_, useShifted);
   // elemAlg.execute();
 
   auto* surfPart = part->subsets()[0];
-  sierra::nalu::ScalarNodalGradAlgDriver algDriver(helperObjs.realm, "dkdx");
-  algDriver.register_face_algorithm<sierra::nalu::ScalarNodalGradBndryElemAlg>(
-    sierra::nalu::WALL, surfPart, "nodal_grad", tke_, dkdx_, useShifted);
+  sierra::kynema_ugf::ScalarNodalGradAlgDriver algDriver(
+    helperObjs.realm, tke_->name(), "dkdx");
+  algDriver
+    .register_face_algorithm<sierra::kynema_ugf::ScalarNodalGradBndryElemAlg>(
+      sierra::kynema_ugf::WALL, surfPart, "nodal_grad", tke_, dkdx_,
+      useShifted);
   algDriver.execute();
 
   {
@@ -402,14 +412,17 @@ TEST_F(SSTKernelHex8Mesh, NGP_nodal_grad_bndry_shifted)
   stk::mesh::field_fill(0.0, *dkdx_);
 
   // Reference values from original AssembleNodalGradBounndary
-  // sierra::nalu::AssembleNodalGradBoundaryAlgorithm elemAlg(
+  // sierra::kynema_ugf::AssembleNodalGradBoundaryAlgorithm elemAlg(
   //   helperObjs.realm, part, tke_, dkdx_, useShifted);
   // elemAlg.execute();
 
   auto* surfPart = part->subsets()[0];
-  sierra::nalu::ScalarNodalGradAlgDriver algDriver(helperObjs.realm, "dkdx");
-  algDriver.register_face_algorithm<sierra::nalu::ScalarNodalGradBndryElemAlg>(
-    sierra::nalu::WALL, surfPart, "nodal_grad", tke_, dkdx_, useShifted);
+  sierra::kynema_ugf::ScalarNodalGradAlgDriver algDriver(
+    helperObjs.realm, tke_->name(), "dkdx");
+  algDriver
+    .register_face_algorithm<sierra::kynema_ugf::ScalarNodalGradBndryElemAlg>(
+      sierra::kynema_ugf::WALL, surfPart, "nodal_grad", tke_, dkdx_,
+      useShifted);
   algDriver.execute();
 
   {
@@ -457,14 +470,17 @@ TEST_F(MomentumKernelHex8Mesh, NGP_nodal_grad_bndry_elem_vec)
   dudx_->sync_to_device();
 
   // Reference values from original
-  // sierra::nalu::AssembleNodalGradUBoundaryAlgorithm elemAlg(
+  // sierra::kynema_ugf::AssembleNodalGradUBoundaryAlgorithm elemAlg(
   //   helperObjs.realm, part, velocity_, dudx_, useShifted);
   // elemAlg.execute();
 
   auto* surfPart = part->subsets()[0];
-  sierra::nalu::VectorNodalGradAlgDriver algDriver(helperObjs.realm, "dudx");
-  algDriver.register_face_algorithm<sierra::nalu::VectorNodalGradBndryElemAlg>(
-    sierra::nalu::WALL, surfPart, "nodal_grad", velocity_, dudx_, useShifted);
+  sierra::kynema_ugf::TensorNodalGradAlgDriver algDriver(
+    helperObjs.realm, velocity_->name(), "dudx");
+  algDriver
+    .register_face_algorithm<sierra::kynema_ugf::TensorNodalGradBndryElemAlg>(
+      sierra::kynema_ugf::WALL, surfPart, "nodal_grad", velocity_, dudx_,
+      useShifted);
   algDriver.execute();
 
   {

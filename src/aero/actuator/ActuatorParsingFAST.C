@@ -8,13 +8,13 @@
 //
 #include <aero/actuator/ActuatorBulk.h>
 #include <aero/actuator/ActuatorBulkFAST.h>
-#include <NaluParsing.h>
+#include <KynemaUGFParsing.h>
 #include <aero/actuator/ActuatorParsingFAST.h>
 #include <aero/actuator/ActuatorParsing.h>
-#include <NaluEnv.h>
+#include <KynemaUGFEnv.h>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 namespace {
 void
@@ -83,11 +83,11 @@ readTurbineData(int iTurb, ActuatorMetaFAST& actMetaFAST, YAML::Node turbNode)
 
   get_required(
     turbNode, "turbine_base_pos", fi.globTurbineData[iTurb].TurbineBasePos);
-  if (turbNode["turbine_hub_pos"]) {
-    NaluEnv::self().naluOutputP0()
-      << "WARNING::turbine_hub_pos is not used. "
-      << "The hub location is computed in OpenFAST and is controlled by the "
-         "ElastoDyn input file.";
+  if (turbNode["turbine_hub_pos"].IsSequence()) {
+    fi.globTurbineData[iTurb].TurbineHubPos =
+      turbNode["turbine_hub_pos"].as<std::vector<double>>();
+  } else {
+    fi.globTurbineData[iTurb].TurbineHubPos = std::vector<double>(3, 0.0);
   }
   get_required(
     turbNode, "num_force_pts_blade",
@@ -110,7 +110,7 @@ readTurbineData(int iTurb, ActuatorMetaFAST& actMetaFAST, YAML::Node turbNode)
   int* numBlades = &(actMetaFAST.nBlades_(iTurb));
   *numBlades = 3;
   get_if_present_no_default(turbNode, "num_blades", *numBlades);
-  ThrowErrorMsgIf(
+  STK_ThrowErrorMsgIf(
     *numBlades != 3 && *numBlades != 2,
     "ERROR::ActuatorParsingFAST::Currently only 2 and 3 bladed turbines are "
     "supported.");
@@ -120,7 +120,7 @@ readTurbineData(int iTurb, ActuatorMetaFAST& actMetaFAST, YAML::Node turbNode)
       turbNode, "num_swept_pts", actMetaFAST.nPointsSwept_(iTurb));
     actMetaFAST.useUniformAziSampling_(iTurb) =
       actMetaFAST.nPointsSwept_(iTurb) != 0;
-    ThrowErrorMsgIf(
+    STK_ThrowErrorMsgIf(
       *numBlades != 3, "The ActuatorDisk model requires a base 3 bladed "
                        "turbine, but a 2 bladed turbine was supplied.");
   }
@@ -138,11 +138,11 @@ actuator_FAST_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
 {
   ActuatorMetaFAST actMetaFAST(actMeta);
   fast::fastInputs& fi = actMetaFAST.fastInputs_;
-  fi.comm = NaluEnv::self().parallel_comm();
+  fi.comm = KynemaUGFEnv::self().parallel_comm();
   fi.nTurbinesGlob = actMetaFAST.numberOfActuators_;
 
   const YAML::Node y_actuator = y_node["actuator"];
-  ThrowErrorMsgIf(
+  STK_ThrowErrorMsgIf(
     !y_actuator, "actuator argument is "
                  "missing from yaml node passed to actuator_FAST_parse");
   if (fi.nTurbinesGlob > 0) {
@@ -166,10 +166,8 @@ actuator_FAST_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
     // TODO Do we need this for anything in FSI?
     /* get_required(y_actuator, "restartFreq", fi.restartFreq); */
     int* restartFreq;
-#ifdef NALU_USES_OPENFAST_FSI
+#ifdef KYNEMA_UGF_USES_OPENFAST
     restartFreq = &fi.restartFreq;
-#else
-    restartFreq = &fi.nEveryCheckPoint;
 #endif
     get_required(y_actuator, "n_every_checkpoint", *restartFreq);
     get_required(y_actuator, "dt_fast", fi.dtFAST);
@@ -177,11 +175,8 @@ actuator_FAST_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
     get_required(y_actuator, "t_max", fi.tMax);
 
     if (y_actuator["super_controller"]) {
-      get_required(y_actuator, "super_controller", fi.scStatus);
-      get_required(y_actuator, "sc_libFile", fi.scLibFile);
-      // Removed inputs from fast API may want to if/def later
-      // get_required(y_actuator, "num_sc_inputs", fi.numScInputs);
-      // get_required(y_actuator, "num_sc_outputs", fi.numScOutputs);
+      throw std::runtime_error(
+        "Super controller has been removed in OpenFAST 4.1 and above");
     }
 
     fi.globTurbineData.resize(fi.nTurbinesGlob);
@@ -205,5 +200,5 @@ actuator_FAST_parse(const YAML::Node& y_node, const ActuatorMeta& actMeta)
   return actMetaFAST;
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

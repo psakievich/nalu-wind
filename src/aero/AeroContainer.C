@@ -7,18 +7,23 @@
 // for more details.
 //
 #include <aero/AeroContainer.h>
-#include <NaluParsingHelper.h>
-#ifdef NALU_USES_OPENFAST_FSI
+#include <KynemaUGFEnv.h>
+#include <KynemaUGFParsingHelper.h>
+#ifdef KYNEMA_UGF_USES_OPENFAST
 #include "aero/fsi/OpenfastFSI.h"
 #endif
+#ifdef KYNEMA_UGF_USES_KYNEMA
+#include "aero/six_dof/KynemaSixDof.h"
+#endif
 #include <FieldTypeDef.h>
+#include <stk_io/IossBridge.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 void
 AeroContainer::clean_up()
 {
-#ifdef NALU_USES_OPENFAST_FSI
+#ifdef KYNEMA_UGF_USES_OPENFAST
   if (has_fsi())
     fsiContainer_->end_openfast();
 #endif
@@ -26,7 +31,7 @@ AeroContainer::clean_up()
 
 AeroContainer::~AeroContainer()
 {
-#ifdef NALU_USES_OPENFAST_FSI
+#ifdef KYNEMA_UGF_USES_OPENFAST
   if (has_fsi()) {
     delete fsiContainer_;
   }
@@ -37,17 +42,26 @@ AeroContainer::AeroContainer(const YAML::Node& node) : fsiContainer_(nullptr)
 {
   // look for Actuator
   std::vector<const YAML::Node*> foundActuator;
-  NaluParsingHelper::find_nodes_given_key("actuator", node, foundActuator);
+  KynemaUGFParsingHelper::find_nodes_given_key("actuator", node, foundActuator);
   if (foundActuator.size() > 0) {
     if (foundActuator.size() != 1)
       throw std::runtime_error(
         "look_ahead_and_create::error: Too many actuator line blocks");
     actuatorModel_.parse(*foundActuator[0]);
   }
+  if (node["kynema_six_dof"]) {
+#ifdef KYNEMA_UGF_USES_KYNEMA
+    sixDof_ = std::make_shared<KynemaSixDof>(node["kynema_six_dof"]);
+#else
+    throw std::runtime_error(
+      "6DOF coupling can not be used without coupling to Kynema");
+#endif
+  }
   // std::vector<const YAML::Node*> foundFsi;
-  // NaluParsingHelper::find_nodes_given_key("openfast_fsi", node, foundFsi);
+  // KynemaUGFParsingHelper::find_nodes_given_key("openfast_fsi", node,
+  // foundFsi);
   if (node["openfast_fsi"]) {
-#ifdef NALU_USES_OPENFAST_FSI
+#ifdef KYNEMA_UGF_USES_OPENFAST
     // if (foundFsi.size() != 1)
     //   throw std::runtime_error(
     //     "look_ahead_and_create::error: Too many openfast_fsi blocks");
@@ -61,16 +75,21 @@ AeroContainer::AeroContainer(const YAML::Node& node) : fsiContainer_(nullptr)
 
 void
 AeroContainer::register_nodal_fields(
-  stk::mesh::MetaData& meta, stk::mesh::Part* part)
+  stk::mesh::MetaData& meta, const stk::mesh::PartVector& part_vec)
 {
   if (has_actuators()) {
+    stk::mesh::Selector selector = stk::mesh::selectUnion(part_vec);
     const int nDim = meta.spatial_dimension();
-    VectorFieldType* actuatorSource = &(meta.declare_field<VectorFieldType>(
-      stk::topology::NODE_RANK, "actuator_source"));
-    VectorFieldType* actuatorSourceLHS = &(meta.declare_field<VectorFieldType>(
+    VectorFieldType* actuatorSource = &(
+      meta.declare_field<double>(stk::topology::NODE_RANK, "actuator_source"));
+    VectorFieldType* actuatorSourceLHS = &(meta.declare_field<double>(
       stk::topology::NODE_RANK, "actuator_source_lhs"));
-    stk::mesh::put_field_on_mesh(*actuatorSource, *part, nDim, nullptr);
-    stk::mesh::put_field_on_mesh(*actuatorSourceLHS, *part, nDim, nullptr);
+    stk::mesh::put_field_on_mesh(*actuatorSource, selector, nDim, nullptr);
+    stk::mesh::put_field_on_mesh(*actuatorSourceLHS, selector, nDim, nullptr);
+    stk::io::set_field_output_type(
+      *actuatorSource, stk::io::FieldOutputType::VECTOR_3D);
+    stk::io::set_field_output_type(
+      *actuatorSourceLHS, stk::io::FieldOutputType::VECTOR_3D);
   }
 }
 
@@ -81,7 +100,12 @@ AeroContainer::setup(double timeStep, std::shared_ptr<stk::mesh::BulkData> bulk)
   if (has_actuators()) {
     actuatorModel_.setup(timeStep, *bulk_);
   }
-#ifdef NALU_USES_OPENFAST_FSI
+#ifdef KYNEMA_UGF_USES_KYNEMA
+  if (has_six_dof()) {
+    sixDof_->setup(timeStep, bulk_);
+  }
+#endif
+#ifdef KYNEMA_UGF_USES_OPENFAST
   if (has_fsi()) {
     fsiContainer_->setup(timeStep, bulk_);
   }
@@ -94,11 +118,17 @@ AeroContainer::init(double currentTime, double restartFrequency)
   if (has_actuators()) {
     actuatorModel_.init(*bulk_);
   }
-#ifdef NALU_USES_OPENFAST_FSI
+#ifdef KYNEMA_UGF_USES_KYNEMA
+  if (has_six_dof()) {
+    sixDof_->initialize(restartFrequency, currentTime);
+  }
+#endif
+#ifdef KYNEMA_UGF_USES_OPENFAST
   if (has_fsi()) {
     fsiContainer_->initialize(restartFrequency, currentTime);
   }
 #else
+  (void)currentTime;
   (void)restartFrequency;
 #endif
 }
@@ -111,23 +141,44 @@ AeroContainer::execute(double& actTimer)
   }
 }
 void
-AeroContainer::update_displacements(const double currentTime)
+AeroContainer::update_displacements(
+  const double currentTime, bool updateCC, bool predict)
 {
-#ifdef NALU_USES_OPENFAST_FSI
+#ifdef KYNEMA_UGF_USES_KYNEMA
+  if (has_six_dof()) {
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
+      << "Calling update displacements inside AeroContainer" << std::endl;
+    sixDof_->map_displacements(currentTime, updateCC);
+
+    (void)predict;
+    return;
+  }
+#endif
+
+#ifdef KYNEMA_UGF_USES_OPENFAST
   if (has_fsi()) {
-    fsiContainer_->predict_struct_states();
-    fsiContainer_->map_displacements(currentTime);
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
+      << "Calling update displacements inside AeroContainer" << std::endl;
+    if (predict)
+      fsiContainer_->predict_struct_states();
+    fsiContainer_->map_displacements(currentTime, updateCC);
   }
 #else
   (void)currentTime;
+  (void)updateCC;
+  (void)predict;
 #endif
 }
 
 void
 AeroContainer::predict_model_time_step(const double currentTime)
 {
-  (void)currentTime;
-#ifdef NALU_USES_OPENFAST_FSI
+#ifdef KYNEMA_UGF_USES_KYNEMA
+  if (has_six_dof()) {
+    sixDof_->map_loads();
+  }
+#endif
+#ifdef KYNEMA_UGF_USES_OPENFAST
   if (has_fsi()) {
     fsiContainer_->predict_struct_timestep(currentTime);
   }
@@ -137,9 +188,21 @@ AeroContainer::predict_model_time_step(const double currentTime)
 }
 
 void
-AeroContainer::advance_model_time_step(const double currentTime)
+AeroContainer::advance_model_time_step(
+  const double currentTime,
+  const double
+#ifdef KYNEMA_UGF_USES_KYNEMA
+    dT
+#endif
+)
 {
-#ifdef NALU_USES_OPENFAST_FSI
+#ifdef KYNEMA_UGF_USES_KYNEMA
+  if (has_six_dof()) {
+    sixDof_->advance_struct_timestep(currentTime, dT);
+    return;
+  }
+#endif
+#ifdef KYNEMA_UGF_USES_OPENFAST
   if (has_fsi()) {
     fsiContainer_->advance_struct_timestep(currentTime);
   }
@@ -151,7 +214,7 @@ AeroContainer::advance_model_time_step(const double currentTime)
 void
 AeroContainer::compute_div_mesh_velocity()
 {
-#ifdef NALU_USES_OPENFAST_FSI
+#ifdef KYNEMA_UGF_USES_OPENFAST
   if (has_fsi()) {
     fsiContainer_->compute_div_mesh_velocity();
   }
@@ -162,7 +225,7 @@ const stk::mesh::PartVector
 AeroContainer::fsi_parts()
 {
   stk::mesh::PartVector all_part_vec;
-#ifdef NALU_USES_OPENFAST_FSI
+#ifdef KYNEMA_UGF_USES_OPENFAST
   if (has_fsi()) {
     auto n_turbines = fsiContainer_->get_nTurbinesGlob();
     for (auto i_turb = 0; i_turb < n_turbines; i_turb++) {
@@ -176,10 +239,22 @@ AeroContainer::fsi_parts()
 }
 
 const stk::mesh::PartVector
+AeroContainer::six_dof_parts()
+{
+#ifdef KYNEMA_UGF_USES_KYNEMA
+  if (has_six_dof()) {
+    return sixDof_->get_mesh_blocks();
+  }
+#endif
+  stk::mesh::PartVector all_part_vec;
+  return all_part_vec;
+}
+
+const stk::mesh::PartVector
 AeroContainer::fsi_bndry_parts()
 {
   stk::mesh::PartVector all_bndry_part_vec;
-#ifdef NALU_USES_OPENFAST_FSI
+#ifdef KYNEMA_UGF_USES_OPENFAST
   if (has_fsi()) {
     auto n_turbines = fsiContainer_->get_nTurbinesGlob();
     for (auto i_turb = 0; i_turb < n_turbines; i_turb++) {
@@ -197,7 +272,7 @@ const std::vector<std::string>
 AeroContainer::fsi_bndry_part_names()
 {
   std::vector<std::string> bndry_part_names;
-#ifdef NALU_USES_OPENFAST_FSI
+#ifdef KYNEMA_UGF_USES_OPENFAST
   if (has_fsi()) {
     auto n_turbines = fsiContainer_->get_nTurbinesGlob();
     for (auto i_turb = 0; i_turb < n_turbines; i_turb++) {
@@ -211,5 +286,29 @@ AeroContainer::fsi_bndry_part_names()
   return bndry_part_names;
 }
 
-} // namespace nalu
+double
+AeroContainer::openfast_accumulated_time()
+{
+#ifdef KYNEMA_UGF_USES_OPENFAST
+  if (has_fsi())
+    return fsiContainer_->total_openfastfsi_execution_time();
+  else
+    return -1.0;
+#endif
+  return -1.0;
+}
+
+double
+AeroContainer::kynema_ugf_fsi_accumulated_time()
+{
+#ifdef KYNEMA_UGF_USES_OPENFAST
+  if (has_fsi())
+    return fsiContainer_->total_kynema_ugf_fsi_execution_time();
+  else
+    return -1.0;
+#endif
+  return -1.0;
+}
+
+} // namespace kynema_ugf
 } // namespace sierra

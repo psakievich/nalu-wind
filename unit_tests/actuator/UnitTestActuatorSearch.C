@@ -10,11 +10,11 @@
 #include <UnitTestUtils.h>
 #include <aero/actuator/ActuatorSearch.h>
 #include <stk_io/StkMeshIoBroker.hpp>
-#include <NaluEnv.h>
+#include <KynemaUGFEnv.h>
 #include <UnitTestUtils.h>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 // These functions are only designed to run on host
 
@@ -24,8 +24,8 @@ class ActuatorSearchTest : public ::testing::Test
 {
 public:
   ActuatorSearchTest()
-    : nProcs(NaluEnv::self().parallel_size()),
-      myRank(NaluEnv::self().parallel_rank()),
+    : nProcs(KynemaUGFEnv::self().parallel_size()),
+      myRank(KynemaUGFEnv::self().parallel_rank()),
       nPoints(nProcs * 4),
       partNames({"block_1"}),
       ioBroker(MPI_COMM_WORLD),
@@ -38,6 +38,7 @@ public:
       nx("nx"),
       slabSize(4)
   {
+    ioBroker.use_simple_fields();
   }
 
   void SetUp()
@@ -99,10 +100,9 @@ TEST_F(ActuatorSearchTest, NGP_createBoundingSpheres)
 TEST_F(ActuatorSearchTest, NGP_createElementBoxes)
 {
   stk::mesh::BulkData& stkBulk = ioBroker.bulk_data();
-  typedef stk::mesh::Field<double, stk::mesh::Cartesian> CoordFieldType;
-  CoordFieldType* coordField =
-    stkBulk.mesh_meta_data().get_field<CoordFieldType>(
-      stk::topology::NODE_RANK, "coordinates");
+  typedef stk::mesh::Field<double> CoordFieldType;
+  CoordFieldType* coordField = stkBulk.mesh_meta_data().get_field<double>(
+    stk::topology::NODE_RANK, "coordinates");
   EXPECT_TRUE(coordField != nullptr);
   try {
     auto elemVec = CreateElementBoxes(stkBulk, partNames);
@@ -186,5 +186,5 @@ TEST_F(ActuatorSearchTest, NGP_executeFineSearch)
 
 } // namespace
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

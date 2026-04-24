@@ -16,7 +16,7 @@
 #include <SimdInterface.h>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 MomentumSSTAMSForcingNodeKernel::MomentumSSTAMSForcingNodeKernel(
   const stk::mesh::BulkData& bulk, const SolutionOptions& solnOpts)
@@ -116,11 +116,9 @@ MomentumSSTAMSForcingNodeKernel::execute(
   const stk::mesh::FastMeshIndex& node)
 {
   // Scratch work arrays
-  NALU_ALIGNED NodeKernelTraits::DblType
-    coords[NodeKernelTraits::NDimMax]; // coordinates
-  NALU_ALIGNED NodeKernelTraits::DblType
-    avgU[NodeKernelTraits::NDimMax]; // averageVelocity
-  NALU_ALIGNED NodeKernelTraits::DblType
+  NodeKernelTraits::DblType coords[NodeKernelTraits::NDimMax]; // coordinates
+  NodeKernelTraits::DblType avgU[NodeKernelTraits::NDimMax]; // averageVelocity
+  NodeKernelTraits::DblType
     fluctU[NodeKernelTraits::NDimMax]; // fluctuatingVelocity
 
   const NodeKernelTraits::DblType dualVolume = dualNodalVolume_.get(node, 0);
@@ -260,5 +258,5 @@ MomentumSSTAMSForcingNodeKernel::execute(
   rhs(2) += dualVolume * gZ;
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

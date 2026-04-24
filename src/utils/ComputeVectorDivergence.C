@@ -10,7 +10,7 @@
 #include "utils/ComputeVectorDivergence.h"
 
 #include <master_element/MasterElement.h>
-#include "master_element/MasterElementFactory.h"
+#include "master_element/MasterElementRepo.h"
 
 #include <stk_mesh/base/Part.hpp>
 #include <stk_mesh/base/Entity.hpp>
@@ -19,12 +19,11 @@
 #include <stk_mesh/base/Field.hpp>
 #include <stk_mesh/base/FieldParallel.hpp>
 #include <stk_mesh/base/FieldBLAS.hpp>
-#include <stk_mesh/base/GetBuckets.hpp>
 
 #include "FieldTypeDef.h"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 void
 compute_vector_divergence(
@@ -41,13 +40,13 @@ compute_vector_divergence(
   const std::string coordName =
     hasMeshDeformation ? "current_coordinates" : "coordinates";
   VectorFieldType* coordinates =
-    meta.get_field<VectorFieldType>(stk::topology::NODE_RANK, coordName);
+    meta.get_field<double>(stk::topology::NODE_RANK, coordName);
 
-  ScalarFieldType* dualVol = meta.get_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, "dual_nodal_volume");
+  ScalarFieldType* dualVol =
+    meta.get_field<double>(stk::topology::NODE_RANK, "dual_nodal_volume");
 
   GenericFieldType* exposedAreaVec =
-    meta.get_field<GenericFieldType>(meta.side_rank(), "exposed_area_vector");
+    meta.get_field<double>(meta.side_rank(), "exposed_area_vector");
 
   // sync fields to host
   coordinates->sync_to_host();
@@ -73,7 +72,7 @@ compute_vector_divergence(
 
   for (auto b : bkts) {
     MasterElement* meSCS =
-      MasterElementRepo::get_surface_master_element(b->topology());
+      MasterElementRepo::get_surface_master_element_on_host(b->topology());
 
     const int nodesPerElement = meSCS->nodesPerElement_;
     const int numScsIp = meSCS->num_integration_points();
@@ -84,8 +83,8 @@ compute_vector_divergence(
     wsScsArea.resize(numScsIp * nDim);
 
     ws_shape_function.resize(numScsIp * nodesPerElement);
-    sierra::nalu::SharedMemView<double**, sierra::nalu::HostShmem> ShmemView(
-      ws_shape_function.data(), numScsIp, nodesPerElement);
+    sierra::kynema_ugf::SharedMemView<double**, sierra::kynema_ugf::HostShmem>
+      ShmemView(ws_shape_function.data(), numScsIp, nodesPerElement);
     meSCS->shape_fcn<>(ShmemView);
 
     size_t length = b->size();
@@ -107,9 +106,9 @@ compute_vector_divergence(
       }
 
       // compute geometry
-      sierra::nalu::SharedMemView<double**> elemCoords(
+      sierra::kynema_ugf::SharedMemView<double**> elemCoords(
         wsCoordinates.data(), nodesPerElement, nDim);
-      sierra::nalu::SharedMemView<double**> areav(
+      sierra::kynema_ugf::SharedMemView<double**> areav(
         wsScsArea.data(), numScsIp, nDim);
       meSCS->determinant(elemCoords, areav);
 
@@ -173,7 +172,7 @@ compute_vector_divergence(
   for (auto b : face_bkts) {
     // extract master element
     MasterElement* meFC =
-      MasterElementRepo::get_surface_master_element(b->topology());
+      MasterElementRepo::get_surface_master_element_on_host(b->topology());
 
     const int nodesPerFace = meFC->nodesPerElement_;
     const int numScsIp = meFC->num_integration_points();
@@ -181,8 +180,8 @@ compute_vector_divergence(
 
     wsMeshVector.resize(nodesPerFace * nDim);
     ws_shape_function.resize(numScsIp * nodesPerFace);
-    sierra::nalu::SharedMemView<double**, sierra::nalu::HostShmem> ShmemView(
-      ws_shape_function.data(), numScsIp, nodesPerFace);
+    sierra::kynema_ugf::SharedMemView<double**, sierra::kynema_ugf::HostShmem>
+      ShmemView(ws_shape_function.data(), numScsIp, nodesPerFace);
     meFC->shape_fcn<>(ShmemView);
 
     size_t length = b->size();
@@ -196,7 +195,7 @@ compute_vector_divergence(
       int num_nodes = b->num_nodes(k);
 
       // sanity check on num nodes
-      ThrowAssert(num_nodes == nodesPerFace);
+      STK_ThrowAssert(num_nodes == nodesPerFace);
 
       for (int ni = 0; ni < num_nodes; ++ni) {
         stk::mesh::Entity node = face_node_rels[ni];
@@ -261,7 +260,7 @@ compute_scalar_divergence(
   stk::mesh::field_fill(0.0, *scalarField);
   for (auto b : bkts) {
     MasterElement* meSCS =
-      MasterElementRepo::get_surface_master_element(b->topology());
+      MasterElementRepo::get_surface_master_element_on_host(b->topology());
     const int numScsIp = meSCS->num_integration_points();
     const int* lrscv = meSCS->adjacentNodes();
     size_t length = b->size();
@@ -286,27 +285,29 @@ compute_scalar_divergence(
     }
   }
 
+  // sum up interior divergence values and return if boundary part not specified
+  if (bndyPartVec.size() == 0) {
+    stk::mesh::parallel_sum(bulk, {scalarField});
+  }
   // Synchronize fields to device
   scalarField->modify_on_host();
   scalarField->sync_to_device();
 
-  // sum up interior divergence values and return if boundary part not specified
-  if (bndyPartVec.size() == 0) {
-    stk::mesh::parallel_sum(bulk, {scalarField});
-    return;
-  }
-
   // FIXME: Should we have contributions from cells at the boundary ?
+  return;
 }
 
 void
 compute_edge_scalar_divergence(
   stk::mesh::BulkData& bulk,
   stk::mesh::PartVector& partVec,
-  stk::mesh::PartVector& bndyPartVec,
+  stk::mesh::PartVector& /*bndyPartVec*/,
   GenericFieldType* faceField,
   stk::mesh::FieldBase* scalarField)
 {
+  scalarField->clear_sync_state();
+  faceField->sync_to_host();
+
   stk::mesh::MetaData& meta = bulk.mesh_meta_data();
   stk::mesh::Selector sel =
     (meta.locally_owned_part()) & stk::mesh::selectUnion(partVec);
@@ -332,18 +333,13 @@ compute_edge_scalar_divergence(
     }
   }
 
+  // sum up interior divergence values and return if boundary part not specified
+  stk::mesh::parallel_sum(bulk, {scalarField});
+
   // Synchronize fields to device
   scalarField->modify_on_host();
-  scalarField->sync_to_device();
-
-  // sum up interior divergence values and return if boundary part not specified
-  if (bndyPartVec.size() == 0) {
-    stk::mesh::parallel_sum(bulk, {scalarField});
-    return;
-  }
-
-  // FIXME: Should we have contributions from cells at the boundary ?
+  return;
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

@@ -10,18 +10,24 @@
 #ifndef Hex8CVFEM_h
 #define Hex8CVFEM_h
 
+#include "master_element/ElementBasis.h"
+#include "master_element/IntegrationRules.h"
+
 #include <array>
 
 #include <master_element/MasterElement.h>
 #include <master_element/MasterElementFunctions.h>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 // Hex 8 subcontrol volume
 class HexSCV : public MasterElement
 {
 public:
+  using basis_t = Hex8Basis;
+  template <QuadType q>
+  using quad_t = HexIntegrationRule<q>;
   using AlgTraits = AlgTraitsHex8;
 
   KOKKOS_FUNCTION
@@ -120,6 +126,9 @@ private:
 class HexSCS : public MasterElement
 {
 public:
+  using basis_t = Hex8Basis;
+  template <QuadType q>
+  using quad_t = HexIntegrationRule<q>;
   using AlgTraits = AlgTraitsHex8;
   using AlgTraitsFace = AlgTraitsQuad4;
   using MasterElement::adjacentNodes;
@@ -323,36 +332,37 @@ private:
                                     -0.50, 0.50,  0.00}; // surf 12   4->8
 
   // exposed face
-  const double intgExpFace_[6][4][3] = {// face 0; scs 0, 1, 2, 3
-                                        {{-0.25, -0.50, -0.25},
-                                         {0.25, -0.50, -0.25},
-                                         {0.25, -0.50, 0.25},
-                                         {-0.25, -0.50, 0.25}},
-                                        // face 1; scs 0, 1, 2, 3
-                                        {{0.50, -0.25, -0.25},
-                                         {0.50, 0.25, -0.25},
-                                         {0.50, 0.25, 0.25},
-                                         {0.50, -0.25, 0.25}},
-                                        // face 2; scs 0, 1, 2, 3
-                                        {{0.25, 0.50, -0.25},
-                                         {-0.25, 0.50, -0.25},
-                                         {-0.25, 0.50, 0.25},
-                                         {0.25, 0.50, 0.25}},
-                                        // face 3; scs 0, 1, 2, 3
-                                        {{-0.50, -0.25, -0.25},
-                                         {-0.50, -0.25, 0.25},
-                                         {-0.50, 0.25, 0.25},
-                                         {-0.50, 0.25, -0.25}},
-                                        // face 4; scs 0, 1, 2, 3
-                                        {{-0.25, -0.25, -0.50},
-                                         {-0.25, 0.25, -0.50},
-                                         {0.25, 0.25, -0.50},
-                                         {0.25, -0.25, -0.50}},
-                                        // face 5; scs 0, 1, 2, 3
-                                        {{-0.25, -0.25, 0.50},
-                                         {0.25, -0.25, 0.50},
-                                         {0.25, 0.25, 0.50},
-                                         {-0.25, 0.25, 0.50}}};
+  const double intgExpFace_[6][4][3] = {
+    // face 0; scs 0, 1, 2, 3
+    {{-0.25, -0.50, -0.25},
+     {0.25, -0.50, -0.25},
+     {0.25, -0.50, 0.25},
+     {-0.25, -0.50, 0.25}},
+    // face 1; scs 0, 1, 2, 3
+    {{0.50, -0.25, -0.25},
+     {0.50, 0.25, -0.25},
+     {0.50, 0.25, 0.25},
+     {0.50, -0.25, 0.25}},
+    // face 2; scs 0, 1, 2, 3
+    {{0.25, 0.50, -0.25},
+     {-0.25, 0.50, -0.25},
+     {-0.25, 0.50, 0.25},
+     {0.25, 0.50, 0.25}},
+    // face 3; scs 0, 1, 2, 3
+    {{-0.50, -0.25, -0.25},
+     {-0.50, -0.25, 0.25},
+     {-0.50, 0.25, 0.25},
+     {-0.50, 0.25, -0.25}},
+    // face 4; scs 0, 1, 2, 3
+    {{-0.25, -0.25, -0.50},
+     {-0.25, 0.25, -0.50},
+     {0.25, 0.25, -0.50},
+     {0.25, -0.25, -0.50}},
+    // face 5; scs 0, 1, 2, 3
+    {{-0.25, -0.25, 0.50},
+     {0.25, -0.25, 0.50},
+     {0.25, 0.25, 0.50},
+     {-0.25, 0.25, 0.50}}};
 
   const double intgExpFaceShift_[6][4][3] = {
     {{-0.5, -0.5, -0.5},
@@ -372,15 +382,14 @@ private:
     {{-0.5, -0.5, 0.5}, {0.5, -0.5, 0.5}, {0.5, 0.5, 0.5}, {-0.5, 0.5, 0.5}}};
 
   // nodes for collocation calculations
-  const double nodeLoc_[8][3] = {
-    /* node 0 */ {-0.5, -0.5, -0.5},
-    /* node 1 */ {0.5, -0.5, -0.5},
-    /* node 2 */ {0.5, 0.5, -0.5},
-    /* node 3 */ {-0.5, 0.5, -0.5},
-    /* node 4 */ {-0.5, -0.5, 0.5},
-    /* node 5 */ {0.5, -0.5, 0.5},
-    /* node 6 */ {0.5, 0.5, 0.5},
-    /* node 7 */ {-0.5, 0.5, 0.5}};
+  const double nodeLoc_[8][3] = {/* node 0 */ {-0.5, -0.5, -0.5},
+                                 /* node 1 */ {0.5, -0.5, -0.5},
+                                 /* node 2 */ {0.5, 0.5, -0.5},
+                                 /* node 3 */ {-0.5, 0.5, -0.5},
+                                 /* node 4 */ {-0.5, -0.5, 0.5},
+                                 /* node 5 */ {0.5, -0.5, 0.5},
+                                 /* node 6 */ {0.5, 0.5, 0.5},
+                                 /* node 7 */ {-0.5, 0.5, 0.5}};
 
   // mapping from a side ordinal to the node ordinals on that side
   const int sideNodeOrdinals_[6][4] = {
@@ -419,7 +428,7 @@ HexSCS::grad_op(
   generic_grad_op<AlgTraitsHex8>(deriv, coords, gradop);
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

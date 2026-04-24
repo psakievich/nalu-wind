@@ -34,7 +34,7 @@ class CommNeighbors;
 }
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class Realm;
 class EquationSystem;
@@ -59,9 +59,9 @@ public:
   ~TpetraSegregatedLinearSystem();
 
   // Graph/Matrix Construction
-  void
-  buildNodeGraph(const stk::mesh::PartVector&
-                   parts); // for nodal assembly (e.g., lumped mass and source)
+  void buildNodeGraph(const stk::mesh::PartVector& parts); // for nodal assembly
+                                                           // (e.g., lumped mass
+                                                           // and source)
   void buildFaceToNodeGraph(
     const stk::mesh::PartVector& parts); // face->node assembly
   void buildEdgeToNodeGraph(
@@ -230,7 +230,7 @@ public:
 
     void free_device_pointer() {}
 
-    sierra::nalu::CoeffApplier* device_pointer() { return nullptr; }
+    sierra::kynema_ugf::CoeffApplier* device_pointer() { return nullptr; }
 
   private:
     LinSys::LocalMatrix ownedLocalMatrix_, sharedNotOwnedLocalMatrix_;
@@ -330,7 +330,7 @@ private:
 
 int getDofStatus_impl(stk::mesh::Entity node, const Realm& realm);
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

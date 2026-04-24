@@ -20,7 +20,7 @@
 #include "stk_mesh/base/NgpFieldParallel.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 SSTMaxLengthScaleDriver::SSTMaxLengthScaleDriver(Realm& realm)
   : NgpAlgDriver(realm)
@@ -31,7 +31,7 @@ void
 SSTMaxLengthScaleDriver::pre_work()
 {
 
-  auto* maxLengthScale = realm_.meta_data().template get_field<ScalarFieldType>(
+  auto* maxLengthScale = realm_.meta_data().template get_field<double>(
     stk::topology::NODE_RANK, "sst_max_length_scale");
   stk::mesh::field_fill(0.0, *maxLengthScale);
 
@@ -49,10 +49,10 @@ SSTMaxLengthScaleDriver::post_work()
 
   const auto& meshInfo = realm_.mesh_info();
   auto& ngpMaxLengthScale =
-    nalu_ngp::get_ngp_field(meshInfo, "sst_max_length_scale");
+    kynema_ugf_ngp::get_ngp_field(meshInfo, "sst_max_length_scale");
 
   const auto& meta = realm_.meta_data();
-  auto* maxLengthScale = meta.template get_field<ScalarFieldType>(
+  auto* maxLengthScale = meta.template get_field<double>(
     stk::topology::NODE_RANK, "sst_max_length_scale");
 
   // Algorithms should have marked the fields as modified, but call this here to
@@ -69,5 +69,5 @@ SSTMaxLengthScaleDriver::post_work()
   ngpMaxLengthScale.modify_on_host();
   ngpMaxLengthScale.sync_to_device();
 }
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

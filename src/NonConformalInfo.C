@@ -11,15 +11,15 @@
 #include <NonConformalManager.h>
 #include <DgInfo.h>
 #include <master_element/MasterElement.h>
-#include <master_element/MasterElementFactory.h>
+#include <master_element/MasterElementRepo.h>
 #include <Realm.h>
-#include <NaluEnv.h>
+#include <KynemaUGFEnv.h>
 
 // stk_mesh/base/fem
 #include <stk_mesh/base/BulkData.hpp>
 #include <stk_mesh/base/Field.hpp>
 #include <stk_mesh/base/FieldParallel.hpp>
-#include <stk_mesh/base/GetBuckets.hpp>
+
 #include <stk_mesh/base/GetEntities.hpp>
 #include <stk_mesh/base/MetaData.hpp>
 #include <stk_mesh/base/Part.hpp>
@@ -40,7 +40,7 @@
 #include <algorithm>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class DgInfo;
 
@@ -102,13 +102,13 @@ NonConformalInfo::NonConformalInfo(
   // determine search method for this pair
   if (searchMethodName == "boost_rtree") {
     searchMethod_ = stk::search::KDTREE;
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << "Warning: search method 'boost_rtree' has been deprecated"
       << ", Switching to 'stk_kdtree'" << std::endl;
   } else if (searchMethodName == "stk_kdtree")
     searchMethod_ = stk::search::KDTREE;
   else
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << "NonConformalInfo::search method not declared; will use stk_kdtree"
       << std::endl;
 }
@@ -189,20 +189,21 @@ NonConformalInfo::construct_dgInfo()
 
     // extract connected element topology
     b.parent_topology(stk::topology::ELEMENT_RANK, parentTopo);
-    ThrowAssert(parentTopo.size() == 1);
+    STK_ThrowAssert(parentTopo.size() == 1);
     stk::topology currentElemTopo = parentTopo[0];
 
     // volume and surface master element
     MasterElement* meSCS =
-      sierra::nalu::MasterElementRepo::get_surface_master_element(
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
         currentElemTopo);
     MasterElement* meFC =
-      sierra::nalu::MasterElementRepo::get_surface_master_element(b.topology());
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
+        b.topology());
     MasterElement* meSCS_dev =
-      sierra::nalu::MasterElementRepo::get_surface_master_element_on_dev(
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_dev(
         currentElemTopo);
     MasterElement* meFC_dev =
-      sierra::nalu::MasterElementRepo::get_surface_master_element_on_dev(
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_dev(
         b.topology());
 
     // master element-specific values
@@ -217,7 +218,7 @@ NonConformalInfo::construct_dgInfo()
       // extract the connected element to this exposed face; should be single in
       // size!
       const stk::mesh::Entity* face_elem_rels = bulk_data.begin_elements(face);
-      ThrowAssert(bulk_data.num_elements(face) == 1);
+      STK_ThrowAssert(bulk_data.num_elements(face) == 1);
 
       // get element; its face ordinal number
       stk::mesh::Entity element = face_elem_rels[0];
@@ -228,9 +229,9 @@ NonConformalInfo::construct_dgInfo()
       std::vector<DgInfo*> faceDgInfoVec(numScsBip);
       for (int ip = 0; ip < numScsBip; ++ip) {
         DgInfo* dgInfo = new DgInfo(
-          NaluEnv::self().parallel_rank(), globalFaceId, localGaussPointId++,
-          ip, face, element, currentFaceOrdinal, meFC, meSCS, currentElemTopo,
-          nDim, searchTolerance_, meFC_dev, meSCS_dev);
+          KynemaUGFEnv::self().parallel_rank(), globalFaceId,
+          localGaussPointId++, ip, face, element, currentFaceOrdinal, meFC,
+          meSCS, currentElemTopo, nDim, searchTolerance_, meFC_dev, meSCS_dev);
         faceDgInfoVec[ip] = dgInfo;
       }
 
@@ -285,7 +286,7 @@ NonConformalInfo::construct_bounding_points()
   std::vector<double> ws_face_shape_function;
 
   // fields
-  VectorFieldType* coordinates = meta_data.get_field<VectorFieldType>(
+  VectorFieldType* coordinates = meta_data.get_field<double>(
     stk::topology::NODE_RANK, realm_.get_coordinates_name());
 
   std::vector<std::vector<DgInfo*>>::iterator ii;
@@ -324,7 +325,7 @@ NonConformalInfo::construct_bounding_points()
     const int num_face_nodes = bulk_data.num_nodes(firstDgInfo->currentFace_);
 
     // sanity check on num nodes
-    ThrowAssert(num_face_nodes == nodesPerFace);
+    STK_ThrowAssert(num_face_nodes == nodesPerFace);
     for (int ni = 0; ni < num_face_nodes; ++ni) {
       stk::mesh::Entity node = face_node_rels[ni];
       double* coords = stk::mesh::field_data(*coordinates, node);
@@ -379,7 +380,7 @@ NonConformalInfo::construct_bounding_points()
 
       // setup ident for this point; use local integration point id
       stk::search::IdentProc<uint64_t, int> theIdent(
-        localIp, NaluEnv::self().parallel_rank());
+        localIp, KynemaUGFEnv::self().parallel_rank());
 
       // create the bounding sphere and push back
       boundingSphere theSphere(Sphere(currentIpCoords, pointRadius), theIdent);
@@ -444,7 +445,7 @@ NonConformalInfo::repeat_search_if_needed(
 
   int any_not_empty, not_empty = !SphereVec.empty();
   stk::all_reduce_sum(
-    NaluEnv::self().parallel_comm(), &not_empty, &any_not_empty, 1);
+    KynemaUGFEnv::self().parallel_comm(), &not_empty, &any_not_empty, 1);
 
   while (any_not_empty) {
     for (auto& ii : SphereVec)
@@ -452,7 +453,7 @@ NonConformalInfo::repeat_search_if_needed(
     std::vector<std::pair<theKey, theKey>> KeyPair;
     stk::search::coarse_search(
       SphereVec, boundingFaceElementBoxVec_, searchMethod_,
-      NaluEnv::self().parallel_comm(), KeyPair);
+      KynemaUGFEnv::self().parallel_comm(), KeyPair);
 
     searchKeyPair.reserve(searchKeyPair.size() + KeyPair.size());
     searchKeyPair.insert(searchKeyPair.end(), KeyPair.begin(), KeyPair.end());
@@ -460,18 +461,19 @@ NonConformalInfo::repeat_search_if_needed(
     delete_range_points_found(SphereVec, searchKeyPair);
     not_empty = !SphereVec.empty();
     stk::all_reduce_sum(
-      NaluEnv::self().parallel_comm(), &not_empty, &any_not_empty, 1);
+      KynemaUGFEnv::self().parallel_comm(), &not_empty, &any_not_empty, 1);
     ++num_iterations;
 
     if (10 < num_iterations) {
-      NaluEnv::self().naluOutputP0()
+      KynemaUGFEnv::self().kynema_ugfOutputP0()
         << "NonConformalInfo::repeat_search_if_needed issue with " << name_
         << std::endl;
-      NaluEnv::self().naluOutputP0()
+      KynemaUGFEnv::self().kynema_ugfOutputP0()
         << "Increased search tolerance 10 times and still failed to find match."
         << std::endl;
-      throw std::runtime_error("Could be an internal logic error. Try turning "
-                               "off dynamic search tolerance algorithm...");
+      throw std::runtime_error(
+        "Could be an internal logic error. Try turning "
+        "off dynamic search tolerance algorithm...");
     }
   }
 }
@@ -488,7 +490,7 @@ NonConformalInfo::determine_elems_to_ghost()
   // perform the coarse search
   stk::search::coarse_search(
     boundingSphereVec_, boundingFaceElementBoxVec_, searchMethod_,
-    NaluEnv::self().parallel_comm(), searchKeyPair_);
+    KynemaUGFEnv::self().parallel_comm(), searchKeyPair_);
 
   if (dynamicSearchTolAlg_)
     repeat_search_if_needed(boundingSphereVec_, searchKeyPair_);
@@ -500,7 +502,7 @@ NonConformalInfo::determine_elems_to_ghost()
   for (ii = searchKeyPair_.begin(); ii != searchKeyPair_.end(); ++ii) {
 
     const uint64_t theBox = ii->second.id();
-    unsigned theRank = NaluEnv::self().parallel_rank();
+    unsigned theRank = KynemaUGFEnv::self().parallel_rank();
     const unsigned pt_proc = ii->first.proc();
     const unsigned box_proc = ii->second.proc();
     if ((box_proc == theRank) && (pt_proc != theRank)) {
@@ -515,7 +517,7 @@ NonConformalInfo::determine_elems_to_ghost()
 
       // extract the connected element
       const stk::mesh::Entity* face_elem_rels = bulk_data.begin_elements(face);
-      ThrowAssert(bulk_data.num_elements(face) == 1);
+      STK_ThrowAssert(bulk_data.num_elements(face) == 1);
       stk::mesh::Entity element = face_elem_rels[0];
 
       // deal with elements to push back to be ghosted; downward relations come
@@ -540,7 +542,7 @@ NonConformalInfo::complete_search()
   double bestElemIpCoords[3];
 
   // fields
-  VectorFieldType* coordinates = meta_data.get_field<VectorFieldType>(
+  VectorFieldType* coordinates = meta_data.get_field<double>(
     stk::topology::NODE_RANK, realm_.get_coordinates_name());
 
   std::vector<double> currentGaussPointCoords(nDim);
@@ -576,7 +578,7 @@ NonConformalInfo::complete_search()
              jj != p2.second; ++jj) {
 
           const uint64_t theBox = jj->second.id();
-          const unsigned theRank = NaluEnv::self().parallel_rank();
+          const unsigned theRank = KynemaUGFEnv::self().parallel_rank();
           const unsigned pt_proc = jj->first.proc();
 
           // check if I own the point...
@@ -617,22 +619,20 @@ NonConformalInfo::complete_search()
             // extract the topo from this face element...
             const stk::topology theFaceTopo =
               bulk_data.bucket(opposingFace).topology();
-            MasterElement* meFC =
-              sierra::nalu::MasterElementRepo::get_surface_master_element(
-                theFaceTopo);
+            MasterElement* meFC = sierra::kynema_ugf::MasterElementRepo::
+              get_surface_master_element_on_host(theFaceTopo);
 
             // extract the connected element to the opposing face
             const stk::mesh::Entity* face_elem_rels =
               bulk_data.begin_elements(opposingFace);
-            ThrowAssert(bulk_data.num_elements(opposingFace) == 1);
+            STK_ThrowAssert(bulk_data.num_elements(opposingFace) == 1);
             stk::mesh::Entity opposingElement = face_elem_rels[0];
 
             // extract the opposing element topo and associated master element
             const stk::topology theOpposingElementTopo =
               bulk_data.bucket(opposingElement).topology();
-            MasterElement* meSCS =
-              sierra::nalu::MasterElementRepo::get_surface_master_element(
-                theOpposingElementTopo);
+            MasterElement* meSCS = sierra::kynema_ugf::MasterElementRepo::
+              get_surface_master_element_on_host(theOpposingElementTopo);
 
             // possible reuse
             dgInfo->allOpposingFaceIds_.push_back(
@@ -701,15 +701,15 @@ NonConformalInfo::complete_search()
   // check for problems... will want to be more pro-active in the near future,
   // e.g., expand and search...
   if (problemDgInfoVec.size() > 0) {
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << "NonConformalInfo::complete_search issue with " << name_
       << " Size of issue is " << problemDgInfoVec.size() << std::endl;
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << "Problem ips are as follows: " << std::endl;
     for (size_t k = 0; k < problemDgInfoVec.size(); ++k) {
       problemDgInfoVec[k]->dump_info();
     }
-    NaluEnv::self().naluOutputP0() << std::endl;
+    KynemaUGFEnv::self().kynema_ugfOutputP0() << std::endl;
     throw std::runtime_error(
       "Try to adjust the search tolerance and re-submit...");
   }
@@ -753,18 +753,18 @@ NonConformalInfo::complete_search()
   }
 
   // global sum
-  NaluEnv::self().naluOutputP0()
+  KynemaUGFEnv::self().kynema_ugfOutputP0()
     << "DgInfo size overview for name: " << name_ << std::endl;
   size_t g_numberOfFacesMissing;
   stk::all_reduce_sum(
-    NaluEnv::self().parallel_comm(), &numberOfFacesMissing,
+    KynemaUGFEnv::self().parallel_comm(), &numberOfFacesMissing,
     &g_numberOfFacesMissing, 1);
   if (g_numberOfFacesMissing > 0) {
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << "  Ghosted search entries ARE NOT sufficient for re-use " << std::endl;
     canReuse_ = false;
   } else {
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << "  Ghosted search entries ARE sufficient for re-use " << std::endl;
     canReuse_ = true;
   }
@@ -774,12 +774,15 @@ NonConformalInfo::complete_search()
   size_t g_minOpposingSize;
   size_t g_maxOpposingSize;
   size_t l_total[2] = {totalDgInfoSize, totalOpposingFaceSize};
-  stk::all_reduce_sum(NaluEnv::self().parallel_comm(), l_total, g_total, 2);
+  stk::all_reduce_sum(
+    KynemaUGFEnv::self().parallel_comm(), l_total, g_total, 2);
   stk::all_reduce_min(
-    NaluEnv::self().parallel_comm(), &minOpposingSize, &g_minOpposingSize, 1);
+    KynemaUGFEnv::self().parallel_comm(), &minOpposingSize, &g_minOpposingSize,
+    1);
   stk::all_reduce_max(
-    NaluEnv::self().parallel_comm(), &maxOpposingSize, &g_maxOpposingSize, 1);
-  NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().parallel_comm(), &maxOpposingSize, &g_maxOpposingSize,
+    1);
+  KynemaUGFEnv::self().kynema_ugfOutputP0()
     << "  Min/Max/Average opposing face size: " << g_minOpposingSize << "/"
     << g_maxOpposingSize << "/" << g_total[1] / g_total[0] << std::endl;
 }
@@ -800,7 +803,7 @@ NonConformalInfo::construct_bounding_boxes()
   const double dynamicFac = dynamicSearchTolAlg_ ? 0.0 : 1.0;
 
   // fields
-  VectorFieldType* coordinates = meta_data.get_field<VectorFieldType>(
+  VectorFieldType* coordinates = meta_data.get_field<double>(
     stk::topology::NODE_RANK, realm_.get_coordinates_name());
 
   // points
@@ -849,7 +852,7 @@ NonConformalInfo::construct_bounding_boxes()
 
       // setup ident
       stk::search::IdentProc<uint64_t, int> theIdent(
-        bulk_data.identifier(face), NaluEnv::self().parallel_rank());
+        bulk_data.identifier(face), KynemaUGFEnv::self().parallel_rank());
 
       // expand the box by both % and search tolerance
       for (int i = 0; i < nDim; ++i) {
@@ -878,7 +881,7 @@ NonConformalInfo::provide_diagnosis()
   stk::mesh::BulkData& bulk_data = realm_.bulk_data();
   const int nDim = meta_data.spatial_dimension();
 
-  VectorFieldType* coordinates = meta_data.get_field<VectorFieldType>(
+  VectorFieldType* coordinates = meta_data.get_field<double>(
     stk::topology::NODE_RANK, realm_.get_coordinates_name());
 
   std::vector<double> currentGaussPointCoords(nDim);
@@ -887,10 +890,10 @@ NonConformalInfo::provide_diagnosis()
   std::vector<double> currentIsoParCoords(nDim);
   std::vector<double> opposingIsoParCoords(nDim);
 
-  NaluEnv::self().naluOutput() << std::endl;
-  NaluEnv::self().naluOutput()
+  KynemaUGFEnv::self().kynema_ugfOutput() << std::endl;
+  KynemaUGFEnv::self().kynema_ugfOutput()
     << "Non Conformal Alg review for surface: " << name_ << std::endl;
-  NaluEnv::self().naluOutput()
+  KynemaUGFEnv::self().kynema_ugfOutput()
     << "===================================== " << std::endl;
   std::vector<std::vector<DgInfo*>>::iterator ii;
   for (ii = dgInfoVec_.begin(); ii != dgInfoVec_.end(); ++ii) {
@@ -987,61 +990,65 @@ NonConformalInfo::provide_diagnosis()
       distanceNorm = std::sqrt(distanceNorm);
 
       // provide output...
-      NaluEnv::self().naluOutput()
+      KynemaUGFEnv::self().kynema_ugfOutput()
         << "Gauss Point Lid: " << localGaussPointId << " Review " << std::endl;
-      NaluEnv::self().naluOutput() << "  encapsulated by Gid: (";
+      KynemaUGFEnv::self().kynema_ugfOutput() << "  encapsulated by Gid: (";
       for (int ni = 0; ni < current_face_num_nodes; ++ni) {
         stk::mesh::Entity node = current_face_node_rels[ni];
-        NaluEnv::self().naluOutput() << bulk_data.identifier(node) << " ";
+        KynemaUGFEnv::self().kynema_ugfOutput()
+          << bulk_data.identifier(node) << " ";
       }
-      NaluEnv::self().naluOutput() << ")" << std::endl;
-      NaluEnv::self().naluOutput()
+      KynemaUGFEnv::self().kynema_ugfOutput() << ")" << std::endl;
+      KynemaUGFEnv::self().kynema_ugfOutput()
         << "Current Gauss Point id: " << currentGaussPointId
         << " (nearest node) "
         << bulk_data.identifier(current_face_node_rels[currentGaussPointId])
         << std::endl;
 
-      NaluEnv::self().naluOutput()
+      KynemaUGFEnv::self().kynema_ugfOutput()
         << "  Current element Gid: " << bulk_data.identifier(currentElement)
         << " (face ordinal: " << dgInfo->currentFaceOrdinal_ << ")"
         << std::endl;
 
-      NaluEnv::self().naluOutput() << "  has Gp coordinates: ";
+      KynemaUGFEnv::self().kynema_ugfOutput() << "  has Gp coordinates: ";
       for (int i = 0; i < nDim; ++i)
-        NaluEnv::self().naluOutput() << currentGaussPointCoords[i] << " ";
-      NaluEnv::self().naluOutput() << std::endl;
-      NaluEnv::self().naluOutput() << "  The best X is: " << bX << std::endl;
-      NaluEnv::self().naluOutput()
+        KynemaUGFEnv::self().kynema_ugfOutput()
+          << currentGaussPointCoords[i] << " ";
+      KynemaUGFEnv::self().kynema_ugfOutput() << std::endl;
+      KynemaUGFEnv::self().kynema_ugfOutput()
+        << "  The best X is: " << bX << std::endl;
+      KynemaUGFEnv::self().kynema_ugfOutput()
         << "  Opposing element Gid: " << opElemId
         << " (face ordinal: " << dgInfo->opposingFaceOrdinal_ << ")"
         << std::endl;
-      NaluEnv::self().naluOutput() << "  encapsulated by Gid: (";
+      KynemaUGFEnv::self().kynema_ugfOutput() << "  encapsulated by Gid: (";
       for (int ni = 0; ni < opposing_face_num_nodes; ++ni) {
         stk::mesh::Entity node = opposing_face_node_rels[ni];
-        NaluEnv::self().naluOutput() << bulk_data.identifier(node) << " ";
+        KynemaUGFEnv::self().kynema_ugfOutput()
+          << bulk_data.identifier(node) << " ";
       }
-      NaluEnv::self().naluOutput() << ")" << std::endl;
-      NaluEnv::self().naluOutput()
+      KynemaUGFEnv::self().kynema_ugfOutput() << ")" << std::endl;
+      KynemaUGFEnv::self().kynema_ugfOutput()
         << "  INTERNAL CHECK.... does current Gp and opposing found Gp match "
            "coordiantes? What error?"
         << std::endl;
-      NaluEnv::self().naluOutput()
+      KynemaUGFEnv::self().kynema_ugfOutput()
         << "  current and opposing Gp coordinates:        " << std::endl;
       for (int i = 0; i < nDim; ++i)
-        NaluEnv::self().naluOutput()
+        KynemaUGFEnv::self().kynema_ugfOutput()
           << "      " << i << " " << checkCurrentFaceGaussPointCoords[i] << " "
           << checkOpposingFaceGaussPointCoords[i] << std::endl;
-      NaluEnv::self().naluOutput()
+      KynemaUGFEnv::self().kynema_ugfOutput()
         << "  current and opposing Gp isoPar coordinates: " << std::endl;
       for (int i = 0; i < nDim - 1; ++i)
-        NaluEnv::self().naluOutput()
+        KynemaUGFEnv::self().kynema_ugfOutput()
           << "      " << i << " " << currentIsoParCoords[i] << " "
           << opposingIsoParCoords[i] << std::endl;
-      NaluEnv::self().naluOutput() << std::endl;
-      NaluEnv::self().naluOutput()
+      KynemaUGFEnv::self().kynema_ugfOutput() << std::endl;
+      KynemaUGFEnv::self().kynema_ugfOutput()
         << " in the end, the Error Distance Norm is: " << distanceNorm
         << std::endl;
-      NaluEnv::self().naluOutput()
+      KynemaUGFEnv::self().kynema_ugfOutput()
         << "-------------------------------------------------------------------"
         << std::endl;
     }
@@ -1078,19 +1085,19 @@ NonConformalInfo::error_check()
 
   // report the data if problem nodes were found
   if (coindidentNodesVec.size() > 0) {
-    NaluEnv::self().naluOutput() << std::endl;
-    NaluEnv::self().naluOutput()
-      << "Non Conformal Alg (P" << NaluEnv::self().parallel_rank()
+    KynemaUGFEnv::self().kynema_ugfOutput() << std::endl;
+    KynemaUGFEnv::self().kynema_ugfOutput()
+      << "Non Conformal Alg (P" << KynemaUGFEnv::self().parallel_rank()
       << ") error found on surface: " << name_ << std::endl;
-    NaluEnv::self().naluOutput()
+    KynemaUGFEnv::self().kynema_ugfOutput()
       << "========================================= " << std::endl;
     for (size_t k = 0; k < coindidentNodesVec.size(); ++k)
-      NaluEnv::self().naluOutput()
+      KynemaUGFEnv::self().kynema_ugfOutput()
         << "coincident nodeId found: " << coindidentNodesVec[k] << std::endl;
   }
 
   return coindidentNodesVec.size();
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

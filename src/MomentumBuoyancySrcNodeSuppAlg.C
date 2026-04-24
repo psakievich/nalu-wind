@@ -20,7 +20,7 @@
 #include <stk_mesh/base/Field.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //==========================================================================
 // Class Definition
@@ -40,10 +40,10 @@ MomentumBuoyancySrcNodeSuppAlg::MomentumBuoyancySrcNodeSuppAlg(Realm& realm)
   // save off fields
   stk::mesh::MetaData& meta_data = realm_.meta_data();
   ScalarFieldType* density =
-    meta_data.get_field<ScalarFieldType>(stk::topology::NODE_RANK, "density");
+    meta_data.get_field<double>(stk::topology::NODE_RANK, "density");
   densityNp1_ = &(density->field_of_state(stk::mesh::StateNP1));
-  dualNodalVolume_ = meta_data.get_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, "dual_nodal_volume");
+  dualNodalVolume_ =
+    meta_data.get_field<double>(stk::topology::NODE_RANK, "dual_nodal_volume");
   nDim_ = meta_data.spatial_dimension();
   gravity_.resize(nDim_);
 
@@ -79,5 +79,5 @@ MomentumBuoyancySrcNodeSuppAlg::node_execute(
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

@@ -20,7 +20,7 @@ class Node;
 }
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class Realm;
 class Simulation;
@@ -44,8 +44,9 @@ public:
   bool simulation_proceeds();
 
   void prepare_for_time_integration();
-  void pre_realm_advance_stage1();
-  void pre_realm_advance_stage2();
+  void prepare_time_step(size_t inonlin = 0);
+  void pre_realm_advance_stage1(size_t inonlin = 0);
+  void pre_realm_advance_stage2(size_t inonlin = 0);
   void post_realm_advance();
   void interstep_updates(int nonLinearIterationIndex);
 
@@ -72,7 +73,9 @@ public:
 
   std::vector<Realm*> realmVec_;
 
-  double get_time_step(const NaluState& theState = NALU_STATE_N) const;
+  void set_time_step(const double dt);
+  double
+  get_time_step(const KynemaUGFState& theState = KYNEMA_UGF_STATE_N) const;
   double get_current_time() const;
   double get_gamma1() const;
   double get_gamma2() const;
@@ -88,7 +91,7 @@ public:
   std::unique_ptr<ExtOverset> overset_;
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

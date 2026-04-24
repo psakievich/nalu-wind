@@ -10,7 +10,7 @@
 
 namespace sierra {
 
-namespace nalu {
+namespace kynema_ugf {
 
 class OpenfastFSI
 {
@@ -18,11 +18,11 @@ public:
   OpenfastFSI(const YAML::Node&);
   virtual ~OpenfastFSI() = default;
 
-  void setup(double dtNalu, std::shared_ptr<stk::mesh::BulkData> bulk);
+  void setup(double dtKynemaUGF, std::shared_ptr<stk::mesh::BulkData> bulk);
 
-  void initialize(int restartFreqNalu, double curTime);
+  void initialize(int restartFreqKynemaUGF, double curTime);
 
-  void map_displacements(double);
+  void map_displacements(double, bool);
 
   void predict_struct_states();
 
@@ -47,6 +47,12 @@ public:
     std::array<double, 3> axis, double omega, double curTime);
   void end_openfast();
 
+  double total_openfastfsi_execution_time() { return openFastTimer_.second; }
+  double total_kynema_ugf_fsi_execution_time()
+  {
+    return kynema_ugfTimer_.second;
+  }
+
 private:
   OpenfastFSI() = delete;
   OpenfastFSI(const OpenfastFSI&) = delete;
@@ -58,6 +64,8 @@ private:
   void compute_mapping();
 
   void send_loads(const double curTime);
+  void timer_start(std::pair<double, double>& timer);
+  void timer_stop(std::pair<double, double>& timer);
 
   std::shared_ptr<stk::mesh::BulkData> bulk_;
 
@@ -77,6 +85,13 @@ private:
 
   int tStep_{0}; // Time step count
 
+  double dt_{-1.0}; // Store kynema-ugf step
+
+  std::pair<double, double> openFastTimer_{
+    0.0, 0.0}; // store time taken in openfast calls
+  std::pair<double, double> kynema_ugfTimer_{
+    0.0, 0.0}; // store time taken in openfast calls
+
   int writeFreq_{
     30}; // Frequency to write line loads and deflections to netcdf file
 
@@ -87,7 +102,7 @@ private:
   void read_inputs(fast::fastInputs& fi, YAML::Node& ofNode);
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 
 } // namespace sierra
 

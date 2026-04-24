@@ -4,9 +4,12 @@
 #include "mesh_motion/MotionDeformingInteriorKernel.h"
 #include "mesh_motion/MotionScalingKernel.h"
 #include "mesh_motion/MotionRotationKernel.h"
+#include "mesh_motion/MotionPrescribedKernel.h"
 #include "mesh_motion/MotionTranslationKernel.h"
+#include "mesh_motion/MotionOscillationKernel.h"
+#include "mesh_motion/TurbineSurrogateKernel.h"
 #include "mesh_motion/MotionWavesKernel.h"
-#include "NaluParsing.h"
+#include "KynemaUGFParsing.h"
 #include "ngp_utils/NgpLoopUtils.h"
 #include "ngp_utils/NgpReducers.h"
 #include "ngp_utils/NgpTypes.h"
@@ -16,7 +19,7 @@
 #include "stk_mesh/base/GetNgpMesh.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 FrameBase::FrameBase(stk::mesh::BulkData& bulk, const YAML::Node& node)
   : bulk_(bulk), meta_(bulk.mesh_meta_data())
@@ -69,12 +72,18 @@ FrameBase::load(const YAML::Node& node)
           new MotionDeformingInteriorKernel(meta_, motion_def));
       else if (type == "rotation")
         motionKernels_[i].reset(new MotionRotationKernel(motion_def));
+      else if (type == "oscillation")
+        motionKernels_[i].reset(new MotionOscillationKernel(motion_def));
       else if (type == "scaling")
         motionKernels_[i].reset(new MotionScalingKernel(meta_, motion_def));
       else if (type == "translation")
         motionKernels_[i].reset(new MotionTranslationKernel(motion_def));
       else if (type == "waving_boundary")
         motionKernels_[i].reset(new MotionWavesKernel(meta_, motion_def));
+      else if (type == "turbine_surrogate")
+        motionKernels_[i].reset(new TurbineSurrogateKernel(meta_, motion_def));
+      else if (type == "prescribed")
+        motionKernels_[i].reset(new MotionPrescribedKernel(motion_def));
       else
         throw std::runtime_error(
           "FrameBase: Invalid mesh motion type: " + type);
@@ -107,7 +116,7 @@ FrameBase::populate_part_vec(const YAML::Node& node)
     partNamesVec.end()) {
     partNamesVec.clear();
     for (const auto* part : meta_.get_mesh_parts()) {
-      ThrowRequire(part);
+      STK_ThrowRequire(part);
       if (part->topology().rank() == stk::topology::ELEMENT_RANK) {
         partNamesVec.push_back(part->name());
       }
@@ -175,7 +184,7 @@ FrameBase::compute_centroid_on_parts(mm::ThreeDVecType& centroid)
   // get the field from the NGP mesh
   stk::mesh::NgpField<double> modelCoords =
     stk::mesh::get_updated_ngp_field<double>(
-      *meta_.get_field<VectorFieldType>(entityRank, "coordinates"));
+      *meta_.get_field<double>(entityRank, "coordinates"));
 
   // sync fields to device
   modelCoords.sync_to_device();
@@ -183,15 +192,15 @@ FrameBase::compute_centroid_on_parts(mm::ThreeDVecType& centroid)
   // select all nodes in the parts
   stk::mesh::Selector sel = stk::mesh::selectUnion(partVec_);
 
-  nalu_ngp::MinMaxSumScalar<double> xCoord, yCoord, zCoord;
-  nalu_ngp::MinMaxSum<double> xReducer(xCoord), yReducer(yCoord),
+  kynema_ugf_ngp::MinMaxSumScalar<double> xCoord, yCoord, zCoord;
+  kynema_ugf_ngp::MinMaxSum<double> xReducer(xCoord), yReducer(yCoord),
     zReducer(zCoord);
 
-  nalu_ngp::run_entity_par_reduce(
+  kynema_ugf_ngp::run_entity_par_reduce(
     "FrameBase::compute_x_centroid_on_parts", ngpMesh, entityRank, sel,
     KOKKOS_LAMBDA(
-      const nalu_ngp::NGPMeshTraits<stk::mesh::NgpMesh>::MeshIndex& mi,
-      nalu_ngp::MinMaxSumScalar<double>& threadVal) {
+      const kynema_ugf_ngp::NGPMeshTraits<stk::mesh::NgpMesh>::MeshIndex& mi,
+      kynema_ugf_ngp::MinMaxSumScalar<double>& threadVal) {
       const double xc = modelCoords.get(mi, 0);
 
       if (xc < threadVal.min_val)
@@ -200,12 +209,12 @@ FrameBase::compute_centroid_on_parts(mm::ThreeDVecType& centroid)
         threadVal.max_val = xc;
     },
     xReducer);
-  nalu_ngp::run_entity_par_reduce(
+  kynema_ugf_ngp::run_entity_par_reduce(
     "FrameBase::compute_y_centroid_on_parts", ngpMesh, stk::topology::NODE_RANK,
     sel,
     KOKKOS_LAMBDA(
-      const nalu_ngp::NGPMeshTraits<stk::mesh::NgpMesh>::MeshIndex& mi,
-      nalu_ngp::MinMaxSumScalar<double>& threadVal) {
+      const kynema_ugf_ngp::NGPMeshTraits<stk::mesh::NgpMesh>::MeshIndex& mi,
+      kynema_ugf_ngp::MinMaxSumScalar<double>& threadVal) {
       const double yc = modelCoords.get(mi, 1);
 
       if (yc < threadVal.min_val)
@@ -214,12 +223,12 @@ FrameBase::compute_centroid_on_parts(mm::ThreeDVecType& centroid)
         threadVal.max_val = yc;
     },
     yReducer);
-  nalu_ngp::run_entity_par_reduce(
+  kynema_ugf_ngp::run_entity_par_reduce(
     "FrameBase::compute_z_centroid_on_parts", ngpMesh, stk::topology::NODE_RANK,
     sel,
     KOKKOS_LAMBDA(
-      const nalu_ngp::NGPMeshTraits<stk::mesh::NgpMesh>::MeshIndex& mi,
-      nalu_ngp::MinMaxSumScalar<double>& threadVal) {
+      const kynema_ugf_ngp::NGPMeshTraits<stk::mesh::NgpMesh>::MeshIndex& mi,
+      kynema_ugf_ngp::MinMaxSumScalar<double>& threadVal) {
       const double zc = modelCoords.get(mi, 2);
 
       if (zc < threadVal.min_val)
@@ -249,5 +258,5 @@ FrameBase::compute_centroid_on_parts(mm::ThreeDVecType& centroid)
   centroid[2] = 0.5 * (gZC[0] + gZC[1]);
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

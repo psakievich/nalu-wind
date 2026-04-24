@@ -9,7 +9,6 @@
 #include <stk_mesh/base/BulkData.hpp>
 #include <stk_mesh/base/MeshBuilder.hpp>
 #include <stk_mesh/base/Bucket.hpp>
-#include <stk_mesh/base/CoordinateSystems.hpp>
 #include <stk_mesh/base/FieldBase.hpp>
 #include <stk_mesh/base/Field.hpp>
 #include <stk_mesh/base/GetEntities.hpp>
@@ -33,13 +32,14 @@ public:
     meshBuilder.set_spatial_dimension(numberOfDimensions);
     bulk_ = meshBuilder.create();
     auto& meta_ = bulk_->mesh_meta_data();
+    meta_.use_simple_fields();
 
-    temperature_ = &meta_.declare_field<ScalarFieldType>(
-      stk::topology::NODE_RANK, "temperature");
+    temperature_ =
+      &meta_.declare_field<double>(stk::topology::NODE_RANK, "temperature");
 
-    raTemperature_ = &meta_.declare_field<ScalarFieldType>(
+    raTemperature_ = &meta_.declare_field<double>(
       stk::topology::NODE_RANK,
-      sierra::nalu::MovingAveragePostProcessor::filtered_field_name(
+      sierra::kynema_ugf::MovingAveragePostProcessor::filtered_field_name(
         "temperature"));
     stk::mesh::put_field_on_mesh(
       *temperature_, meta_.universal_part(), nullptr);
@@ -55,13 +55,13 @@ public:
     timeIntegrator_.timeStepN_ = final_time / (numSteps);
   }
 
-  sierra::nalu::TimeIntegrator timeIntegrator_;
+  sierra::kynema_ugf::TimeIntegrator timeIntegrator_;
   std::shared_ptr<stk::mesh::BulkData> bulk_;
   int numSteps;
 
   stk::mesh::Entity node;
-  ScalarFieldType* temperature_;
-  ScalarFieldType* raTemperature_;
+  sierra::kynema_ugf::ScalarFieldType* temperature_;
+  sierra::kynema_ugf::ScalarFieldType* raTemperature_;
 };
 
 } // namespace
@@ -71,7 +71,7 @@ TEST_F(PostProcessor, moving_average_constant)
   std::vector<double> constant_realization(numSteps, 10.0);
 
   double timeScale = 0.1;
-  sierra::nalu::MovingAveragePostProcessor avgPP(
+  sierra::kynema_ugf::MovingAveragePostProcessor avgPP(
     *bulk_, timeIntegrator_, false);
   avgPP.add_fields({"temperature"});
   avgPP.set_time_scale(timeScale);
@@ -119,7 +119,7 @@ TEST_F(PostProcessor, moving_average_ou)
   auto realization = ou_realization(1.0, dt, numSteps);
 
   double timeScale = 0.1;
-  sierra::nalu::MovingAveragePostProcessor avgPP(
+  sierra::kynema_ugf::MovingAveragePostProcessor avgPP(
     *bulk_, timeIntegrator_, false);
   avgPP.add_fields({"temperature"});
   avgPP.set_time_scale(timeScale);

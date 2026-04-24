@@ -21,7 +21,7 @@ class Node;
 }
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class Realm;
 class MaterialProperty;
@@ -41,7 +41,7 @@ public:
 
   void load(const YAML::Node& node);
 
-  void breadboard(){};
+  void breadboard() {};
 
   // ease of access methods to particular initial condition
   size_t size() { return materialPropertyVector_.size(); }
@@ -61,7 +61,7 @@ public:
   std::map<std::string, ReferencePropertyData*> tablePropertyMap_;
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

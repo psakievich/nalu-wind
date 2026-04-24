@@ -24,7 +24,7 @@ class Node;
 }
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 struct FixPressureAtNodeInfo;
 
@@ -42,7 +42,7 @@ enum ErrorIndicatorType {
  *
  */
 enum ProjTScaleType {
-  TSCALE_DEFAULT = 0,  //!< Original Nalu implementation
+  TSCALE_DEFAULT = 0,  //!< Original KynemaUGF implementation
   TSCALE_UDIAGINV = 1, //!< 1/diag(A_p) implementation
   NUM_TSCALE_TYPES
 };
@@ -56,9 +56,12 @@ public:
   void load(const YAML::Node& node);
   void initialize_turbulence_constants();
 
-  inline bool has_mesh_motion() const { return meshMotion_; }
+  inline bool has_mesh_motion() const { return meshMotion_ || kynemaSixDof_; }
 
-  inline bool has_mesh_deformation() const { return externalMeshDeformation_; }
+  inline bool has_mesh_deformation() const
+  {
+    return (externalMeshDeformation_ || openfastFSI_);
+  }
 
   inline bool does_mesh_move() const
   {
@@ -97,6 +100,11 @@ public:
 
   bool has_set_boussinesq_time_scale();
 
+  bool use_balanced_buoyancy_force_{false};
+  bool realm_has_vof_{false};
+  double vof_sharpening_scaling_factor_{3.0};
+  double vof_diffusion_scaling_factor_{0.6};
+
   double hybridDefault_;
   double alphaDefault_;
   double alphaUpwDefault_;
@@ -119,11 +127,14 @@ public:
   double nearestFaceEntrain_;
   double includeDivU_;
   bool mdotInterpRhoUTogether_;
+  bool solveIncompressibleContinuity_;
   bool isTurbulent_;
   TurbulenceModel turbulenceModel_;
   bool meshMotion_;
   bool meshTransformation_;
   bool externalMeshDeformation_;
+  bool openfastFSI_;
+  bool kynemaSixDof_{false};
   bool ncAlgGaussLabatto_;
   bool ncAlgUpwindAdvection_;
   bool ncAlgIncludePstab_;
@@ -230,7 +241,7 @@ public:
   bool newHO_;
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

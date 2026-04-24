@@ -19,12 +19,13 @@ typedef std::vector<Part*> PartVector;
 } // namespace mesh
 } // namespace stk
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class Realm;
 class MasterElement;
 class SupplementalAlgorithm;
 class Kernel;
+class FieldManager;
 
 class Algorithm
 {
@@ -33,7 +34,7 @@ public:
   Algorithm(Realm& realm, stk::mesh::Part* part);
 
   // provide part vector
-  Algorithm(Realm& realm, stk::mesh::PartVector& partVec);
+  Algorithm(Realm& realm, const stk::mesh::PartVector& partVec);
 
   virtual ~Algorithm();
 
@@ -43,12 +44,13 @@ public:
 
   Realm& realm_;
   stk::mesh::PartVector partVec_;
+  const FieldManager& fieldManager_;
   std::vector<SupplementalAlgorithm*> supplementalAlg_;
 
   std::vector<Kernel*> activeKernels_;
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

@@ -11,11 +11,11 @@
 #include <aero/actuator/UtilitiesActuator.h>
 #include <stk_mesh/base/BulkData.hpp>
 #include <stk_mesh/base/MetaData.hpp>
-#include <NaluEnv.h>
+#include <KynemaUGFEnv.h>
 #include <FieldTypeDef.h>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 void
 ActFastCacheRelativeVelocities(ActuatorBulkFAST& actBulk)
@@ -54,7 +54,7 @@ void
 ActFastUpdatePoints::operator()(int index) const
 {
 
-  ThrowAssert(turbId_ >= 0);
+  STK_ThrowAssert(turbId_ >= 0);
   const int pointId = index - offsets_(turbId_);
   auto point = Kokkos::subview(points_, index, Kokkos::ALL);
 
@@ -268,5 +268,5 @@ ActFastSpreadForceWhProjInnerLoop::operator()(
   }
 }
 
-} /* namespace nalu */
+} /* namespace kynema_ugf */
 } /* namespace sierra */

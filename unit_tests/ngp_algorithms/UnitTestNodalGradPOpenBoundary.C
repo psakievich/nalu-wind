@@ -42,9 +42,10 @@ TEST_F(LowMachKernelHex8Mesh, NGP_nodal_grad_popen)
 
   stk::mesh::Part* surface1 = meta_->get_part("surface_1");
   {
-    sierra::nalu::GeometryAlgDriver geomAlgDriver(helperObjs.realm);
-    geomAlgDriver.register_face_algorithm<sierra::nalu::GeometryBoundaryAlg>(
-      sierra::nalu::WALL, surface1, "geometry");
+    sierra::kynema_ugf::GeometryAlgDriver geomAlgDriver(helperObjs.realm);
+    geomAlgDriver
+      .register_face_algorithm<sierra::kynema_ugf::GeometryBoundaryAlg>(
+        sierra::kynema_ugf::WALL, surface1, "geometry");
     geomAlgDriver.execute();
   }
 
@@ -70,10 +71,11 @@ TEST_F(LowMachKernelHex8Mesh, NGP_nodal_grad_popen)
     stk::mesh::field_fill(0.0, *dpdx_);
     helperObjs.realm.solutionOptions_->explicitlyZeroOpenPressureGradient_ =
       zeroGrad;
-    sierra::nalu::ScalarNodalGradAlgDriver algDriver(helperObjs.realm, "dpdx");
+    sierra::kynema_ugf::ScalarNodalGradAlgDriver algDriver(
+      helperObjs.realm, pressure_->name(), "dpdx");
     algDriver
-      .register_face_elem_algorithm<sierra::nalu::NodalGradPOpenBoundary>(
-        sierra::nalu::OPEN, surface1, stk::topology::HEX_8,
+      .register_face_elem_algorithm<sierra::kynema_ugf::NodalGradPOpenBoundary>(
+        sierra::kynema_ugf::OPEN, surface1, stk::topology::HEX_8,
         "nodal_grad_pressure_open_boundary", useShifted);
     algDriver.execute();
 

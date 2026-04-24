@@ -25,7 +25,7 @@
 #include <Kokkos_Core.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class ElemDataRequests;
 class EquationSystem;
@@ -45,7 +45,7 @@ public:
     const SolutionOptions& solnOpts,
     EquationSystem* eqSystem,
     VectorFieldType* velocity,
-    GenericFieldType* Gjui,
+    TensorFieldType* Gjui,
     ScalarFieldType* viscosity,
     ElemDataRequests& faceDataPreReqs,
     ElemDataRequests& elemDataPreReqs,
@@ -112,7 +112,7 @@ private:
     v_adv_shape_function_{"v_adv_shape_func"};
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif /* MomentumOpenAdvDiffElemKernel_h */

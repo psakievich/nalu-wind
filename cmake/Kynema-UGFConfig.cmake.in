@@ -1,0 +1,67 @@
+@PACKAGE_INIT@
+
+list(APPEND CMAKE_MODULE_PATH "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_DATADIR@/cmake/Modules")
+
+# Set informational variables for all dependencies that were enabled
+set(KYNEMA_UGF_USES_HYPRE @ENABLE_HYPRE@)
+set(KYNEMA_UGF_USES_UMPIRE @ENABLE_UMPIRE@)
+set(KYNEMA_UGF_USES_TIOGA @ENABLE_TIOGA@)
+set(KYNEMA_UGF_USES_OPENFAST @ENABLE_OPENFAST@)
+set(KYNEMA_UGF_USES_FFTW @ENABLE_FFTW@)
+set(KYNEMA_UGF_USES_BOOST @ENABLE_BOOST@)
+set(KYNEMA_UGF_USES_KYNEMA @ENABLE_KYNEMA_SIXDOF@)
+
+# Load dependency libraries so that the targets are available
+
+if (NOT ${Trilinos_FOUND})
+  set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} "@Trilinos_DIR@")
+  find_package(Trilinos QUIET REQUIRED)
+endif()
+
+if (NOT ${YAML-CPP_FOUND})
+  set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} "@YAML-CPP_DIR@")
+  find_package(YAML-CPP QUIET REQUIRED)
+endif()
+
+if (${KYNEMA_UGF_USES_BOOST} AND NOT ${Boost_FOUND})
+  find_package(Boost QUIET REQUIRED COMPONENTS filesystem iostreams)
+endif()
+
+if (${KYNEMA_UGF_USES_TIOGA} AND NOT ${TIOGA_FOUND})
+  set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} "@TIOGA_DIR@")
+  find_package(TIOGA QUIET REQUIRED)
+endif()
+
+if (${KYNEMA_UGF_USES_OPENFAST} AND NOT ${OpenFAST_FOUND})
+  set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} "@OpenFAST_DIR@")
+  find_package(OpenFAST QUIET REQUIRED)
+endif()
+
+if (${KYNEMA_UGF_USES_HYPRE} AND NOT ${HYPRE_FOUND})
+  set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} "@HYPRE_DIR@")
+  find_package(HYPRE QUIET REQUIRED)
+endif()
+
+if (${KYNEMA_UGF_USES_UMPIRE} AND NOT ${UMPIRE_FOUND})
+  set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} "@UMPIRE_DIR@")
+  find_package(Umpire QUIET REQUIRED)
+endif()
+
+if (${KYNEMA_UGF_USES_FFTW} AND NOT ${FFTW_FOUND})
+  set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} "@FFTW_DIR@")
+  find_package(FFTW QUIET REQUIRED)
+endif()
+
+if (${KYNEMA_UGF_USES_KYNEMA} AND NOT ${Kynema_FOUND})
+  set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} "@Kynema_DIR@")
+  find_package(Kynema QUIET REQUIRED)
+endif()
+
+set_and_check(KYNEMA_UGF_INCLUDE_DIRS "${PACKAGE_PREFIX_DIR}/include")
+set_and_check(KYNEMA_UGF_LIBRARY_DIRS "${PACKAGE_PREFIX_DIR}/lib")
+
+include("${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@Targets.cmake")
+set(KYNEMA_UGF_LIBRARIES "@PROJECT_NAME@::kynema-ugf")
+set(KYNEMA_UGF_FOUND TRUE)
+
+check_required_components(KYNEMA_UGF)

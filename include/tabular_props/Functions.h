@@ -4,7 +4,7 @@
 #include <vector>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //============================================================================
 /**
@@ -57,8 +57,8 @@ double F_chi(const double Z);
 class FChi
 {
 public:
-  FChi(){};
-  ~FChi(){};
+  FChi() {};
+  ~FChi() {};
 
   double query(const double Z);
 };
@@ -81,7 +81,7 @@ class FGamma
 {
 public:
   explicit FGamma(const int nMixFrac) { zBuf_.resize(nMixFrac, 0.0); }
-  ~FGamma(){};
+  ~FGamma() {};
 
   void setZStoich(const std::vector<std::vector<double>>& zStoich)
   {
@@ -99,7 +99,7 @@ private:
   std::vector<double> gammaMaxStoich_;
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

@@ -11,7 +11,7 @@
 
 #include "BuildTemplates.h"
 #include "master_element/MasterElement.h"
-#include "master_element/MasterElementFactory.h"
+#include "master_element/MasterElementRepo.h"
 #include "ngp_utils/NgpLoopUtils.h"
 #include "ngp_utils/NgpFieldOps.h"
 #include "ngp_utils/NgpReduceUtils.h"
@@ -26,7 +26,7 @@
 #include <stk_mesh/base/NgpMesh.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 namespace {
 
@@ -138,8 +138,9 @@ ABLWallFrictionVelAlg<BcAlgTraits>::ABLWallFrictionVelAlg(
     Tref_(Tref),
     kappa_(kappa),
     useShifted_(useShifted),
-    meFC_(sierra::nalu::MasterElementRepo::get_surface_master_element<
-          BcAlgTraits>())
+    meFC_(
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_dev(
+        BcAlgTraits::topo_))
 {
   faceData_.add_cvfem_face_me(meFC_);
 
@@ -154,9 +155,6 @@ ABLWallFrictionVelAlg<BcAlgTraits>::ABLWallFrictionVelAlg(
   faceData_.add_face_field(
     exposedAreaVec_, BcAlgTraits::numFaceIp_, BcAlgTraits::nDim_);
   faceData_.add_face_field(wallNormDist_, BcAlgTraits::numFaceIp_);
-
-  auto shp_fcn = useShifted_ ? FC_SHIFTED_SHAPE_FCN : FC_SHAPE_FCN;
-  faceData_.add_master_element_call(shp_fcn, CURRENT_COORDINATES);
 }
 
 template <typename BcAlgTraits>
@@ -164,7 +162,8 @@ void
 ABLWallFrictionVelAlg<BcAlgTraits>::execute()
 {
   namespace mo = abl_monin_obukhov;
-  using ElemSimdData = sierra::nalu::nalu_ngp::ElemSimdData<stk::mesh::NgpMesh>;
+  using ElemSimdData =
+    sierra::kynema_ugf::kynema_ugf_ngp::ElemSimdData<stk::mesh::NgpMesh>;
   const auto& meshInfo = realm_.mesh_info();
   const auto ngpMesh = meshInfo.ngp_mesh();
   const auto& fieldMgr = meshInfo.ngp_field_manager();
@@ -194,22 +193,27 @@ ABLWallFrictionVelAlg<BcAlgTraits>::execute()
   const stk::mesh::Selector sel =
     realm_.meta_data().locally_owned_part() & stk::mesh::selectUnion(partVec_);
 
-  const auto utauOps = nalu_ngp::simd_elem_field_updater(ngpMesh, ngpUtau);
+  const auto utauOps =
+    kynema_ugf_ngp::simd_elem_field_updater(ngpMesh, ngpUtau);
 
   // Reducer to accumulate the area-weighted utau sum as well as total area for
   // wall boundary of this specific topology.
-  nalu_ngp::ArraySimdDouble2 utauSum(0.0);
-  Kokkos::Sum<nalu_ngp::ArraySimdDouble2> utauReducer(utauSum);
+  kynema_ugf_ngp::ArraySimdDouble2 utauSum(0.0);
+  Kokkos::Sum<kynema_ugf_ngp::ArraySimdDouble2> utauReducer(utauSum);
+
+  const auto shp =
+    shape_fcn<BcAlgTraits, QuadRank::SCV>(use_shifted_quad(useShifted));
 
   const std::string algName =
     "ABLWallFrictionVelAlg_" + std::to_string(BcAlgTraits::topo_);
-  nalu_ngp::run_elem_par_reduce(
+  kynema_ugf_ngp::run_elem_par_reduce(
     algName, meshInfo, realm_.meta_data().side_rank(), faceData_, sel,
-    KOKKOS_LAMBDA(ElemSimdData & edata, nalu_ngp::ArraySimdDouble2 & uSum) {
+    KOKKOS_LAMBDA(
+      ElemSimdData & edata, kynema_ugf_ngp::ArraySimdDouble2 & uSum) {
       // Unit normal vector
-      NALU_ALIGNED DoubleType nx[BcAlgTraits::nDim_];
-      NALU_ALIGNED DoubleType velIp[BcAlgTraits::nDim_];
-      NALU_ALIGNED DoubleType bcVelIp[BcAlgTraits::nDim_];
+      DoubleType nx[BcAlgTraits::nDim_];
+      DoubleType velIp[BcAlgTraits::nDim_];
+      DoubleType bcVelIp[BcAlgTraits::nDim_];
 
       auto& scrViews = edata.simdScrView;
       const auto& v_vel = scrViews.get_scratch_view_2D(velID);
@@ -219,10 +223,6 @@ ABLWallFrictionVelAlg<BcAlgTraits>::execute()
       const auto& v_specHeat = scrViews.get_scratch_view_1D(specHeatID);
       const auto& v_areavec = scrViews.get_scratch_view_2D(areaVecID);
       const auto& v_wallnormdist = scrViews.get_scratch_view_1D(wDistID);
-
-      const auto meViews = scrViews.get_me_views(CURRENT_COORDINATES);
-      const auto& v_shape_fcn =
-        useShifted ? meViews.fc_shifted_shape_fcn : meViews.fc_shape_fcn;
 
       for (int ip = 0; ip < BcAlgTraits::numFaceIp_; ++ip) {
         DoubleType aMag = 0.0;
@@ -245,7 +245,7 @@ ABLWallFrictionVelAlg<BcAlgTraits>::execute()
         DoubleType rhoIp = 0.0;
         DoubleType CpIp = 0.0;
         for (int ic = 0; ic < BcAlgTraits::nodesPerElement_; ++ic) {
-          const DoubleType r = v_shape_fcn(ip, ic);
+          const DoubleType r = shp(ip, ic);
           heatFluxIp += r * v_bcHeatFlux(ic);
           rhoIp += r * v_rho(ic);
           CpIp += r * v_specHeat(ic);
@@ -321,5 +321,5 @@ ABLWallFrictionVelAlg<BcAlgTraits>::execute()
 
 INSTANTIATE_KERNEL_FACE(ABLWallFrictionVelAlg)
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

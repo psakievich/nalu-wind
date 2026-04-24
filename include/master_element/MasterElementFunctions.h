@@ -29,7 +29,7 @@
 #include <type_traits>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 template <typename ftype>
 KOKKOS_INLINE_FUNCTION void
@@ -62,7 +62,7 @@ template <
   typename GradViewType,
   typename CoordViewType,
   typename OutputViewType>
-KOKKOS_FUNCTION KOKKOS_FUNCTION void
+KOKKOS_INLINE_FUNCTION void
 generic_grad_op(
   const GradViewType& referenceGradWeights,
   const CoordViewType& coords,
@@ -71,29 +71,31 @@ generic_grad_op(
   constexpr int dim = AlgTraits::nDim_;
 
   using ftype = typename CoordViewType::value_type;
+  // static_assert(
+  //   std::is_convertible_v<typename GradViewType::value_type, ftype>,
+  //   "Incompatiable value type for views");
+  // static_assert(
+  //   std::is_convertible_v<ftype, typename OutputViewType::value_type>::value,
+  //   "Incompatiable value type for views");
+  static_assert(GradViewType::rank == 3, "grad view assumed to be rank 3");
   static_assert(
-    std::is_same<ftype, typename GradViewType::value_type>::value,
-    "Incompatiable value type for views");
-  static_assert(
-    std::is_same<ftype, typename OutputViewType::value_type>::value,
-    "Incompatiable value type for views");
-  static_assert(GradViewType::Rank == 3, "grad view assumed to be rank 3");
-  static_assert(
-    CoordViewType::Rank == 2, "Coordinate view assumed to be rank 2");
-  static_assert(OutputViewType::Rank == 3, "Weight view assumed to be rank 3");
+    CoordViewType::rank == 2, "Coordinate view assumed to be rank 2");
+  static_assert(OutputViewType::rank == 3, "Weight view assumed to be rank 3");
 
-  ThrowAssert(AlgTraits::nodesPerElement_ == referenceGradWeights.extent(1));
-  ThrowAssert(AlgTraits::nDim_ == referenceGradWeights.extent(2));
+  STK_NGP_ThrowAssert(
+    AlgTraits::nodesPerElement_ == referenceGradWeights.extent_int(1));
+  STK_NGP_ThrowAssert(AlgTraits::nDim_ == referenceGradWeights.extent_int(2));
   for (int i = 0; i < dim; ++i)
-    ThrowAssert(weights.extent(i) == referenceGradWeights.extent(i));
+    STK_NGP_ThrowAssert(
+      weights.extent_int(i) == referenceGradWeights.extent_int(i));
 
-  for (unsigned ip = 0; ip < referenceGradWeights.extent(0); ++ip) {
-    NALU_ALIGNED ftype jact[dim][dim];
+  for (int ip = 0; ip < referenceGradWeights.extent_int(0); ++ip) {
+    ftype jact[dim][dim];
     for (int i = 0; i < dim; ++i)
       for (int j = 0; j < dim; ++j)
         jact[i][j] = ftype(0.0);
 
-    NALU_ALIGNED ftype refGrad[AlgTraits::nodesPerElement_][dim];
+    ftype refGrad[AlgTraits::nodesPerElement_][dim];
     for (int n = 0; n < AlgTraits::nodesPerElement_; ++n) {
       for (int i = 0; i < dim; ++i) {
         refGrad[n][i] = referenceGradWeights(ip, n, i);
@@ -105,17 +107,17 @@ generic_grad_op(
       }
     }
 
-    NALU_ALIGNED ftype adjJac[dim][dim];
+    ftype adjJac[dim][dim];
     cofactorMatrix(adjJac, jact);
 
-    NALU_ALIGNED ftype det = ftype(0.0);
+    ftype det = ftype(0.0);
     for (int i = 0; i < dim; ++i)
       det += jact[i][0] * adjJac[i][0];
-    ThrowAssertMsg(
+    STK_NGP_ThrowAssertMsg(
       stk::simd::are_any(det > tiny_positive_value()),
       "Problem with Jacobian determinant");
 
-    NALU_ALIGNED const ftype inv_detj = ftype(1.0) / det;
+    const ftype inv_detj = ftype(1.0) / det;
 
     for (int n = 0; n < AlgTraits::nodesPerElement_; ++n) {
       for (int i = 0; i < dim; ++i) {
@@ -134,7 +136,7 @@ template <
   typename GradViewType,
   typename CoordViewType,
   typename OutputViewType>
-KOKKOS_FUNCTION void
+KOKKOS_INLINE_FUNCTION void
 generic_gij_3d(
   const GradViewType& referenceGradWeights,
   const CoordViewType& coords,
@@ -142,21 +144,20 @@ generic_gij_3d(
   OutputViewType& glo)
 {
   using ftype = typename CoordViewType::value_type;
-  static_assert(
-    std::is_same<ftype, typename GradViewType::value_type>::value,
-    "Incompatiable value type for views");
-  static_assert(
-    std::is_same<ftype, typename OutputViewType::value_type>::value,
-    "Incompatiable value type for views");
-  static_assert(GradViewType::Rank == 3, "grad view assumed to be 3D");
-  static_assert(CoordViewType::Rank == 2, "Coordinate view assumed to be 2D");
-  static_assert(OutputViewType::Rank == 3, "gij view assumed to be 3D");
+  // static_assert(
+  //   std::is_convertible_v<ftype, typename GradViewType::value_type>,
+  //   "Incompatiable value type for views");
+  // static_assert(
+  //   std::is_convertible_v<ftype, typename OutputViewType::value_type>,
+  //   "Incompatiable value type for views");
+  static_assert(GradViewType::rank == 3, "grad view assumed to be 3D");
+  static_assert(CoordViewType::rank == 2, "Coordinate view assumed to be 2D");
+  static_assert(OutputViewType::rank == 3, "gij view assumed to be 3D");
   static_assert(AlgTraits::nDim_ == 3, "3D method");
 
-  for (unsigned ip = 0; ip < referenceGradWeights.extent(0); ++ip) {
+  for (int ip = 0; ip < referenceGradWeights.extent_int(0); ++ip) {
 
-    NALU_ALIGNED ftype jac[3][3] = {
-      {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}};
+    ftype jac[3][3] = {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}};
     for (int n = 0; n < AlgTraits::nodesPerElement_; ++n) {
       jac[0][0] += referenceGradWeights(ip, n, 0) * coords(n, 0);
       jac[0][1] += referenceGradWeights(ip, n, 1) * coords(n, 0);
@@ -191,7 +192,7 @@ generic_gij_3d(
 
     // the covariant is the inverse of the contravariant by definition
     // gUpper is symmetric
-    NALU_ALIGNED const ftype inv_detj =
+    const ftype inv_detj =
       ftype(1.0) /
       (gup(ip, 0, 0) *
          (gup(ip, 1, 1) * gup(ip, 2, 2) - gup(ip, 1, 2) * gup(ip, 1, 2)) -
@@ -221,7 +222,7 @@ generic_gij_3d(
 }
 
 template <typename AlgTraits>
-KOKKOS_FUNCTION void
+KOKKOS_INLINE_FUNCTION void
 generic_Mij_2d(
   const int numIntPoints,
   const double* deriv,
@@ -318,26 +319,26 @@ template <
   typename GradViewType,
   typename CoordViewType,
   typename OutputViewType>
-KOKKOS_FUNCTION void
+KOKKOS_INLINE_FUNCTION void
 generic_Mij_2d(
   const GradViewType& referenceGradWeights,
   const CoordViewType& coords,
   OutputViewType& metric)
 {
   using ftype = typename CoordViewType::value_type;
-  static_assert(
-    std::is_same<ftype, typename GradViewType::value_type>::value,
-    "Incompatiable value type for views");
-  static_assert(
-    std::is_same<ftype, typename OutputViewType::value_type>::value,
-    "Incompatiable value type for views");
-  static_assert(GradViewType::Rank == 3, "grad view assumed to be 3D");
-  static_assert(CoordViewType::Rank == 2, "Coordinate view assumed to be 2D");
-  static_assert(OutputViewType::Rank == 3, "Mij view assumed to be 3D");
+  // static_assert(
+  //   std::is_convertible_v<ftype, typename GradViewType::value_type>,
+  //   "Incompatiable value type for views");
+  // static_assert(
+  //   std::is_convertible_v<ftype, typename OutputViewType::value_type>,
+  //   "Incompatiable value type for views");
+  static_assert(GradViewType::rank == 3, "grad view assumed to be 3D");
+  static_assert(CoordViewType::rank == 2, "Coordinate view assumed to be 2D");
+  static_assert(OutputViewType::rank == 3, "Mij view assumed to be 3D");
   static_assert(AlgTraits::nDim_ == 2, "2D method");
 
   const int npe = AlgTraits::nodesPerElement_;
-  const int nint = referenceGradWeights.extent(0);
+  const int nint = referenceGradWeights.extent_int(0);
 
   ftype dx_ds[2][2];
   ftype norm;
@@ -486,8 +487,8 @@ generic_Mij_3d(
 
     // At this point we have Q, the eigenvectors and D the eigenvalues of Mij^2,
     // so to create Mij, we use Q sqrt(D) Q^T
-    for (unsigned i = 0; i < 3; i++)
-      for (unsigned j = 0; j < 3; j++) {
+    for (int i = 0; i < 3; i++)
+      for (int j = 0; j < 3; j++) {
         metric[(ip * AlgTraits::nDim_ + i) * AlgTraits::nDim_ + j] =
           Q[i][0] * Q[j][0] * stk::math::sqrt(D[0][0]) +
           Q[i][1] * Q[j][1] * stk::math::sqrt(D[1][1]) +
@@ -501,25 +502,25 @@ template <
   typename GradViewType,
   typename CoordViewType,
   typename OutputViewType>
-KOKKOS_FUNCTION void
+KOKKOS_INLINE_FUNCTION void
 generic_Mij_3d(
   const GradViewType& referenceGradWeights,
   const CoordViewType& coords,
   OutputViewType& metric)
 {
   using ftype = typename CoordViewType::value_type;
-  static_assert(
-    std::is_same<ftype, typename GradViewType::value_type>::value,
-    "Incompatiable value type for views");
-  static_assert(
-    std::is_same<ftype, typename OutputViewType::value_type>::value,
-    "Incompatiable value type for views");
-  static_assert(GradViewType::Rank == 3, "grad view assumed to be 3D");
-  static_assert(CoordViewType::Rank == 2, "Coordinate view assumed to be 2D");
-  static_assert(OutputViewType::Rank == 3, "Mij view assumed to be 3D");
+  // static_assert(
+  //   std::is_convertible_v<ftype, typename GradViewType::value_type>,
+  //   "Incompatiable value type for views");
+  // static_assert(
+  //   std::is_convertible_v<ftype, typename OutputViewType::value_type>,
+  //   "Incompatiable value type for views");
+  static_assert(GradViewType::rank == 3, "grad view assumed to be 3D");
+  static_assert(CoordViewType::rank == 2, "Coordinate view assumed to be 2D");
+  static_assert(OutputViewType::rank == 3, "Mij view assumed to be 3D");
   static_assert(AlgTraits::nDim_ == 3, "3D method");
 
-  for (unsigned ip = 0; ip < referenceGradWeights.extent(0); ++ip) {
+  for (int ip = 0; ip < referenceGradWeights.extent_int(0); ++ip) {
 
     ftype jac[3][3] = {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}};
     for (int n = 0; n < AlgTraits::nodesPerElement_; ++n) {
@@ -565,8 +566,8 @@ generic_Mij_3d(
 
     // At this point we have Q, the eigenvectors and D the eigenvalues of Mij^2,
     // so to create Mij, we use Q sqrt(D) Q^T
-    for (unsigned i = 0; i < 3; i++) {
-      for (unsigned j = 0; j < 3; j++) {
+    for (int i = 0; i < 3; i++) {
+      for (int j = 0; j < 3; j++) {
         metric(ip, i, j) = Q[i][0] * Q[j][0] * stk::math::sqrt(D[0][0]) +
                            Q[i][1] * Q[j][1] * stk::math::sqrt(D[1][1]) +
                            Q[i][2] * Q[j][2] * stk::math::sqrt(D[2][2]);
@@ -582,30 +583,30 @@ template <
   typename GradViewType,
   typename CoordViewType,
   typename OutputViewType>
-KOKKOS_FUNCTION void
+KOKKOS_INLINE_FUNCTION void
 generic_determinant_3d(
   GradViewType referenceGradWeights, CoordViewType coords, OutputViewType detj)
 {
   using ftype = typename CoordViewType::value_type;
-  static_assert(
-    std::is_same<ftype, typename GradViewType::value_type>::value,
-    "Incompatiable value type for views");
-  static_assert(
-    std::is_same<ftype, typename OutputViewType::value_type>::value,
-    "Incompatiable value type for views");
-  static_assert(GradViewType::Rank == 3, "grad view assumed to be 3D");
-  static_assert(CoordViewType::Rank == 2, "Coordinate view assumed to be 2D");
-  static_assert(OutputViewType::Rank == 1, "Weight view assumed to be 1D");
+  // static_assert(
+  //   std::is_convertible_v<ftype, typename GradViewType::value_type>,
+  //   "Incompatiable value type for views");
+  // static_assert(
+  //   std::is_convertible_v<ftype, typename OutputViewType::value_type>,
+  //   "Incompatiable value type for views");
+  static_assert(GradViewType::rank == 3, "grad view assumed to be 3D");
+  static_assert(CoordViewType::rank == 2, "Coordinate view assumed to be 2D");
+  static_assert(OutputViewType::rank == 1, "Weight view assumed to be 1D");
   static_assert(AlgTraits::nDim_ == 3, "3D method");
 
-  ThrowAssert(AlgTraits::nodesPerElement_ == referenceGradWeights.extent(1));
-  ThrowAssert(AlgTraits::nDim_ == referenceGradWeights.extent(2));
+  STK_NGP_ThrowAssert(
+    AlgTraits::nodesPerElement_ == referenceGradWeights.extent_int(1));
+  STK_NGP_ThrowAssert(AlgTraits::nDim_ == referenceGradWeights.extent_int(2));
 
-  ThrowAssert(detj.extent(0) == referenceGradWeights.extent(0));
+  STK_NGP_ThrowAssert(detj.extent_int(0) == referenceGradWeights.extent_int(0));
 
-  for (unsigned ip = 0; ip < referenceGradWeights.extent(0); ++ip) {
-    NALU_ALIGNED ftype jac[3][3] = {
-      {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}};
+  for (int ip = 0; ip < referenceGradWeights.extent_int(0); ++ip) {
+    ftype jac[3][3] = {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}};
     for (int n = 0; n < AlgTraits::nodesPerElement_; ++n) {
       jac[0][0] += referenceGradWeights(ip, n, 0) * coords(n, 0);
       jac[0][1] += referenceGradWeights(ip, n, 1) * coords(n, 0);
@@ -623,7 +624,7 @@ generic_determinant_3d(
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

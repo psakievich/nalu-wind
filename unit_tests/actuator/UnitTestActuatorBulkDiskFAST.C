@@ -15,7 +15,7 @@
 #include <gtest/gtest.h>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 namespace {
 
@@ -31,10 +31,8 @@ protected:
   std::unique_ptr<ActuatorMeta> actMeta_;
 };
 
-#ifndef KOKKOS_ENABLE_GPU
-
 // TODO(psakeiv) move this to a more appropriate location
-TEST_F(ActuatorBulkDiskFastTest, NGP_fastPointIndexLocator)
+TEST_F(ActuatorBulkDiskFastTest, fastPointIndexLocator)
 {
   auto y_node = actuator_unit::create_yaml_node(inputs_);
   auto myMeta = actuator_FAST_parse(y_node, *actMeta_);
@@ -42,7 +40,7 @@ TEST_F(ActuatorBulkDiskFastTest, NGP_fastPointIndexLocator)
 
   fast::OpenFAST& fast = actBulk.openFast_;
 
-  if (NaluEnv::self().parallel_rank() == 0) {
+  if (KynemaUGFEnv::self().parallel_rank() == 0) {
     const int nPntsBlade = fast.get_numForcePtsBlade(0);
     const int nPntsTower = fast.get_numForcePtsTwr(0);
     {
@@ -62,7 +60,7 @@ TEST_F(ActuatorBulkDiskFastTest, NGP_fastPointIndexLocator)
   }
 }
 
-TEST_F(ActuatorBulkDiskFastTest, NGP_computeSweptPointCountUniform)
+TEST_F(ActuatorBulkDiskFastTest, computeSweptPointCountUniform)
 {
   inputs_.push_back("    num_swept_pts: 2\n");
   auto y_node = actuator_unit::create_yaml_node(inputs_);
@@ -75,7 +73,7 @@ TEST_F(ActuatorBulkDiskFastTest, NGP_computeSweptPointCountUniform)
   EXPECT_EQ(101, myMeta.numPointsTurbine_.h_view(0));
 }
 
-TEST_F(ActuatorBulkDiskFastTest, NGP_computeSweptPointCountVaried)
+TEST_F(ActuatorBulkDiskFastTest, computeSweptPointCountVaried)
 {
   auto y_node = actuator_unit::create_yaml_node(inputs_);
   auto myMeta = actuator_FAST_parse(y_node, *actMeta_);
@@ -87,7 +85,7 @@ TEST_F(ActuatorBulkDiskFastTest, NGP_computeSweptPointCountVaried)
   EXPECT_EQ(296, myMeta.numPointsTurbine_.h_view(0));
 }
 
-TEST_F(ActuatorBulkDiskFastTest, NGP_sweptPointsPopulatedUniform)
+TEST_F(ActuatorBulkDiskFastTest, sweptPointsPopulatedUniform)
 {
   inputs_.push_back("    num_swept_pts: 2\n");
   auto y_node = actuator_unit::create_yaml_node(inputs_);
@@ -95,7 +93,7 @@ TEST_F(ActuatorBulkDiskFastTest, NGP_sweptPointsPopulatedUniform)
   ASSERT_TRUE(myMeta.useUniformAziSampling_(0));
   ActuatorBulkDiskFAST actBulk(myMeta, 0.0625);
 
-  if (NaluEnv::self().parallel_rank() == 0) {
+  if (KynemaUGFEnv::self().parallel_rank() == 0) {
     const int nPntsBlade = actBulk.openFast_.get_numForcePtsBlade(0);
     ASSERT_EQ(nPntsBlade, actBulk.numSweptCount_.size());
     ASSERT_EQ(nPntsBlade, actBulk.numSweptOffset_.size());
@@ -122,14 +120,14 @@ TEST_F(ActuatorBulkDiskFastTest, NGP_sweptPointsPopulatedUniform)
   }
 }
 
-TEST_F(ActuatorBulkDiskFastTest, NGP_sweptPointsPopulatedVaried)
+TEST_F(ActuatorBulkDiskFastTest, sweptPointsPopulatedVaried)
 {
   auto y_node = actuator_unit::create_yaml_node(inputs_);
   auto myMeta = actuator_FAST_parse(y_node, *actMeta_);
   ASSERT_FALSE(myMeta.useUniformAziSampling_(0));
   ActuatorBulkDiskFAST actBulk(myMeta, 0.0625);
 
-  if (NaluEnv::self().parallel_rank() == 0) {
+  if (KynemaUGFEnv::self().parallel_rank() == 0) {
     const int nPntsBlade = actBulk.openFast_.get_numForcePtsBlade(0);
     ASSERT_EQ(nPntsBlade, actBulk.numSweptCount_.size());
     ASSERT_EQ(nPntsBlade, actBulk.numSweptOffset_.size());
@@ -156,9 +154,7 @@ TEST_F(ActuatorBulkDiskFastTest, NGP_sweptPointsPopulatedVaried)
   }
 }
 
-#endif
-
 } // namespace
 
-} /* namespace nalu */
+} /* namespace kynema_ugf */
 } /* namespace sierra */

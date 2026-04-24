@@ -15,7 +15,7 @@
 #include <gtest/gtest.h>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 namespace {
 
@@ -34,9 +34,7 @@ protected:
   }
 };
 
-#ifndef KOKKOS_ENABLE_GPU
-
-TEST_F(ActuatorFunctorFastTests, NGP_runUpdatePoints)
+TEST_F(ActuatorFunctorFastTests, runUpdatePoints)
 {
   const YAML::Node y_node = actuator_unit::create_yaml_node(fastParseParams_);
 
@@ -57,7 +55,7 @@ TEST_F(ActuatorFunctorFastTests, NGP_runUpdatePoints)
     if (i != actMetaFast.get_fast_index(fast::TOWER, 0, 0)) {
       EXPECT_TRUE(points(i, 0) != 0 || points(i, 1) != 0 || points(i, 2) != 0)
         << "Index failure: " << i
-        << " on rank: " << NaluEnv::self().parallel_rank();
+        << " on rank: " << KynemaUGFEnv::self().parallel_rank();
     }
   }
 
@@ -81,7 +79,7 @@ TEST_F(ActuatorFunctorFastTests, NGP_runUpdatePoints)
   }
 }
 
-TEST_F(ActuatorFunctorFastTests, NGP_runAssignVelAndComputeForces)
+TEST_F(ActuatorFunctorFastTests, runAssignVelAndComputeForces)
 {
   const YAML::Node y_node = actuator_unit::create_yaml_node(fastParseParams_);
 
@@ -146,7 +144,7 @@ TEST_F(ActuatorFunctorFastTests, NGP_runAssignVelAndComputeForces)
     });
 }
 
-TEST_F(ActuatorFunctorFastTests, NGP_spreadForceWhProjIdentity)
+TEST_F(ActuatorFunctorFastTests, spreadForceWhProjIdentity)
 {
   // skipping for now.  There is some issue with the openfast files getting
   // created when using it in the unit tests.  This test passes in isolation but
@@ -218,9 +216,7 @@ TEST_F(ActuatorFunctorFastTests, NGP_spreadForceWhProjIdentity)
   }
 }
 
-#endif
-
 } // namespace
 
-} /* namespace nalu */
+} /* namespace kynema_ugf */
 } /* namespace sierra */

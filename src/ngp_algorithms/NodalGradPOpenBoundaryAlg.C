@@ -11,7 +11,7 @@
 
 #include "BuildTemplates.h"
 #include "master_element/MasterElement.h"
-#include "master_element/MasterElementFactory.h"
+#include "master_element/MasterElementRepo.h"
 #include "ngp_utils/NgpLoopUtils.h"
 #include "ngp_utils/NgpFieldOps.h"
 #include "ngp_utils/NgpFieldManager.h"
@@ -22,7 +22,7 @@
 #include "stk_mesh/base/NgpMesh.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //==========================================================================
 // Class Definition
@@ -53,10 +53,12 @@ NodalGradPOpenBoundary<AlgTraits>::NodalGradPOpenBoundary(
       get_field_ordinal(realm_.meta_data(), realm.get_coordinates_name())),
     dynPress_(get_field_ordinal(
       realm_.meta_data(), "dynamic_pressure", realm.meta_data().side_rank())),
-    meFC_(MasterElementRepo::get_surface_master_element<
-          typename AlgTraits::FaceTraits>()),
-    meSCS_(MasterElementRepo::get_surface_master_element<
-           typename AlgTraits::ElemTraits>()),
+    meFC_(
+      MasterElementRepo::get_surface_master_element_on_dev(
+        AlgTraits::FaceTraits::topo_)),
+    meSCS_(
+      MasterElementRepo::get_surface_master_element_on_dev(
+        AlgTraits::ElemTraits::topo_)),
     faceData_(realm.meta_data()),
     elemData_(realm.meta_data())
 {
@@ -90,7 +92,7 @@ template <typename AlgTraits>
 void
 NodalGradPOpenBoundary<AlgTraits>::execute()
 {
-  using SimdDataType = nalu_ngp::FaceElemSimdData<stk::mesh::NgpMesh>;
+  using SimdDataType = kynema_ugf_ngp::FaceElemSimdData<stk::mesh::NgpMesh>;
 
   const auto& meshInfo = realm_.mesh_info();
   const auto& meta_data = meshInfo.meta();
@@ -109,7 +111,7 @@ NodalGradPOpenBoundary<AlgTraits>::execute()
   const auto ngpMesh = meshInfo.ngp_mesh();
   auto gradP = fieldMgr.template get_field<double>(gradP_);
   const auto gradPOps =
-    nalu_ngp::simd_face_elem_nodal_field_updater(ngpMesh, gradP);
+    kynema_ugf_ngp::simd_face_elem_nodal_field_updater(ngpMesh, gradP);
 
   MasterElement* meFC = meFC_;
   MasterElement* meSCS = meSCS_;
@@ -124,7 +126,13 @@ NodalGradPOpenBoundary<AlgTraits>::execute()
   const auto pstabFac =
     realm_.solutionOptions_->activateOpenMdotCorrection_ ? 0.0 : 1.0;
 
-  nalu_ngp::run_face_elem_algorithm(
+  const auto f_shp = shape_fcn<typename AlgTraits::FaceTraits, QuadRank::SCV>(
+    use_shifted_quad(useShifted));
+
+  const auto e_shp = shape_fcn<typename AlgTraits::ElemTraits, QuadRank::SCS>(
+    use_shifted_quad(useShifted));
+
+  kynema_ugf_ngp::run_face_elem_algorithm(
     algName, meshInfo, faceData_, elemData_, s_locally_owned_union,
     KOKKOS_LAMBDA(SimdDataType & fdata) {
       const int* ipNodeMap = meFC->ipNodeMap();
@@ -143,10 +151,6 @@ NodalGradPOpenBoundary<AlgTraits>::execute()
       const auto meFaceViews =
         fdata.simdFaceView.get_me_views(CURRENT_COORDINATES);
       const auto meElemViews = elemView.get_me_views(CURRENT_COORDINATES);
-      const auto v_shape_fcn = useShifted ? meFaceViews.fc_shifted_shape_fcn
-                                          : meFaceViews.fc_shape_fcn;
-      const auto e_shape_fcn = useShifted ? meElemViews.scs_shifted_shape_fcn
-                                          : meElemViews.scs_shape_fcn;
 
       const int faceOrdinal = fdata.faceOrd;
 
@@ -156,11 +160,11 @@ NodalGradPOpenBoundary<AlgTraits>::execute()
           // evaluate pressure at opposing face.
           const int oip = meSCS->opposingFace(faceOrdinal, ip);
           for (int n = 0; n < AlgTraits::nodesPerElement_; ++n) {
-            pIp += e_shape_fcn(oip, n) * elem_p_field(n);
+            pIp += e_shp(oip, n) * elem_p_field(n);
           }
         } else {
           for (int n = 0; n < AlgTraits::nodesPerFace_; ++n) {
-            pIp += v_shape_fcn(ip, n) * face_p_field(n);
+            pIp += f_shp(ip, n) * face_p_field(n);
           }
         }
 
@@ -180,5 +184,5 @@ NodalGradPOpenBoundary<AlgTraits>::execute()
 
 INSTANTIATE_KERNEL_FACE_ELEMENT(NodalGradPOpenBoundary)
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

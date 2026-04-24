@@ -13,7 +13,7 @@
 #include <fstream>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 HypreLinearSystem::HypreLinearSystem(
   Realm& realm,
@@ -22,7 +22,7 @@ HypreLinearSystem::HypreLinearSystem(
   LinearSolver* linearSolver)
   : LinearSystem(realm, numDof, eqSys, linearSolver), name_(eqSys->name_)
 {
-  rank_ = NaluEnv::self().parallel_rank();
+  rank_ = KynemaUGFEnv::self().parallel_rank();
   columnsOwned_.clear();
   rowCountOwned_.clear();
   columnsShared_.clear();
@@ -132,7 +132,7 @@ HypreLinearSystem::beginLinearSystemConstruction()
   if (totalRows > maxHypreSize)
     throw std::runtime_error(
       "The linear system size is greater than what HYPRE is compiled for. "
-      "Please recompile with bigint support and link to Nalu");
+      "Please recompile with bigint support and link to KynemaUGF");
 #endif
 
   if (rank_ == 0) {
@@ -574,7 +574,7 @@ HypreLinearSystem::buildFaceElemToNodeGraph(const stk::mesh::PartVector& parts)
         // extract the connected element to this exposed face; should be single
         // in size!
         const stk::mesh::Entity* face_elem_rels = bulkData.begin_elements(face);
-        ThrowAssert(bulkData.num_elements(face) == 1);
+        STK_ThrowAssert(bulkData.num_elements(face) == 1);
 
         // get connected element and nodal relations
         stk::mesh::Entity element = face_elem_rels[0];
@@ -603,7 +603,7 @@ HypreLinearSystem::buildFaceElemToNodeGraph(const stk::mesh::PartVector& parts)
         // extract the connected element to this exposed face; should be single
         // in size!
         const stk::mesh::Entity* face_elem_rels = bulkData.begin_elements(face);
-        ThrowAssert(bulkData.num_elements(face) == 1);
+        STK_ThrowAssert(bulkData.num_elements(face) == 1);
 
         // get connected element and nodal relations
         stk::mesh::Entity element = face_elem_rels[0];
@@ -655,7 +655,7 @@ HypreLinearSystem::buildOversetNodeGraph(const stk::mesh::PartVector&)
 #endif
 
   // extract the rank
-  const int theRank = NaluEnv::self().parallel_rank();
+  const int theRank = KynemaUGFEnv::self().parallel_rank();
 
   stk::mesh::BulkData& bulkData = realm_.bulk_data();
   beginLinearSystemConstruction();
@@ -823,7 +823,7 @@ HypreLinearSystem::finalizeLinearSystem()
   gettimeofday(&_start, NULL);
 #endif
 
-  ThrowRequire(inConstruction_);
+  STK_ThrowRequire(inConstruction_);
   inConstruction_ = false;
 
 #ifdef HYPRE_LINEAR_SYSTEM_DEBUG
@@ -1339,9 +1339,10 @@ HypreLinearSystem::buildCoeffApplierPeriodicNodeToHIDMapping()
 {
   const auto& meta = realm_.meta_data();
   const stk::mesh::BulkData& bulk = realm_.bulk_data();
-  stk::mesh::Selector selector = meta.universal_part() &
-                                 stk::mesh::selectField(*realm_.naluGlobalId_) &
-                                 !(realm_.get_inactive_selector());
+  stk::mesh::Selector selector =
+    meta.universal_part() &
+    stk::mesh::selectField(*realm_.kynema_ugfGlobalId_) &
+    !(realm_.get_inactive_selector());
 
   std::vector<HypreIntType> periodic_node(0);
   std::vector<HypreIntType> periodic_node_hypre_id(0);
@@ -1352,15 +1353,17 @@ HypreLinearSystem::buildCoeffApplierPeriodicNodeToHIDMapping()
     const stk::mesh::Bucket& b = *bptr;
     for (size_t i = 0; i < b.size(); ++i) {
       stk::mesh::Entity node = b[i];
-      const auto naluId = *stk::mesh::field_data(*realm_.naluGlobalId_, node);
-      const auto mnode = (naluId == bulk.identifier(node))
-                           ? node
-                           : bulk.get_entity(stk::topology::NODE_RANK, naluId);
+      const auto kynema_ugfId =
+        *stk::mesh::field_data(*realm_.kynema_ugfGlobalId_, node);
+      const auto mnode =
+        (kynema_ugfId == bulk.identifier(node))
+          ? node
+          : bulk.get_entity(stk::topology::NODE_RANK, kynema_ugfId);
       if (!bulk.is_valid(mnode)) {
         continue;
       }
       HypreIntType hid = *stk::mesh::field_data(*realm_.hypreGlobalId_, mnode);
-      if (naluId != bulk.identifier(node)) {
+      if (kynema_ugfId != bulk.identifier(node)) {
         periodic_node.push_back(node.local_offset());
         periodic_node_hypre_id.push_back(hid);
       }
@@ -1518,7 +1521,7 @@ HypreLinearSystem::hypreIJMatrixSetAddToValues()
     MPI_Barrier(realm_.bulk_data().parallel());
 
     char rank_str[8];
-    sprintf(rank_str, "%05d", rank_);
+    snprintf(rank_str, 8, "%05d", rank_);
     std::string writeCounter = std::to_string(eqSys_->linsysWriteCounter_);
     const std::string matFileRows = eqSysName_ + ".IJM." + writeCounter +
                                     ".mat." + std::string(rank_str) +
@@ -1626,7 +1629,7 @@ HypreLinearSystem::hypreIJVectorSetAddToValues()
     MPI_Barrier(realm_.bulk_data().parallel());
 
     char rank_str[8];
-    sprintf(rank_str, "%05d", rank_);
+    snprintf(rank_str, 8, "%05d", rank_);
     std::string writeCounter = std::to_string(eqSys_->linsysWriteCounter_);
     const std::string rhsFileRows = eqSysName_ + ".IJV." + writeCounter +
                                     ".rhs." + std::string(rank_str) +
@@ -1750,9 +1753,9 @@ HypreLinearSystem::dumpMatrixStats()
   if (iproc == 0) {
     char fname[1000];
 #if defined(KOKKOS_ENABLE_GPU)
-    sprintf(fname, "%s_decomp_%dGPUs.txt", name_.c_str(), nprocs);
+    snprintf(fname, 1000, "%s_decomp_%dGPUs.txt", name_.c_str(), nprocs);
 #else
-    sprintf(fname, "%s_decomp_%dCPUs.txt", name_.c_str(), nprocs);
+    snprintf(fname, 1000, "%s_decomp_%dCPUs.txt", name_.c_str(), nprocs);
 #endif
 
     std::ofstream myfile;
@@ -1932,7 +1935,7 @@ HypreLinearSystem::zeroSystem()
   hypreMatrixVectorsCreated_ = true;
 }
 
-sierra::nalu::CoeffApplier*
+sierra::kynema_ugf::CoeffApplier*
 HypreLinearSystem::get_coeff_applier()
 {
   /* call this before getting the device coeff applier
@@ -2334,21 +2337,21 @@ HypreLinearSystem::HypreLinSysCoeffApplier::free_device_pointer()
 {
 #if defined(KOKKOS_ENABLE_GPU)
   if (this != devicePointer_) {
-    sierra::nalu::kokkos_free_on_device(devicePointer_);
+    sierra::kynema_ugf::kokkos_free_on_device(devicePointer_);
     devicePointer_ = nullptr;
   }
 #endif
 }
 
-sierra::nalu::CoeffApplier*
+sierra::kynema_ugf::CoeffApplier*
 HypreLinearSystem::HypreLinSysCoeffApplier::device_pointer()
 {
 #if defined(KOKKOS_ENABLE_GPU)
   if (devicePointer_ != nullptr) {
-    sierra::nalu::kokkos_free_on_device(devicePointer_);
+    sierra::kynema_ugf::kokkos_free_on_device(devicePointer_);
     devicePointer_ = nullptr;
   }
-  devicePointer_ = sierra::nalu::create_device_expression(*this);
+  devicePointer_ = sierra::kynema_ugf::create_device_expression(*this);
   return devicePointer_;
 #else
   return this;
@@ -2393,8 +2396,9 @@ HypreLinearSystem::sumInto(
         hcApplier->overset_rhs_counter_++;
       }
     } else {
-      throw std::runtime_error("HypreLinearSystem::sumInto not "
-                               "yet implemented for numDof>1. Exiting.");
+      throw std::runtime_error(
+        "HypreLinearSystem::sumInto not "
+        "yet implemented for numDof>1. Exiting.");
     }
   } else {
     throw std::runtime_error(
@@ -2429,7 +2433,7 @@ HypreLinearSystem::applyDirichletBCs(
     realm_.ngp_field_manager().get_field<double>(
       bcValuesField->mesh_meta_data_ordinal());
 
-  using Traits = nalu_ngp::NGPMeshTraits<stk::mesh::NgpMesh>;
+  using Traits = kynema_ugf_ngp::NGPMeshTraits<stk::mesh::NgpMesh>;
 
   /* data from hcApplier */
   const auto& ngpMesh = hcApplier->ngpMesh_;
@@ -2441,10 +2445,10 @@ HypreLinearSystem::applyDirichletBCs(
   auto numDof = numDof_;
   auto iLower = iLower_;
 
-  nalu_ngp::run_entity_algorithm(
+  kynema_ugf_ngp::run_entity_algorithm(
     "HypreLinearSystem::applyDirichletBCs", ngpMesh, stk::topology::NODE_RANK,
     selector, KOKKOS_LAMBDA(const Traits::MeshIndex& mi) {
-      const auto node = (*mi.bucket)[mi.bucketOrd];
+      const auto node = ngpMesh.get_entity(stk::topology::NODE_RANK, mi);
       HypreIntType hid = hypreGID.get(ngpMesh, node, 0);
       for (unsigned d = 0; d < numDof; ++d) {
         HypreIntType lid = hid * numDof + d;
@@ -2460,10 +2464,12 @@ HypreIntType
 HypreLinearSystem::get_entity_hypre_id(const stk::mesh::Entity& node)
 {
   auto& bulk = realm_.bulk_data();
-  const auto naluId = *stk::mesh::field_data(*realm_.naluGlobalId_, node);
-  const auto mnode = (naluId == bulk.identifier(node))
-                       ? node
-                       : bulk.get_entity(stk::topology::NODE_RANK, naluId);
+  const auto kynema_ugfId =
+    *stk::mesh::field_data(*realm_.kynema_ugfGlobalId_, node);
+  const auto mnode =
+    (kynema_ugfId == bulk.identifier(node))
+      ? node
+      : bulk.get_entity(stk::topology::NODE_RANK, kynema_ugfId);
   HypreIntType hid = *stk::mesh::field_data(*realm_.hypreGlobalId_, mnode);
   return hid;
 }
@@ -2541,7 +2547,7 @@ HypreLinearSystem::solve(stk::mesh::FieldBase* linearSolutionField)
 
   if (provideOutput_) {
     const int nameOffset = eqSysName_.length() + 8;
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << std::setw(nameOffset) << std::right << eqSysName_
       << std::setw(32 - nameOffset) << std::right << iters << std::setw(18)
       << std::right << linearResidual_ << std::setw(15) << std::right
@@ -2565,7 +2571,7 @@ HypreLinearSystem::copy_hypre_to_stk(stk::mesh::FieldBase* stkField)
   HypreLinSysCoeffApplier* hcApplier =
     dynamic_cast<HypreLinSysCoeffApplier*>(hostCoeffApplier.get());
 
-  using Traits = nalu_ngp::NGPMeshTraits<stk::mesh::NgpMesh>;
+  using Traits = kynema_ugf_ngp::NGPMeshTraits<stk::mesh::NgpMesh>;
   auto ngpField = realm_.ngp_field_manager().get_field<double>(
     stkField->mesh_meta_data_ordinal());
   auto ngpHypreGlobalId = hcApplier->ngpHypreGlobalId_;
@@ -2583,10 +2589,10 @@ HypreLinearSystem::copy_hypre_to_stk(stk::mesh::FieldBase* stkField)
    * vector */
   double* sln_data = hypre_VectorData(
     hypre_ParVectorLocalVector((hypre_ParVector*)hypre_IJVectorObject(sln_)));
-  nalu_ngp::run_entity_algorithm(
+  kynema_ugf_ngp::run_entity_algorithm(
     "HypreLinearSystem::copy_hypre_to_stk", ngpMesh, stk::topology::NODE_RANK,
     selector, KOKKOS_LAMBDA(const Traits::MeshIndex& mi) {
-      const auto node = (*mi.bucket)[mi.bucketOrd];
+      const auto node = ngpMesh.get_entity(stk::topology::NODE_RANK, mi);
       HypreIntType hid;
       if (periodic_node_to_hypre_id.exists(node.local_offset()))
         hid = periodic_node_to_hypre_id.value_at(
@@ -2747,5 +2753,5 @@ HypreLinearSystem::scanSharedIndicesForBadValues(
 }
 #endif
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

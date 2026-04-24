@@ -15,7 +15,7 @@
 #include "utils/StkHelpers.h"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 MomentumGclSrcNodeKernel::MomentumGclSrcNodeKernel(
   const stk::mesh::BulkData& bulk)
@@ -24,12 +24,12 @@ MomentumGclSrcNodeKernel::MomentumGclSrcNodeKernel(
   const auto& meta = bulk.mesh_meta_data();
 
   // const VectorFieldType *velocity =
-  // meta.get_field<ScalarFieldType>(stk::topology::NODE_RANK, "velocity");
+  // meta.get_field<double>(stk::topology::NODE_RANK, "velocity");
   // const ScalarFieldType *dualNdVol =
-  // meta.get_field<ScalarFieldType>(stk::topology::NODE_RANK,
+  // meta.get_field<double>(stk::topology::NODE_RANK,
   // "dual_nodal_volume");
   const ScalarFieldType* density =
-    meta.get_field<ScalarFieldType>(stk::topology::NODE_RANK, "density");
+    meta.get_field<double>(stk::topology::NODE_RANK, "density");
 
   velocityNp1ID_ = get_field_ordinal(meta, "velocity", stk::mesh::StateNP1);
   densityNp1ID_ = get_field_ordinal(meta, "density", stk::mesh::StateNP1);
@@ -100,5 +100,5 @@ MomentumGclSrcNodeKernel::execute(
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

@@ -11,60 +11,55 @@
 #define FieldTypeDef_h
 
 #include <stk_mesh/base/FieldBase.hpp>
-#include <stk_mesh/base/CoordinateSystems.hpp>
 #include <stk_mesh/base/Ngp.hpp>
 #include <stk_mesh/base/NgpField.hpp>
 
-#ifdef NALU_USES_TRILINOS_SOLVERS
+#ifdef KYNEMA_UGF_USES_TRILINOS_SOLVERS
 #include <Tpetra_Details_DefaultTypes.hpp>
 #endif
 #include <functional>
 
-#ifdef NALU_USES_HYPRE
+#ifdef KYNEMA_UGF_USES_HYPRE
 #include "HYPRE_utilities.h"
 #endif
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
-// define scalar field typedef
-typedef stk::mesh::Field<double> ScalarFieldType;
-typedef stk::mesh::Field<stk::mesh::EntityId> GlobalIdFieldType;
-typedef stk::mesh::Field<int> ScalarIntFieldType;
-typedef stk::mesh::NgpField<double> NGPDoubleFieldType;
-typedef stk::mesh::NgpField<stk::mesh::EntityId> NGPGlobalIdFieldType;
-typedef stk::mesh::NgpField<int> NGPScalarIntFieldType;
+using ScalarFieldType = stk::mesh::Field<double>;
+using GlobalIdFieldType = stk::mesh::Field<stk::mesh::EntityId>;
+using ScalarIntFieldType = stk::mesh::Field<int>;
+using NGPDoubleFieldType = stk::mesh::NgpField<double>;
+using NGPGlobalIdFieldType = stk::mesh::NgpField<stk::mesh::EntityId>;
+using NGPScalarIntFieldType = stk::mesh::NgpField<int>;
 
-// define vector field typedef; however, what is the value of Cartesian?
-typedef stk::mesh::Field<double, stk::mesh::Cartesian> VectorFieldType;
+using VectorFieldType = stk::mesh::Field<double>;
+using TensorFieldType = stk::mesh::Field<double>;
 
-// define generic
-typedef stk::mesh::Field<double, stk::mesh::SimpleArrayTag> GenericFieldType;
+using GenericFieldType = stk::mesh::Field<double>;
 
-typedef stk::mesh::Field<int, stk::mesh::SimpleArrayTag> GenericIntFieldType;
+using GenericIntFieldType = stk::mesh::Field<int>;
 
-// field type for local ids
-typedef unsigned LocalId;
-typedef stk::mesh::Field<LocalId> LocalIdFieldType;
+using LocalId = unsigned;
+using LocalIdFieldType = stk::mesh::Field<LocalId>;
 
-// Hypre Integer types
-#ifdef NALU_USES_HYPRE
-typedef HYPRE_Int HypreIntType;
+#ifdef KYNEMA_UGF_USES_HYPRE
+using HypreIntType = HYPRE_Int;
 #else
-typedef int HypreIntType;
+using HypreIntType = int;
 #endif
 
-#ifdef NALU_USES_TRILINOS_SOLVERS
-typedef stk::mesh::Field<Tpetra::Details::DefaultTypes::global_ordinal_type>
-  TpetIDFieldType;
+#ifdef KYNEMA_UGF_USES_TRILINOS_SOLVERS
+using TpetIdType = Tpetra::Details::DefaultTypes::global_ordinal_type;
 #else
-typedef stk::mesh::Field<int64_t> TpetIDFieldType;
+using TpetIdType = int64_t;
 #endif
 
-typedef stk::mesh::Field<HypreIntType> HypreIDFieldType;
-typedef stk::mesh::NgpField<HypreIntType> NGPHypreIDFieldType;
+using TpetIDFieldType = stk::mesh::Field<TpetIdType>;
+using HypreIDFieldType = stk::mesh::Field<HypreIntType>;
+using NGPHypreIDFieldType = stk::mesh::NgpField<HypreIntType>;
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

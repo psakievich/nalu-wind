@@ -6,7 +6,6 @@
 #include <stk_mesh/base/BulkData.hpp>
 #include <stk_mesh/base/MeshBuilder.hpp>
 #include <stk_mesh/base/Bucket.hpp>
-#include <stk_mesh/base/CoordinateSystems.hpp>
 #include <stk_mesh/base/FieldBase.hpp>
 #include <stk_mesh/base/Field.hpp>
 #include <stk_mesh/base/GetEntities.hpp>
@@ -43,8 +42,8 @@ determinant33(const double* mat)
 void
 check_HexSCV_determinant(const stk::mesh::BulkData& bulk)
 {
-  typedef stk::mesh::Field<double, stk::mesh::Cartesian> CoordFieldType;
-  CoordFieldType* coordField = bulk.mesh_meta_data().get_field<CoordFieldType>(
+  typedef stk::mesh::Field<double> CoordFieldType;
+  CoordFieldType* coordField = bulk.mesh_meta_data().get_field<double>(
     stk::topology::NODE_RANK, "coordinates");
   EXPECT_TRUE(coordField != nullptr);
 
@@ -58,12 +57,12 @@ check_HexSCV_determinant(const stk::mesh::BulkData& bulk)
   const unsigned spatialDim = bulk.mesh_meta_data().spatial_dimension();
   std::vector<double> hex8_node_coords(hex8.num_nodes() * spatialDim, 0.0);
   std::vector<double> hex8_scvolumes(hex8.num_nodes(), 0.0);
-  sierra::nalu::SharedMemView<double**> node_coords(
+  sierra::kynema_ugf::SharedMemView<double**> node_coords(
     hex8_node_coords.data(), hex8.num_nodes(), spatialDim);
-  sierra::nalu::SharedMemView<double*> scvolumes(
+  sierra::kynema_ugf::SharedMemView<double*> scvolumes(
     hex8_scvolumes.data(), hex8.num_nodes());
 
-  sierra::nalu::HexSCV hexSCV;
+  sierra::kynema_ugf::HexSCV hexSCV;
   double error[1] = {0};
   for (stk::mesh::Entity elem : elems) {
     EXPECT_EQ(hex8, bulk.bucket(elem).topology());
@@ -98,6 +97,7 @@ TEST(HexSCV, determinant)
   stk::mesh::MeshBuilder meshBuilder(comm);
   meshBuilder.set_spatial_dimension(spatialDimension);
   auto bulk = meshBuilder.create();
+  bulk->mesh_meta_data().use_simple_fields();
 
   unit_test_utils::fill_mesh_1_elem_per_proc_hex8(*bulk);
 
@@ -112,10 +112,12 @@ TEST(HexSCV, grandyvol)
   stk::mesh::MeshBuilder meshBuilder(comm);
   meshBuilder.set_spatial_dimension(spatialDimension);
   auto bulk = meshBuilder.create();
+  bulk->mesh_meta_data().use_simple_fields();
 
   unit_test_utils::fill_mesh_1_elem_per_proc_hex8(*bulk);
-  const auto& coordField = *static_cast<const VectorFieldType*>(
-    bulk->mesh_meta_data().coordinate_field());
+  const auto& coordField =
+    *static_cast<const sierra::kynema_ugf::VectorFieldType*>(
+      bulk->mesh_meta_data().coordinate_field());
 
   double v_coords[8][3];
 
@@ -145,7 +147,7 @@ TEST(HexSCV, grandyvol)
 
       double exactVol = detQ;
       // start caliper
-      double volGrandy = sierra::nalu::hex_volume_grandy(v_coords);
+      double volGrandy = sierra::kynema_ugf::hex_volume_grandy(v_coords);
       // end caliper
       EXPECT_NEAR(volGrandy, exactVol, tol);
     }

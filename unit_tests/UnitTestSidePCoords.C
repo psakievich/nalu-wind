@@ -6,15 +6,14 @@
 #include <stk_mesh/base/MetaData.hpp>
 #include <stk_mesh/base/BulkData.hpp>
 #include <stk_mesh/base/Bucket.hpp>
-#include <stk_mesh/base/CoordinateSystems.hpp>
 #include <stk_mesh/base/FieldBase.hpp>
 #include <stk_mesh/base/Field.hpp>
 #include <stk_mesh/base/FieldBLAS.hpp>
 #include <stk_mesh/base/GetEntities.hpp>
 #include <stk_mesh/base/SkinMesh.hpp>
 
-#include <master_element/MasterElementFactory.h>
-#include <NaluEnv.h>
+#include <master_element/MasterElementRepo.h>
+#include <KynemaUGFEnv.h>
 
 #include <memory>
 #include <tuple>
@@ -41,13 +40,15 @@ check_elem_to_side_coords(stk::topology topo)
   meshBuilder.set_spatial_dimension(dim);
   auto bulk = meshBuilder.create();
   auto& meta = bulk->mesh_meta_data();
+  meta.use_simple_fields();
 
   auto elem = unit_test_utils::create_one_reference_element(*bulk, topo);
   const stk::mesh::Entity* elem_node_rels = bulk->begin_nodes(elem);
   auto* meSCS =
-    sierra::nalu::MasterElementRepo::get_surface_master_element(topo);
+    sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
+      topo);
 
-  using VectorFieldType = stk::mesh::Field<double, stk::mesh::Cartesian>;
+  using VectorFieldType = stk::mesh::Field<double>;
   const VectorFieldType& coordField =
     *static_cast<const VectorFieldType*>(meta.coordinate_field());
 
@@ -67,7 +68,8 @@ check_elem_to_side_coords(stk::topology topo)
     const auto& b = *ib;
 
     auto* meSide =
-      sierra::nalu::MasterElementRepo::get_surface_master_element(b.topology());
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
+        b.topology());
 
     for (size_t k = 0; k < b.size(); ++k) {
       auto face = b[k];

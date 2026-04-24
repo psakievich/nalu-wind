@@ -1,5 +1,5 @@
 target_sources(
-  nalu
+  ${kynema_ugf_lib_name}
   PRIVATE
    ${CMAKE_CURRENT_SOURCE_DIR}/ABLProfileFunction.C
    ${CMAKE_CURRENT_SOURCE_DIR}/Algorithm.C
@@ -64,8 +64,8 @@ target_sources(
    ${CMAKE_CURRENT_SOURCE_DIR}/MomentumBoussinesqRASrcNodeSuppAlg.C
    ${CMAKE_CURRENT_SOURCE_DIR}/MomentumBuoyancySrcNodeSuppAlg.C
    ${CMAKE_CURRENT_SOURCE_DIR}/MovingAveragePostProcessor.C
-   ${CMAKE_CURRENT_SOURCE_DIR}/NaluEnv.C
-   ${CMAKE_CURRENT_SOURCE_DIR}/NaluParsing.C
+   ${CMAKE_CURRENT_SOURCE_DIR}/KynemaUGFEnv.C
+   ${CMAKE_CURRENT_SOURCE_DIR}/KynemaUGFParsing.C
    ${CMAKE_CURRENT_SOURCE_DIR}/NonConformalInfo.C
    ${CMAKE_CURRENT_SOURCE_DIR}/NonConformalManager.C
    ${CMAKE_CURRENT_SOURCE_DIR}/OutputInfo.C
@@ -79,6 +79,7 @@ target_sources(
    ${CMAKE_CURRENT_SOURCE_DIR}/ShearStressTransportEquationSystem.C
    ${CMAKE_CURRENT_SOURCE_DIR}/SideWriter.C
    ${CMAKE_CURRENT_SOURCE_DIR}/Simulation.C
+   ${CMAKE_CURRENT_SOURCE_DIR}/SmartField.C
    ${CMAKE_CURRENT_SOURCE_DIR}/SolutionNormPostProcessing.C
    ${CMAKE_CURRENT_SOURCE_DIR}/SolutionOptions.C
    ${CMAKE_CURRENT_SOURCE_DIR}/SolverAlgorithm.C
@@ -96,16 +97,17 @@ target_sources(
    ${CMAKE_CURRENT_SOURCE_DIR}/TurbulenceAveragingPostProcessing.C
    ${CMAKE_CURRENT_SOURCE_DIR}/WallDistEquationSystem.C
    ${CMAKE_CURRENT_SOURCE_DIR}/WilcoxKOmegaEquationSystem.C
+   ${CMAKE_CURRENT_SOURCE_DIR}/VolumeOfFluidEquationSystem.C
 )
 
 if(ENABLE_FFTW)
   target_sources(
-    nalu PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/AssembleMomentumEdgeABLTopBC.C)
+    ${kynema_ugf_lib_name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/AssembleMomentumEdgeABLTopBC.C)
 endif(ENABLE_FFTW)
 
 if(ENABLE_HYPRE)
   target_sources(
-    nalu
+    ${kynema_ugf_lib_name}
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/HypreDirectSolver.C
             ${CMAKE_CURRENT_SOURCE_DIR}/HypreUVWSolver.C
             ${CMAKE_CURRENT_SOURCE_DIR}/HypreLinearSolverConfig.C
@@ -115,13 +117,13 @@ endif(ENABLE_HYPRE)
 
 if(ENABLE_MATRIXFREE)
   target_sources(
-    nalu PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/MatrixFreeHeatCondEquationSystem.C
+    ${kynema_ugf_lib_name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/MatrixFreeHeatCondEquationSystem.C
                  ${CMAKE_CURRENT_SOURCE_DIR}/MatrixFreeLowMachEquationSystem.C)
   add_subdirectory(matrix_free)
 endif(ENABLE_MATRIXFREE)
 
 if(ENABLE_TRILINOS_SOLVERS)
-   target_sources(nalu PRIVATE
+   target_sources(${kynema_ugf_lib_name} PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}/TpetraLinearSystem.C
       ${CMAKE_CURRENT_SOURCE_DIR}/TpetraLinearSystemHelpers.C
       ${CMAKE_CURRENT_SOURCE_DIR}/TpetraSegregatedLinearSystem.C

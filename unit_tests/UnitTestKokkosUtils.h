@@ -2,7 +2,7 @@
 #define _UnitTestKokkosUtils_h_
 
 #include <master_element/MasterElement.h>
-#include "master_element/MasterElementFactory.h"
+#include "master_element/MasterElementRepo.h"
 #include <stk_mesh/base/Types.hpp>
 #include <stk_mesh/base/Bucket.hpp>
 #include <Kokkos_Core.hpp>
@@ -20,8 +20,9 @@ bucket_loop_serial_only(
   for (const stk::mesh::Bucket* bptr : buckets) {
     const stk::mesh::Bucket& bkt = *bptr;
     stk::topology topo = bkt.topology();
-    sierra::nalu::MasterElement* meSCS =
-      sierra::nalu::MasterElementRepo::get_surface_master_element(topo);
+    sierra::kynema_ugf::MasterElement* meSCS =
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
+        topo);
 
     outer_loop_body(topo, *meSCS);
 
@@ -50,12 +51,13 @@ kokkos_thread_team_bucket_loop_with_topo(
   const stk::mesh::BucketVector& buckets, const LOOP_BODY& inner_loop_body)
 {
   Kokkos::parallel_for(
-    sierra::nalu::DeviceTeamPolicy(buckets.size(), NTHREADS_PER_DEVICE_TEAM),
-    KOKKOS_LAMBDA(const sierra::nalu::DeviceTeamHandleType& team) {
+    sierra::kynema_ugf::DeviceTeamPolicy(
+      buckets.size(), NTHREADS_PER_DEVICE_TEAM),
+    KOKKOS_LAMBDA(const sierra::kynema_ugf::DeviceTeamHandleType& team) {
       const stk::mesh::Bucket& bkt = *buckets[team.league_rank()];
       stk::topology topo = bkt.topology();
-      sierra::nalu::MasterElement* meSCS =
-        sierra::nalu::MasterElementRepo::get_surface_master_element(topo);
+      sierra::kynema_ugf::MasterElement* meSCS = sierra::kynema_ugf::
+        MasterElementRepo::get_surface_master_element_on_host(topo);
       Kokkos::parallel_for(
         Kokkos::TeamThreadRange(team, bkt.size()),
         [&](const size_t& j) { inner_loop_body(bkt[j], topo, *meSCS); });

@@ -10,7 +10,7 @@
 #include "ngp_algorithms/TKEWallFuncAlg.h"
 #include "BuildTemplates.h"
 #include "master_element/MasterElement.h"
-#include "master_element/MasterElementFactory.h"
+#include "master_element/MasterElementRepo.h"
 #include "ngp_utils/NgpLoopUtils.h"
 #include "ngp_utils/NgpFieldOps.h"
 #include "ngp_utils/NgpFieldManager.h"
@@ -24,7 +24,7 @@
 #include "stk_mesh/base/NgpMesh.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 template <typename BcAlgTraits>
 TKEWallFuncAlg<BcAlgTraits>::TKEWallFuncAlg(Realm& realm, stk::mesh::Part* part)
@@ -38,8 +38,9 @@ TKEWallFuncAlg<BcAlgTraits>::TKEWallFuncAlg(Realm& realm, stk::mesh::Part* part)
       "wall_friction_velocity_bip",
       realm.meta_data().side_rank())),
     cMu_(realm.get_turb_model_constant(TM_cMu)),
-    meFC_(sierra::nalu::MasterElementRepo::get_surface_master_element<
-          BcAlgTraits>())
+    meFC_(
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_dev(
+        BcAlgTraits::topo_))
 {
   faceData_.add_cvfem_face_me(meFC_);
 
@@ -55,7 +56,8 @@ template <typename BcAlgTraits>
 void
 TKEWallFuncAlg<BcAlgTraits>::execute()
 {
-  using ElemSimdData = sierra::nalu::nalu_ngp::ElemSimdData<stk::mesh::NgpMesh>;
+  using ElemSimdData =
+    sierra::kynema_ugf::kynema_ugf_ngp::ElemSimdData<stk::mesh::NgpMesh>;
   const auto& meshInfo = realm_.mesh_info();
   const auto ngpMesh = meshInfo.ngp_mesh();
   const auto& fieldMgr = meshInfo.ngp_field_manager();
@@ -68,14 +70,14 @@ TKEWallFuncAlg<BcAlgTraits>::execute()
 
   auto ngpBcNodalTke = fieldMgr.template get_field<double>(bcNodalTke_);
   const auto ngpTkeOps =
-    nalu_ngp::simd_elem_nodal_field_updater(ngpMesh, ngpBcNodalTke);
+    kynema_ugf_ngp::simd_elem_nodal_field_updater(ngpMesh, ngpBcNodalTke);
 
   const stk::mesh::Selector sel =
     realm_.meta_data().locally_owned_part() & stk::mesh::selectUnion(partVec_);
 
   const std::string algName =
     "TKEWallFuncAlg_" + std::to_string(BcAlgTraits::topo_);
-  nalu_ngp::run_elem_algorithm(
+  kynema_ugf_ngp::run_elem_algorithm(
     algName, meshInfo, realm_.meta_data().side_rank(), faceData_, sel,
     KOKKOS_LAMBDA(ElemSimdData & edata) {
       auto& scrViews = edata.simdScrView;
@@ -100,5 +102,5 @@ TKEWallFuncAlg<BcAlgTraits>::execute()
 
 INSTANTIATE_KERNEL_FACE(TKEWallFuncAlg)
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

@@ -13,7 +13,7 @@
 #include <master_element/MasterElement.h>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 // Hex 8 FEM; -1.0 : 1.0 range
 class Hex8FEM : public MasterElement
@@ -84,7 +84,7 @@ private:
                                     +glIP, +glIP, +glIP, -glIP, +glIP, +glIP};
 
   // standard integration location +/ sqrt(3)/3
-  const double gIP = std::sqrt(3.0) / 3.0;
+  const double gIP = 0.577350269189626; // std::sqrt(3.0) / 3.0;
   const double intgLoc_[numIntPoints_ * nDim_] = {
     -gIP, -gIP, -gIP, +gIP, -gIP, -gIP, +gIP, +gIP, -gIP, -gIP, +gIP, -gIP,
     -gIP, -gIP, +gIP, +gIP, -gIP, +gIP, +gIP, +gIP, +gIP, -gIP, +gIP, +gIP};
@@ -107,7 +107,7 @@ private:
     SharedMemView<DoubleType***, DeviceShmem> deriv);
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

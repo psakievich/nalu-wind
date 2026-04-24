@@ -17,7 +17,7 @@
 #include "stk_mesh/base/MetaData.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 OversetConstraintBase::OversetConstraintBase(
   Realm& realm,
@@ -26,7 +26,7 @@ OversetConstraintBase::OversetConstraintBase(
   stk::mesh::FieldBase* fieldQ)
   : SolverAlgorithm(realm, part, eqSystem),
     fieldQ_(fieldQ),
-    dualNodalVolume_(realm.meta_data().get_field<ScalarFieldType>(
+    dualNodalVolume_(realm.meta_data().get_field<double>(
       stk::topology::NODE_RANK, "dual_nodal_volume"))
 {
 }
@@ -52,5 +52,5 @@ OversetConstraintBase::prepare_constraints()
   eqSystem_->linsys_->free_coeff_applier(coeffApplier);
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

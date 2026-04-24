@@ -18,12 +18,12 @@
 #include "stk_mesh/base/NgpFieldParallel.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 template <typename GradPhiType>
 NodalGradAlgDriver<GradPhiType>::NodalGradAlgDriver(
-  Realm& realm, const std::string& gradPhiName)
-  : NgpAlgDriver(realm), gradPhiName_(gradPhiName)
+  Realm& realm, const std::string& phiName, const std::string& gradPhiName)
+  : NgpAlgDriver(realm), phiName_(phiName), gradPhiName_(gradPhiName)
 {
 }
 
@@ -31,21 +31,9 @@ template <typename GradPhiType>
 void
 NodalGradAlgDriver<GradPhiType>::pre_work()
 {
-  const auto& meta = realm_.meta_data();
-
-  auto* gradPhi = meta.template get_field<GradPhiType>(
-    stk::topology::NODE_RANK, gradPhiName_);
-
-  stk::mesh::field_fill(0.0, *gradPhi);
-
-  const auto& meshInfo = realm_.mesh_info();
-  const auto ngpMesh = meshInfo.ngp_mesh();
-  const auto& fieldMgr = meshInfo.ngp_field_manager();
-  auto ngpGradPhi =
-    fieldMgr.template get_field<double>(gradPhi->mesh_meta_data_ordinal());
-
-  ngpGradPhi.set_all(ngpMesh, 0.0);
-  ngpGradPhi.clear_sync_state();
+  auto grad_phi =
+    kynema_ugf_ngp::get_ngp_field(realm_.mesh_info(), gradPhiName_);
+  grad_phi.set_all(stk::mesh::get_updated_ngp_mesh(realm_.bulk_data()), 0.0);
 }
 
 template <typename GradPhiType>
@@ -57,9 +45,12 @@ NodalGradAlgDriver<GradPhiType>::post_work()
   const auto& bulk = realm_.bulk_data();
   const auto& meshInfo = realm_.mesh_info();
 
-  auto* gradPhi = meta.template get_field<GradPhiType>(
-    stk::topology::NODE_RANK, gradPhiName_);
-  auto& ngpGradPhi = nalu_ngp::get_ngp_field(meshInfo, gradPhiName_);
+  auto* phi =
+    meta.template get_field<double>(stk::topology::NODE_RANK, phiName_);
+
+  auto* gradPhi =
+    meta.template get_field<double>(stk::topology::NODE_RANK, gradPhiName_);
+  auto& ngpGradPhi = kynema_ugf_ngp::get_ngp_field(meshInfo, gradPhiName_);
   ngpGradPhi.sync_to_host();
 
   const std::vector<NGPDoubleFieldType*> fVec{&ngpGradPhi};
@@ -67,7 +58,7 @@ NodalGradAlgDriver<GradPhiType>::post_work()
   stk::mesh::parallel_sum(bulk, fVec, doFinalSyncToDevice);
 
   const int dim2 = meta.spatial_dimension();
-  const int dim1 = std::is_same<VectorFieldType, GradPhiType>::value ? 1 : dim2;
+  const int dim1 = max_extent(*phi, 0);
 
   if (realm_.hasPeriodic_) {
     realm_.periodic_field_update(gradPhi, dim2 * dim1);
@@ -82,7 +73,6 @@ NodalGradAlgDriver<GradPhiType>::post_work()
 }
 
 template class NodalGradAlgDriver<VectorFieldType>;
-template class NodalGradAlgDriver<GenericFieldType>;
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

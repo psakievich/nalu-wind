@@ -16,7 +16,7 @@
 #include <utility>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 struct ActuatorBulk;
 struct ActuatorMeta;
@@ -32,7 +32,7 @@ public:
     const ActuatorMeta& actMeta, ActuatorBulk& actBulk);
   FilteredLiftingLineCorrection() = delete;
 
-  virtual ~FilteredLiftingLineCorrection(){};
+  virtual ~FilteredLiftingLineCorrection() {};
 
   /**
    * @brief Compute the lift force distribution (G)
@@ -64,7 +64,7 @@ private:
   const ActuatorMeta& actMeta_;
   std::vector<BladeDistributionInfo> bladeDistInfo_;
 };
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif /* ACTUATORFLLC_H_ */

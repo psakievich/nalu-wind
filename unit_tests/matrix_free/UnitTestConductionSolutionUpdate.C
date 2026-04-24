@@ -26,12 +26,10 @@
 
 #include "stk_mesh/base/Bucket.hpp"
 #include "stk_mesh/base/BulkData.hpp"
-#include "stk_mesh/base/CoordinateSystems.hpp"
 #include "stk_mesh/base/Entity.hpp"
 #include "stk_mesh/base/Field.hpp"
 #include "stk_mesh/base/FieldBase.hpp"
 #include "stk_mesh/base/FieldState.hpp"
-#include "stk_mesh/base/FieldTraits.hpp"
 #include "stk_mesh/base/GetNgpField.hpp"
 #include "stk_mesh/base/MetaData.hpp"
 #include "stk_mesh/base/Ngp.hpp"
@@ -49,7 +47,7 @@
 #include <type_traits>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 
 namespace test_solution_update {
@@ -75,8 +73,7 @@ protected:
       field_update(Teuchos::ParameterList{}, linsys, exporter, offset_views)
   {
     auto& coordField =
-      *meta.get_field<stk::mesh::Field<double, stk::mesh::Cartesian3d>>(
-        stk::topology::NODE_RANK, "coordinates");
+      *meta.get_field<double>(stk::topology::NODE_RANK, "coordinates");
     for (auto ib :
          bulk.get_buckets(stk::topology::NODE_RANK, meta.universal_part())) {
       for (auto node : *ib) {
@@ -128,11 +125,10 @@ copy_tpetra_solution_vector_to_stk_field(
         field(mi, d) = delta_view(tpetra_lid, d);
       }
     });
+  field.modify_on_device();
 }
 
 } // namespace
-
-#ifndef KOKKOS_ENABLE_GPU
 
 TEST_F(ConductionSolutionUpdateFixture, correct_behavior_for_linear_problem)
 {
@@ -160,8 +156,7 @@ TEST_F(ConductionSolutionUpdateFixture, correct_behavior_for_linear_problem)
   delta.sync_to_host();
 
   auto& coord_field =
-    *meta.get_field<stk::mesh::Field<double, stk::mesh::Cartesian3d>>(
-      stk::topology::NODE_RANK, "coordinates");
+    *meta.get_field<double>(stk::topology::NODE_RANK, "coordinates");
   for (auto ib :
        bulk.get_buckets(stk::topology::NODE_RANK, meta.universal_part())) {
     for (auto node : *ib) {
@@ -172,8 +167,6 @@ TEST_F(ConductionSolutionUpdateFixture, correct_behavior_for_linear_problem)
   }
 }
 
-#endif // KOKKOS_ENABLE_GPU
-
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

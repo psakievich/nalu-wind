@@ -7,6 +7,7 @@
 // for more details.
 //
 
+#include "master_element/CompileTimeElements.h"
 #include <master_element/MasterElement.h>
 #include <master_element/Pyr5CVFEM.h>
 #include <master_element/Hex8GeometryFunctions.h>
@@ -14,7 +15,7 @@
 
 #include <AlgTraits.h>
 
-#include <NaluEnv.h>
+#include <KynemaUGFEnv.h>
 
 #include <stk_util/util/ReportHandler.hpp>
 #include <stk_topology/topology.hpp>
@@ -28,7 +29,7 @@
 #include <memory>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 int
 pyr_gradient_operator(
@@ -65,34 +66,34 @@ pyr_gradient_operator(
   //
   const unsigned nint = deriv.extent(0);
   const unsigned npe = deriv.extent(1);
-  ThrowRequireMsg(
+  STK_ThrowRequireMsg(
     3 == deriv.extent(2), "pyr_gradient_operator: Error in derivative array");
 
   const unsigned nelem = cordel.extent(0);
-  ThrowRequireMsg(
+  STK_ThrowRequireMsg(
     npe == cordel.extent(1),
     "pyr_gradient_operator: Error in coorindate array");
-  ThrowRequireMsg(
+  STK_ThrowRequireMsg(
     3 == cordel.extent(2), "pyr_gradient_operator: Error in coorindate array");
 
-  ThrowRequireMsg(
+  STK_ThrowRequireMsg(
     nint == gradop.extent(0), "pyr_gradient_operator: Error in gradient array");
-  ThrowRequireMsg(
+  STK_ThrowRequireMsg(
     nelem == gradop.extent(1),
     "pyr_gradient_operator: Error in gradient array");
-  ThrowRequireMsg(
+  STK_ThrowRequireMsg(
     npe == gradop.extent(2), "pyr_gradient_operator: Error in gradient array");
-  ThrowRequireMsg(
+  STK_ThrowRequireMsg(
     3 == gradop.extent(3), "pyr_gradient_operator: Error in gradient array");
 
-  ThrowRequireMsg(
+  STK_ThrowRequireMsg(
     nint == det_j.extent(0),
     "pyr_gradient_operator: Error in determinent array");
-  ThrowRequireMsg(
+  STK_ThrowRequireMsg(
     nelem == det_j.extent(1),
     "pyr_gradient_operator: Error in determinent array");
 
-  ThrowRequireMsg(
+  STK_ThrowRequireMsg(
     nelem == err.extent(0), "pyr_gradient_operator: Error in error array");
 
   const double realmin = std::numeric_limits<double>::min();
@@ -593,10 +594,9 @@ void
 PyrSCV::grad_op(
   const SharedMemView<DoubleType**, DeviceShmem>& coords,
   SharedMemView<DoubleType***, DeviceShmem>& gradop,
-  SharedMemView<DoubleType***, DeviceShmem>& deriv)
+  SharedMemView<DoubleType***, DeviceShmem>&)
 {
-  pyr_deriv(numIntPoints_, &intgLoc_[0], deriv);
-  generic_grad_op<AlgTraitsPyr5>(deriv, coords, gradop);
+  impl::grad_op<AlgTraitsPyr5, QuadRank::SCV, QuadType::MID>(coords, gradop);
 }
 
 //--------------------------------------------------------------------------
@@ -608,10 +608,10 @@ void
 PyrSCV::shifted_grad_op(
   SharedMemView<DoubleType**, DeviceShmem>& coords,
   SharedMemView<DoubleType***, DeviceShmem>& gradop,
-  SharedMemView<DoubleType***, DeviceShmem>& deriv)
+  SharedMemView<DoubleType***, DeviceShmem>&)
 {
-  shifted_pyr_deriv(numIntPoints_, &intgLocShift_[0], deriv);
-  generic_grad_op<AlgTraitsPyr5>(deriv, coords, gradop);
+  impl::grad_op<AlgTraitsPyr5, QuadRank::SCV, QuadType::SHIFTED>(
+    coords, gradop);
 }
 
 template <typename SCALAR, typename SHMEM>
@@ -642,6 +642,7 @@ PyrSCV::shifted_shape_fcn(SharedMemView<DoubleType**, DeviceShmem>& shpfc)
 {
   shifted_shape_fcn<>(shpfc);
 }
+
 void
 PyrSCV::shifted_shape_fcn(SharedMemView<double**, HostShmem>& shpfc)
 {
@@ -921,20 +922,18 @@ void
 PyrSCS::grad_op(
   const SharedMemView<DoubleType**, DeviceShmem>& coords,
   SharedMemView<DoubleType***, DeviceShmem>& gradop,
-  SharedMemView<DoubleType***, DeviceShmem>& deriv)
+  SharedMemView<DoubleType***, DeviceShmem>&)
 {
-  pyr_deriv(numIntPoints_, &intgLoc_[0], deriv);
-  generic_grad_op<AlgTraitsPyr5>(deriv, coords, gradop);
+  impl::grad_op<AlgTraitsPyr5, QuadRank::SCS, QuadType::MID>(coords, gradop);
 }
 
 void
 PyrSCS::grad_op(
   const SharedMemView<double**>& coords,
   SharedMemView<double***>& gradop,
-  SharedMemView<double***>& deriv)
+  SharedMemView<double***>& /*deriv*/)
 {
-  pyr_deriv(numIntPoints_, &intgLoc_[0], deriv);
-  generic_grad_op<AlgTraitsPyr5>(deriv, coords, gradop);
+  impl::grad_op<AlgTraitsPyr5, QuadRank::SCS, QuadType::MID>(coords, gradop);
 }
 
 //--------------------------------------------------------------------------
@@ -945,10 +944,10 @@ void
 PyrSCS::shifted_grad_op(
   SharedMemView<DoubleType**, DeviceShmem>& coords,
   SharedMemView<DoubleType***, DeviceShmem>& gradop,
-  SharedMemView<DoubleType***, DeviceShmem>& deriv)
+  SharedMemView<DoubleType***, DeviceShmem>&)
 {
-  shifted_pyr_deriv(numIntPoints_, &intgLocShift_[0], deriv);
-  generic_grad_op<AlgTraitsPyr5>(deriv, coords, gradop);
+  impl::grad_op<AlgTraitsPyr5, QuadRank::SCS, QuadType::SHIFTED>(
+    coords, gradop);
 }
 
 //--------------------------------------------------------------------------
@@ -1154,7 +1153,7 @@ PyrSCS::general_face_grad_op(
   const int lerr = pyr_gradient_operator(cordel, deriv, grad, det, err);
 
   if (lerr)
-    NaluEnv::self().naluOutput()
+    KynemaUGFEnv::self().kynema_ugfOutput()
       << "PyrSCS::general_face_grad_op: issue.." << std::endl;
 }
 
@@ -1429,7 +1428,7 @@ PyrSCS::sidePcoords_to_elemPcoords(
   const double* side_pcoords,
   double* elem_pcoords)
 {
-  ThrowRequireMsg(
+  STK_ThrowRequireMsg(
     side_ordinal >= 0 && side_ordinal <= 4,
     "Invalid pyramid side ordinal " + std::to_string(side_ordinal));
 
@@ -1473,5 +1472,5 @@ PyrSCS::sidePcoords_to_elemPcoords(
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

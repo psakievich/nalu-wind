@@ -17,7 +17,7 @@
 #include <stk_mesh/base/Part.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class Realm;
 
@@ -28,14 +28,14 @@ public:
     Realm& realm,
     stk::mesh::Part* part,
     VectorFieldType* vectorQ,
-    GenericFieldType* dqdx);
+    TensorFieldType* dqdx);
 
   ~AssembleNodalGradUNonConformalAlgorithm();
 
   void execute();
 
   VectorFieldType* vectorQ_;
-  GenericFieldType* dqdx_;
+  TensorFieldType* dqdx_;
 
   ScalarFieldType* dualNodalVolume_;
   GenericFieldType* exposedAreaVec_;
@@ -43,7 +43,7 @@ public:
   std::vector<const stk::mesh::FieldBase*> ghostFieldVec_;
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

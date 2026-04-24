@@ -17,6 +17,8 @@
 // NGP-based includes
 #include "SimdInterface.h"
 #include "KokkosInterface.h"
+#include "master_element/CompileTimeElements.h"
+#include "master_element/IntegrationRules.h"
 
 #include <cstdlib>
 #include <stdexcept>
@@ -27,7 +29,7 @@ struct topology;
 }
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 struct ElementDescription;
 class MasterElement;
@@ -42,6 +44,9 @@ public:
   using MasterElement::shape_fcn;
   using MasterElement::shifted_grad_op;
   using MasterElement::shifted_shape_fcn;
+
+  template <QuadType q>
+  using pyr_data_t = elem_data_t<AlgTraits, q>;
 
   KOKKOS_FUNCTION
   PyrSCV();
@@ -144,6 +149,9 @@ public:
   using MasterElement::determinant;
   using MasterElement::shape_fcn;
   using MasterElement::shifted_shape_fcn;
+
+  template <QuadType q>
+  using pyr_data_t = elem_data_t<AlgTraits, q>;
 
   KOKKOS_FUNCTION
   PyrSCS();
@@ -298,16 +306,17 @@ private:
 
   // define opposing node
   // opposing node for node 4 is never uniquely defined: pick one
-  const int oppNode_[20] = {// face 0; nodes 0,1,4
-                            3, 2, 2, -1,
-                            // face 1; nodes 1,2,4
-                            0, 3, 3, -1,
-                            // face 2; nodes 2,3,4
-                            1, 0, 0, -1,
-                            // face 3; nodes 0,4,3
-                            1, 1, 2, -1,
-                            // face 4; nodes 0,3,2,1
-                            4, 4, 4, 4};
+  const int oppNode_[20] = {
+    // face 0; nodes 0,1,4
+    3, 2, 2, -1,
+    // face 1; nodes 1,2,4
+    0, 3, 3, -1,
+    // face 2; nodes 2,3,4
+    1, 0, 0, -1,
+    // face 3; nodes 0,4,3
+    1, 1, 2, -1,
+    // face 4; nodes 0,3,2,1
+    4, 4, 4, 4};
 
 #if 0
   // define opposing face
@@ -408,16 +417,17 @@ private:
     // face 4, nodes 0,3,2,1, scs 0, 1, 2
     -0.5, -0.5, 0.0, -0.5, 0.5, 0.0, 0.5, 0.5, 0.0, 0.5, -0.5, 0.0};
 
-  const int ipNodeMap_[16] = {// Face 0
-                              0, 1, 4,
-                              // Face 1
-                              1, 2, 4,
-                              // Face 2
-                              2, 3, 4,
-                              // Face 3
-                              0, 4, 3,
-                              // Face 4 (quad face)
-                              0, 3, 2, 1};
+  const int ipNodeMap_[16] = {
+    // Face 0
+    0, 1, 4,
+    // Face 1
+    1, 2, 4,
+    // Face 2
+    2, 3, 4,
+    // Face 3
+    0, 4, 3,
+    // Face 4 (quad face)
+    0, 3, 2, 1};
 
   double intgExpFaceShift_[48] = {0};
 
@@ -427,7 +437,7 @@ private:
     SharedMemView<DBLTYPE**, SHMEM>& areav);
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

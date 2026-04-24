@@ -18,10 +18,10 @@
 
 #include <Realm.h>
 #include <master_element/MasterElement.h>
-#include <master_element/MasterElementFactory.h>
+#include <master_element/MasterElementRepo.h>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 template <class FROM, class TO>
 class LinInterp
@@ -96,9 +96,8 @@ LinInterp<FROM, TO>::filter_to_nearest(
       // extract master element from the bucket in which the element resides
       const stk::mesh::Bucket& theBucket = fromBulkData.bucket(theElem);
       const stk::topology& theElemTopo = theBucket.topology();
-      MasterElement* meSCS =
-        sierra::nalu::MasterElementRepo::get_surface_master_element(
-          theElemTopo);
+      MasterElement* meSCS = sierra::kynema_ugf::MasterElementRepo::
+        get_surface_master_element_on_host(theElemTopo);
 
       // load nodal coordinates from element
       stk::mesh::Entity const* elem_node_rels =
@@ -147,16 +146,17 @@ LinInterp<FROM, TO>::filter_to_nearest(
   stk::all_reduce_max(
     FromElem.comm(), &maxCandidateBoundingBox, &g_maxCandidateBoundngBox, 1);
 
-  NaluEnv::self().naluOutputP0() << std::endl;
-  NaluEnv::self().naluOutputP0()
+  KynemaUGFEnv::self().kynema_ugfOutputP0() << std::endl;
+  KynemaUGFEnv::self().kynema_ugfOutputP0()
     << "XFER::LinInterp::fine_search() Overview:" << std::endl;
-  NaluEnv::self().naluOutputP0()
+  KynemaUGFEnv::self().kynema_ugfOutputP0()
     << "  Maximum normalized distance found is: " << g_maxBestX
     << " (should be unity or less)" << std::endl;
-  NaluEnv::self().naluOutputP0() << "  Maximum number of candidate bounding "
-                                    "boxes found for a single point is: "
-                                 << g_maxCandidateBoundngBox << std::endl;
-  NaluEnv::self().naluOutputP0()
+  KynemaUGFEnv::self().kynema_ugfOutputP0()
+    << "  Maximum number of candidate bounding "
+       "boxes found for a single point is: "
+    << g_maxCandidateBoundngBox << std::endl;
+  KynemaUGFEnv::self().kynema_ugfOutputP0()
     << "  Should max normalized distance and/or candidate bounding box size be "
        "too large, please check setup"
     << std::endl;
@@ -190,7 +190,8 @@ LinInterp<FROM, TO>::apply(
     const stk::mesh::Bucket& theBucket = fromBulkData.bucket(theElem);
     const stk::topology& theElemTopo = theBucket.topology();
     MasterElement* meSCS =
-      sierra::nalu::MasterElementRepo::get_surface_master_element(theElemTopo);
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
+        theElemTopo);
 
     stk::mesh::Entity const* elem_node_rels = fromBulkData.begin_nodes(theElem);
     const int num_nodes = fromBulkData.num_nodes(theElem);
@@ -232,7 +233,7 @@ LinInterp<FROM, TO>::apply(
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

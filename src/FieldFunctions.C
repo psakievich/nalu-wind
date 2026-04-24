@@ -13,14 +13,14 @@
 #include <stk_mesh/base/Bucket.hpp>
 #include <stk_mesh/base/MetaData.hpp>
 #include <stk_mesh/base/Selector.hpp>
-#include <stk_mesh/base/GetBuckets.hpp>
+
 #include <stk_mesh/base/Part.hpp>
 #include <stk_mesh/base/Field.hpp>
 
 #include <algorithm>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 void
 field_axpby(
@@ -48,7 +48,7 @@ field_axpby(
     stk::mesh::Bucket& b = *buckets[i];
     const stk::mesh::Bucket::size_type length = b.size();
     const size_t fieldSize = field_bytes_per_entity(xField, b) / sizeof(double);
-    ThrowAssert(
+    STK_ThrowAssert(
       fieldSize == field_bytes_per_entity(yField, b) / sizeof(double));
     const unsigned kmax = length * fieldSize;
     const double* x = (double*)stk::mesh::field_data(xField, b);
@@ -145,7 +145,7 @@ field_copy(
     stk::mesh::Bucket& b = *buckets[i];
     const stk::mesh::Bucket::size_type length = b.size();
     const size_t fieldSize = field_bytes_per_entity(xField, b) / sizeof(double);
-    ThrowAssert(
+    STK_ThrowAssert(
       fieldSize == field_bytes_per_entity(yField, b) / sizeof(double));
     const unsigned kmax = length * fieldSize;
     const double* x = (double*)stk::mesh::field_data(xField, b);
@@ -193,5 +193,5 @@ field_index_copy(
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

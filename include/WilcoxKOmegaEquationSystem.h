@@ -12,7 +12,7 @@
 
 #include <EquationSystem.h>
 #include <FieldTypeDef.h>
-#include <NaluParsedTypes.h>
+#include <KynemaUGFParsedTypes.h>
 
 namespace stk {
 struct topology;
@@ -22,7 +22,7 @@ class Part;
 } // namespace stk
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class EquationSystems;
 class AlgorithmDriver;
@@ -40,7 +40,7 @@ public:
 
   virtual void initialize();
 
-  virtual void register_nodal_fields(stk::mesh::Part* part);
+  virtual void register_nodal_fields(const stk::mesh::PartVector& part_vec);
 
   virtual void register_wall_bc(
     stk::mesh::Part* part,
@@ -81,7 +81,7 @@ public:
   const double sdrMinValue_{1.0e-8};
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

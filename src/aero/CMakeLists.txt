@@ -1,10 +1,14 @@
-target_sources(nalu PRIVATE
+target_sources(${kynema_ugf_lib_name} PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/AeroContainer.C
+  ${CMAKE_CURRENT_SOURCE_DIR}/CalcLoads.C
 )
 
 add_subdirectory(actuator)
 
-if(ENABLE_OPENFAST_FSI)
+if(ENABLE_OPENFAST)
 add_subdirectory(fsi)
 endif()
 
+if(ENABLE_KYNEMA_SIXDOF)
+add_subdirectory(six_dof)
+endif()

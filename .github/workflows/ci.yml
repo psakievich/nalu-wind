@@ -1,31 +1,28 @@
-name: Nalu-Wind-CI
+name: Kynema-UGF-CI
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
-    branches: [master]
+    branches: [main]
 
 jobs:
   Formatting:
     runs-on: ubuntu-latest
     steps:
-    - name: Clone
-      uses: actions/checkout@v3
-    - name: Check formatting
-      uses: DoozyX/clang-format-lint-action@v0.13
+    - uses: actions/checkout@v4
+    - name: Run clang-format
+      uses: jidicula/clang-format-action@v4.18.0
       with:
-        source: '. ./include ./src ./unit_tests'
-        exclude: './docs'
-        extensions: 'H,h,cpp,C'
-        clangFormatVersion: 13
-  CPU:
+        clang-format-version: '22'
+        check-path: '.'
+  CPU-Trilinos:
     needs: Formatting
     runs-on: ubuntu-latest
     container:
       image: ecpe4s/exawind-snapshot
       env:
-          SPACK_MANAGER: /spack-manager
+          EXAWIND_MANAGER: /exawind-manager
           E4S_MACHINE: true
     steps:
       - name: Cancel previous runs
@@ -37,14 +34,49 @@ jobs:
         with:
           submodules: true
       - name: Tests
-        working-directory: /spack-manager/environments/exawind
         run: |
           /bin/bash -c " \
-            source ${SPACK_MANAGER}/start.sh && \
-            ln -s ${GITHUB_WORKSPACE} nalu-wind && \
-            source ${SPACK_MANAGER}/start.sh && \
-            quick-develop -s nalu-wind@master+tioga+hypre && \
+            source ${EXAWIND_MANAGER}/start.sh && spack-start && \
+            spack env activate e4s-build && \
+            cd ${EXAWIND_MANAGER}/environments/e4s-build && \
+            ln -s ${GITHUB_WORKSPACE} kynema-ugf && \
+            spack develop --no-modify-concrete-specs --no-clone kynema-ugf@=main && \
+            spack rm exawind && \
+            spack add kynema-ugf@main+hypre+openfast+tioga+trilinos-solvers && \
+            spack concretize -f && \
+            spack install --reuse && \
+            spack cd -b kynema-ugf && \
+            spack build-env kynema-ugf ctest -j $(nproc) -L unit --output-on-failure \
+          "
+  CPU-Hypre-Only:
+    needs: Formatting
+    runs-on: ubuntu-latest
+    container:
+      image: ecpe4s/exawind-snapshot
+      env:
+          EXAWIND_MANAGER: /exawind-manager
+          E4S_MACHINE: true
+    steps:
+      - name: Cancel previous runs
+        uses: styfle/cancel-workflow-action@0.6.0
+        with:
+          access_token: ${{github.token}}
+      - name: Clone
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+      - name: Tests
+        run: |
+          /bin/bash -c " \
+            source ${EXAWIND_MANAGER}/start.sh && spack-start && \
+            spack env activate e4s-build && \
+            cd ${EXAWIND_MANAGER}/environments/e4s-build && \
+            ln -s ${GITHUB_WORKSPACE} kynema-ugf && \
+            spack develop --no-modify-concrete-specs --no-clone kynema-ugf@=main && \
+            spack rm exawind && \
+            spack add kynema-ugf@main+hypre+openfast+tioga~trilinos-solvers && \
+            spack concretize -f && \
             spack install && \
-            spack cd -b nalu-wind && \
-            spack build-env nalu-wind ctest -j $(nproc) -L unit --output-on-failure \
+            spack cd -b kynema-ugf && \
+            spack build-env kynema-ugf ctest -j $(nproc) -L unit --output-on-failure \
           "

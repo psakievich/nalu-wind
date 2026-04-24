@@ -14,7 +14,7 @@
 #include <Kokkos_DualView.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 #ifndef ACTUATOR_LAMBDA
 #define ACTUATOR_LAMBDA [=]
@@ -24,7 +24,7 @@ namespace nalu {
 using ActuatorMemSpace = Kokkos::CudaSpace;
 using ActuatorExecutionSpace = Kokkos::DefaultExecutionSpace;
 #elif defined(KOKKOS_ENABLE_HIP)
-using ActuatorMemSpace = Kokkos::Experimental::HIPSpace;
+using ActuatorMemSpace = Kokkos::HIPSpace;
 using ActuatorExecutionSpace = Kokkos::DefaultExecutionSpace;
 #else
 using ActuatorMemSpace = Kokkos::HostSpace;
@@ -105,7 +105,7 @@ struct ActDualViewHelper
   // TODO create range policy
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif // INCLUDE_ACTUATOR_ACTUATORTYPES_H_

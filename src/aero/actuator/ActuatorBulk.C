@@ -17,7 +17,7 @@
 #include <FieldTypeDef.h>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 ActuatorMeta::ActuatorMeta(int numTurbines, ActuatorType actuatorType)
   : numberOfActuators_(numTurbines),
@@ -63,9 +63,9 @@ ActuatorBulk::ActuatorBulk(const ActuatorMeta& actMeta)
     localParallelRedundancy_("localParallelReundancy", actMeta.numPointsTotal_),
     elemContainingPoint_("elemContainPoint", actMeta.numPointsTotal_),
     localTurbineId_(
-      NaluEnv::self().parallel_rank() >= actMeta.numberOfActuators_
+      KynemaUGFEnv::self().parallel_rank() >= actMeta.numberOfActuators_
         ? -1
-        : NaluEnv::self().parallel_rank())
+        : KynemaUGFEnv::self().parallel_rank())
 {
   compute_offsets(actMeta);
 }
@@ -111,10 +111,10 @@ ActuatorBulk::zero_source_terms(stk::mesh::BulkData& stkBulk)
 
   const stk::mesh::MetaData& stkMeta = stkBulk.mesh_meta_data();
 
-  VectorFieldType* actuatorSource = stkMeta.get_field<VectorFieldType>(
-    stk::topology::NODE_RANK, "actuator_source");
-  ScalarFieldType* actuatorSourceLhs = stkMeta.get_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, "actuator_source_lhs");
+  VectorFieldType* actuatorSource =
+    stkMeta.get_field<double>(stk::topology::NODE_RANK, "actuator_source");
+  ScalarFieldType* actuatorSourceLhs =
+    stkMeta.get_field<double>(stk::topology::NODE_RANK, "actuator_source_lhs");
 
   const double zero[3] = {0.0, 0.0, 0.0};
 
@@ -127,8 +127,8 @@ ActuatorBulk::parallel_sum_source_term(stk::mesh::BulkData& stkBulk)
 {
 
   const stk::mesh::MetaData& stkMeta = stkBulk.mesh_meta_data();
-  VectorFieldType* actuatorSource = stkMeta.get_field<VectorFieldType>(
-    stk::topology::NODE_RANK, "actuator_source");
+  VectorFieldType* actuatorSource =
+    stkMeta.get_field<double>(stk::topology::NODE_RANK, "actuator_source");
 
   stk::mesh::parallel_sum(stkBulk, {actuatorSource});
   actuatorSource->modify_on_host();
@@ -137,7 +137,7 @@ ActuatorBulk::parallel_sum_source_term(stk::mesh::BulkData& stkBulk)
 Kokkos::RangePolicy<ActuatorFixedExecutionSpace>
 ActuatorBulk::local_range_policy(const ActuatorMeta& actMeta)
 {
-  auto rank = NaluEnv::self().parallel_rank();
+  auto rank = KynemaUGFEnv::self().parallel_rank();
   if (rank < turbIdOffset_.extent_int(0)) {
     const int offset = turbIdOffset_.h_view(rank);
     const int size = actMeta.numPointsTurbine_.h_view(rank);
@@ -148,5 +148,5 @@ ActuatorBulk::local_range_policy(const ActuatorMeta& actMeta)
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

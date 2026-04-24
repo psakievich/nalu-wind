@@ -20,7 +20,7 @@
 #include "KokkosInterface.h"
 #include "SimdInterface.h"
 
-#include "master_element/MasterElementFactory.h"
+#include "master_element/MasterElementRepo.h"
 
 #include "UnitTestHelperObjects.h"
 
@@ -37,6 +37,7 @@ public:
     meshBuilder.set_spatial_dimension(BcAlgTraits::nDim_);
     bulk_ = meshBuilder.create();
     meta_ = &bulk_->mesh_meta_data();
+    meta_->use_simple_fields();
     if (doInit)
       fill_mesh_and_init_data(doPerturb);
   }
@@ -60,9 +61,11 @@ public:
       unit_test_utils::create_one_reference_element(
         *bulk_, BcAlgTraits::elemTopo_);
 
-    partVec_ = {meta_->get_part("surface_" + std::to_string(faceOrdinal_))};
-    coordinates_ =
-      static_cast<const VectorFieldType*>(meta_->coordinate_field());
+    partVec_.clear();
+    partVec_.push_back(
+      meta_->get_part("surface_" + std::to_string(faceOrdinal_)));
+    coordinates_ = static_cast<const sierra::kynema_ugf::VectorFieldType*>(
+      meta_->coordinate_field());
 
     EXPECT_TRUE(coordinates_ != nullptr);
 
@@ -72,48 +75,53 @@ public:
       partVec_[0]));
 
     elemDataNeeded().add_coordinates_field(
-      *coordinates_, BcAlgTraits::nDim_, sierra::nalu::CURRENT_COORDINATES);
+      *coordinates_, BcAlgTraits::nDim_,
+      sierra::kynema_ugf::CURRENT_COORDINATES);
     faceDataNeeded().add_coordinates_field(
-      *coordinates_, BcAlgTraits::nDim_, sierra::nalu::CURRENT_COORDINATES);
+      *coordinates_, BcAlgTraits::nDim_,
+      sierra::kynema_ugf::CURRENT_COORDINATES);
   }
 
   void init_me_data()
   {
-    meFC_ = sierra::nalu::MasterElementRepo::get_surface_master_element(
-      BcAlgTraits::faceTopo_);
-    meSCS_ = sierra::nalu::MasterElementRepo::get_surface_master_element(
-      BcAlgTraits::elemTopo_);
+    meFC_ =
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
+        BcAlgTraits::faceTopo_);
+    meSCS_ =
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
+        BcAlgTraits::elemTopo_);
     // Register them to ElemDataRequests
     faceDataNeeded().add_cvfem_face_me(meFC_);
     elemDataNeeded().add_cvfem_surface_me(meSCS_);
   }
 
   template <typename LambdaFunction>
-  void execute(LambdaFunction
+  void execute(
+    LambdaFunction
 #if !defined(KOKKOS_ENABLE_GPU)
-                 func
+      func
 #endif
   )
   {
-    ThrowRequireMsg(
+    STK_ThrowRequireMsg(
       partVec_.size() == 1, "KokkosMEViews unit-test assumes partVec_.size==1");
-    ThrowRequireMsg(
+    STK_ThrowRequireMsg(
       !bulk_->get_buckets(meta_->side_rank(), *partVec_[0]).empty(),
       "part does not contain side-ranked elements");
 
 #if !defined(KOKKOS_ENABLE_GPU)
-    sierra::nalu::AssembleFaceElemSolverAlgorithm& alg =
+    sierra::kynema_ugf::AssembleFaceElemSolverAlgorithm& alg =
       *(helperObjs_->assembleFaceElemSolverAlg);
     alg.run_face_elem_algorithm(*bulk_, func);
 #endif
   }
 
-  sierra::nalu::ElemDataRequests& faceDataNeeded()
+  sierra::kynema_ugf::ElemDataRequests& faceDataNeeded()
   {
     return helperObjs_->assembleFaceElemSolverAlg->faceDataNeeded_;
   }
 
-  sierra::nalu::ElemDataRequests& elemDataNeeded()
+  sierra::kynema_ugf::ElemDataRequests& elemDataNeeded()
   {
     return helperObjs_->assembleFaceElemSolverAlg->elemDataNeeded_;
   }
@@ -123,13 +131,13 @@ public:
   std::shared_ptr<stk::mesh::BulkData> bulk_;
   int faceOrdinal_;
   stk::mesh::PartVector partVec_;
-  const VectorFieldType* coordinates_{nullptr};
+  const sierra::kynema_ugf::VectorFieldType* coordinates_{nullptr};
 
   std::unique_ptr<FaceElemHelperObjects> helperObjs_;
 
-  sierra::nalu::MasterElement* meFC_{nullptr};
-  sierra::nalu::MasterElement* meSCV_{nullptr};
-  sierra::nalu::MasterElement* meSCS_{nullptr};
+  sierra::kynema_ugf::MasterElement* meFC_{nullptr};
+  sierra::kynema_ugf::MasterElement* meSCV_{nullptr};
+  sierra::kynema_ugf::MasterElement* meSCS_{nullptr};
 };
 
 } // namespace unit_test_utils

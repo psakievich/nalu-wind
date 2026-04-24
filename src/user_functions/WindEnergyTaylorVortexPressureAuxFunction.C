@@ -8,7 +8,7 @@
 //
 
 #include <user_functions/WindEnergyTaylorVortexPressureAuxFunction.h>
-#include <NaluEnv.h>
+#include <KynemaUGFEnv.h>
 
 // basic c++
 #include <cmath>
@@ -17,7 +17,7 @@
 #include <algorithm>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 WindEnergyTaylorVortexPressureAuxFunction::
   WindEnergyTaylorVortexPressureAuxFunction(const std::vector<double>& params)
@@ -31,10 +31,11 @@ WindEnergyTaylorVortexPressureAuxFunction::
 {
   //  check size and populate
   if (!(params.size() > 4 && params.size() < 7) && !params.empty())
-    throw std::runtime_error("Realm::setup_initial_conditions: "
-                             "wind_energy_taylor_vortex takes 5 - 6 parameters:"
-                             " centroidX, centroidY, initial vortex radius, "
-                             "utheta0, uInf,  Optionally, density");
+    throw std::runtime_error(
+      "Realm::setup_initial_conditions: "
+      "wind_energy_taylor_vortex takes 5 - 6 parameters:"
+      " centroidX, centroidY, initial vortex radius, "
+      "utheta0, uInf,  Optionally, density");
 
   if (!params.empty()) {
     centroidX_ = params[0];
@@ -47,7 +48,7 @@ WindEnergyTaylorVortexPressureAuxFunction::
       density_ = params[5];
     }
   } else {
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << "wind_energy_taylor_vortex proceeding with default parameters."
       << "\n  centroidX: " << centroidX_ << "\n  centroidY: " << centroidY_
       << "\n  rVortex: " << rVortex_ << "\n  beta: " << beta_
@@ -117,7 +118,7 @@ WindEnergyTaylorVortexPressureGradAuxFunction::
       visc_ = params[6];
     }
   } else {
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << "wind_energy_taylor_vortex proceeding with default parameters."
       << "\n  centroidX: " << centroidX_ << "\n  centroidY: " << centroidY_
       << "\n  rVortex: " << rVortex_ << "\n  beta: " << beta_
@@ -163,5 +164,5 @@ WindEnergyTaylorVortexPressureGradAuxFunction::do_evaluate(
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

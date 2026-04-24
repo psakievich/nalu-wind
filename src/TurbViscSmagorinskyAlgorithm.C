@@ -7,7 +7,7 @@
 // for more details.
 //
 
-// nalu
+// kynema_ugf
 #include <TurbViscSmagorinskyAlgorithm.h>
 #include <Algorithm.h>
 #include <FieldTypeDef.h>
@@ -15,14 +15,14 @@
 
 // stk_mesh/base/fem
 #include <stk_mesh/base/BulkData.hpp>
-#include <stk_mesh/base/GetBuckets.hpp>
+
 #include <stk_mesh/base/MetaData.hpp>
 #include <stk_mesh/base/Part.hpp>
 #include <stk_mesh/base/FieldBase.hpp>
 #include <stk_mesh/base/Field.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //==========================================================================
 // Class Definition
@@ -44,14 +44,12 @@ TurbViscSmagorinskyAlgorithm::TurbViscSmagorinskyAlgorithm(
 
   stk::mesh::MetaData& meta_data = realm_.meta_data();
 
-  dudx_ =
-    meta_data.get_field<GenericFieldType>(stk::topology::NODE_RANK, "dudx");
-  density_ =
-    meta_data.get_field<ScalarFieldType>(stk::topology::NODE_RANK, "density");
-  tvisc_ = meta_data.get_field<ScalarFieldType>(
+  dudx_ = meta_data.get_field<double>(stk::topology::NODE_RANK, "dudx");
+  density_ = meta_data.get_field<double>(stk::topology::NODE_RANK, "density");
+  tvisc_ = meta_data.get_field<double>(
     stk::topology::NODE_RANK, "turbulent_viscosity");
-  dualNodalVolume_ = meta_data.get_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, "dual_nodal_volume");
+  dualNodalVolume_ =
+    meta_data.get_field<double>(stk::topology::NODE_RANK, "dual_nodal_volume");
 }
 
 //--------------------------------------------------------------------------
@@ -105,5 +103,5 @@ TurbViscSmagorinskyAlgorithm::execute()
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

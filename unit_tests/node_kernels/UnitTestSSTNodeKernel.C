@@ -14,9 +14,13 @@
 #include "node_kernels/TKESSTNodeKernel.h"
 #include "node_kernels/TKESSTLRNodeKernel.h"
 #include "node_kernels/TKESSTDESNodeKernel.h"
+#include "node_kernels/TKESSTIDDESNodeKernel.h"
+#include "node_kernels/TKESSTBLTM2015NodeKernel.h"
+#include "node_kernels/TKESSTIDDESBLTM2015NodeKernel.h"
 #include "node_kernels/SDRSSTNodeKernel.h"
 #include "node_kernels/SDRSSTLRNodeKernel.h"
 #include "node_kernels/SDRSSTDESNodeKernel.h"
+#include "node_kernels/SDRSSTBLTM2015NodeKernel.h"
 
 namespace {
 namespace hex8_golds {
@@ -310,6 +314,95 @@ static constexpr double lhs[8][8] = {
 };
 } // namespace tke_sst_des
 
+namespace tke_sst_iddes {
+static constexpr double rhs[8] = {
+  -0.78566371211666, -0.57734551764836, -0.081969668080736, -0.31147981334595,
+  -0.20433593046136, -0.19416508662489, -0.026042361300698, -0.037056788165969};
+
+static constexpr double lhs[8][8] = {
+  {
+    0.5892477840875,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+  },
+  {
+    0,
+    0.43300913823627,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+  },
+  {
+    0,
+    0,
+    0.043771362853026,
+    0,
+    0,
+    0,
+    0,
+    0,
+  },
+  {
+    0,
+    0,
+    0,
+    0.22332033598677,
+    0,
+    0,
+    0,
+    0,
+  },
+  {
+    0,
+    0,
+    0,
+    0,
+    0.15325194784602,
+    0,
+    0,
+    0,
+  },
+  {
+    0,
+    0,
+    0,
+    0,
+    0,
+    0.14562381496867,
+    0,
+    0,
+  },
+  {
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0.015779881252609,
+    0,
+  },
+  {
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0.061943732501324,
+  },
+};
+} // namespace tke_sst_iddes
+
 namespace tke_sst_des_sust {
 static constexpr double rhs[8] = {
   3.4229150667019503, 2.0119389960571135,  1.5591709764645274,
@@ -317,6 +410,187 @@ static constexpr double rhs[8] = {
   1.0315739632341863, 0.63878416505705449,
 };
 } // namespace tke_sst_des_sust
+
+namespace tke_sst_trans {
+static constexpr double rhs[8] = {
+  -0.004499999980007,  -0.0026450336235646, -0.0037149722043966,
+  -0.0013217844303503, -0.0026450336153232, -0.0015547117509048,
+  -0.017568942314324,  0.0073065228754648,
+};
+
+static constexpr double lhs[8][8] = {
+  {
+    0.00225,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+  },
+  {
+    0,
+    0.0013225168176581,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+  },
+  {
+    0,
+    0,
+    0.0013225168176581,
+    0,
+    0,
+    0,
+    0,
+    0,
+  },
+  {
+    0,
+    0,
+    0,
+    0.00077735588132818,
+    0,
+    0,
+    0,
+    0,
+  },
+  {
+    0,
+    0,
+    0,
+    0,
+    0.0013225168176581,
+    0,
+    0,
+    0,
+  },
+  {
+    0,
+    0,
+    0,
+    0,
+    0,
+    0.00077735588132818,
+    0,
+    0,
+  },
+  {
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0.0070970479374154,
+    0,
+  },
+  {
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0.0022476729243034,
+  },
+};
+} // namespace tke_sst_trans
+
+namespace tke_sst_iddes_trans {
+static constexpr double rhs[8] = {-0.078566371211666,  -0.057734551764836,
+                                  -0.0081969668080736, -0.035714172392479,
+                                  -0.020433593046136,  -0.019416508662489,
+                                  -0.017913650040436,  -0.015288210620334};
+
+static constexpr double lhs[8][8] = {
+  {
+    0.05892477840875,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+  },
+  {
+    0,
+    0.043300913823627,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+  },
+  {
+    0,
+    0,
+    0.0043771362853026,
+    0,
+    0,
+    0,
+    0,
+    0,
+  },
+  {
+    0,
+    0,
+    0,
+    0.022332033598677,
+    0,
+    0,
+    0,
+    0,
+  },
+  {
+    0,
+    0,
+    0,
+    0,
+    0.015325194784602,
+    0,
+    0,
+    0,
+  },
+  {
+    0,
+    0,
+    0,
+    0,
+    0,
+    0.014562381496867,
+    0,
+    0,
+  },
+  {
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0.010854440854075,
+    0,
+  },
+  {
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0.025555610077388,
+  },
+};
+} // namespace tke_sst_iddes_trans
 
 namespace sdr_sst {
 static constexpr double rhs[8] = {
@@ -627,6 +901,102 @@ static constexpr double rhs[8] = {
 };
 } // namespace sdr_sst_des_sust
 
+namespace sdr_sst_trans {
+static constexpr double rhs[8] = {
+  -0.0414,
+  -0.024334309444908,
+  -0.024334309444908,
+  0.00096369609149651,
+  -0.024334309444908,
+  -0.013421452431681,
+  -0.025196833148802,
+  -0.0016391627843042,
+};
+
+static constexpr double lhs[8][8] = {
+  {
+    0.0414,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+  },
+  {
+    0,
+    0.024334309444908,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+  },
+  {
+    0,
+    0,
+    0.024334309444908,
+    0,
+    0,
+    0,
+    0,
+    0,
+  },
+  {
+    0,
+    0,
+    0,
+    0.014303348216439,
+    0,
+    0,
+    0,
+    0,
+  },
+  {
+    0,
+    0,
+    0,
+    0,
+    0.024334309444908,
+    0,
+    0,
+    0,
+  },
+  {
+    0,
+    0,
+    0,
+    0,
+    0,
+    0.013421452431681,
+    0,
+    0,
+  },
+  {
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0.018984179689384,
+    0,
+  },
+  {
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0.0096611889086056,
+  },
+};
+} // namespace sdr_sst_trans
+
 } // namespace hex8_golds
 } // namespace
 
@@ -646,7 +1016,7 @@ TEST_F(SSTKernelHex8Mesh, NGP_tke_sst_node)
   unit_test_utils::NodeHelperObjects helperObjs(
     bulk_, stk::topology::HEX_8, 1, partVec_[0]);
 
-  helperObjs.nodeAlg->add_kernel<sierra::nalu::TKESSTNodeKernel>(*meta_);
+  helperObjs.nodeAlg->add_kernel<sierra::kynema_ugf::TKESSTNodeKernel>(*meta_);
 
   helperObjs.execute();
 
@@ -681,11 +1051,13 @@ TEST_F(SSTKernelHex8Mesh, NGP_tke_sst_sust_node)
   unit_test_utils::NodeHelperObjects helperObjs(
     bulk_, stk::topology::HEX_8, 1, partVec_[0]);
 
-  sierra::nalu::Realm& realm = helperObjs.realm;
-  realm.solutionOptions_->turbModelConstantMap_[sierra::nalu::TM_tkeAmb] = 5.0;
-  realm.solutionOptions_->turbModelConstantMap_[sierra::nalu::TM_sdrAmb] = 50.0;
+  sierra::kynema_ugf::Realm& realm = helperObjs.realm;
+  realm.solutionOptions_->turbModelConstantMap_[sierra::kynema_ugf::TM_tkeAmb] =
+    5.0;
+  realm.solutionOptions_->turbModelConstantMap_[sierra::kynema_ugf::TM_sdrAmb] =
+    50.0;
 
-  helperObjs.nodeAlg->add_kernel<sierra::nalu::TKESSTNodeKernel>(*meta_);
+  helperObjs.nodeAlg->add_kernel<sierra::kynema_ugf::TKESSTNodeKernel>(*meta_);
 
   helperObjs.execute();
 
@@ -719,7 +1091,8 @@ TEST_F(SSTKernelHex8Mesh, NGP_tke_sstlr_node)
   unit_test_utils::NodeHelperObjects helperObjs(
     bulk_, stk::topology::HEX_8, 1, partVec_[0]);
 
-  helperObjs.nodeAlg->add_kernel<sierra::nalu::TKESSTLRNodeKernel>(*meta_);
+  helperObjs.nodeAlg->add_kernel<sierra::kynema_ugf::TKESSTLRNodeKernel>(
+    *meta_);
 
   helperObjs.execute();
 
@@ -754,7 +1127,8 @@ TEST_F(SSTKernelHex8Mesh, NGP_tke_sst_des_node)
   unit_test_utils::NodeHelperObjects helperObjs(
     bulk_, stk::topology::HEX_8, 1, partVec_[0]);
 
-  helperObjs.nodeAlg->add_kernel<sierra::nalu::TKESSTDESNodeKernel>(*meta_);
+  helperObjs.nodeAlg->add_kernel<sierra::kynema_ugf::TKESSTDESNodeKernel>(
+    *meta_);
 
   helperObjs.execute();
 
@@ -767,6 +1141,78 @@ TEST_F(SSTKernelHex8Mesh, NGP_tke_sst_des_node)
   EXPECT_EQ(helperObjs.linsys->hostNumSumIntoCalls_(0), 8u);
 
   namespace hex8_golds = hex8_golds::tke_sst_des;
+  unit_test_kernel_utils::expect_all_near(
+    helperObjs.linsys->rhs_, hex8_golds::rhs, 1.0e-12);
+  unit_test_kernel_utils::expect_all_near<8>(
+    helperObjs.linsys->lhs_, hex8_golds::lhs, 1.0e-12);
+}
+
+TEST_F(SSTKernelHex8Mesh, NGP_tke_sst_iddes_node)
+{
+  // Only execute for 1 processor runs
+  if (bulk_->parallel_size() > 1)
+    return;
+
+  fill_mesh_and_init_fields();
+
+  // Setup solution options
+  solnOpts_.meshMotion_ = false;
+  solnOpts_.externalMeshDeformation_ = false;
+  solnOpts_.initialize_turbulence_constants();
+
+  unit_test_utils::NodeHelperObjects helperObjs(
+    bulk_, stk::topology::HEX_8, 1, partVec_[0]);
+
+  helperObjs.nodeAlg->add_kernel<sierra::kynema_ugf::TKESSTIDDESNodeKernel>(
+    *meta_);
+
+  helperObjs.execute();
+
+  Kokkos::deep_copy(
+    helperObjs.linsys->hostNumSumIntoCalls_,
+    helperObjs.linsys->numSumIntoCalls_);
+  EXPECT_EQ(helperObjs.linsys->lhs_.extent(0), 8u);
+  EXPECT_EQ(helperObjs.linsys->lhs_.extent(1), 8u);
+  EXPECT_EQ(helperObjs.linsys->rhs_.extent(0), 8u);
+  EXPECT_EQ(helperObjs.linsys->hostNumSumIntoCalls_(0), 8u);
+
+  namespace hex8_golds = hex8_golds::tke_sst_iddes;
+  unit_test_kernel_utils::expect_all_near(
+    helperObjs.linsys->rhs_, hex8_golds::rhs, 1.0e-12);
+  unit_test_kernel_utils::expect_all_near<8>(
+    helperObjs.linsys->lhs_, hex8_golds::lhs, 1.0e-12);
+}
+
+TEST_F(SSTKernelHex8Mesh, NGP_tke_sst_iddes_trans_node)
+{
+  // Only execute for 1 processor runs
+  if (bulk_->parallel_size() > 1)
+    return;
+
+  fill_mesh_and_init_fields();
+
+  // Setup solution options
+  solnOpts_.meshMotion_ = false;
+  solnOpts_.externalMeshDeformation_ = false;
+  solnOpts_.initialize_turbulence_constants();
+
+  unit_test_utils::NodeHelperObjects helperObjs(
+    bulk_, stk::topology::HEX_8, 1, partVec_[0]);
+
+  helperObjs.nodeAlg
+    ->add_kernel<sierra::kynema_ugf::TKESSTIDDESBLTM2015NodeKernel>(*meta_);
+
+  helperObjs.execute();
+
+  Kokkos::deep_copy(
+    helperObjs.linsys->hostNumSumIntoCalls_,
+    helperObjs.linsys->numSumIntoCalls_);
+  EXPECT_EQ(helperObjs.linsys->lhs_.extent(0), 8u);
+  EXPECT_EQ(helperObjs.linsys->lhs_.extent(1), 8u);
+  EXPECT_EQ(helperObjs.linsys->rhs_.extent(0), 8u);
+  EXPECT_EQ(helperObjs.linsys->hostNumSumIntoCalls_(0), 8u);
+
+  namespace hex8_golds = hex8_golds::tke_sst_iddes_trans;
   unit_test_kernel_utils::expect_all_near(
     helperObjs.linsys->rhs_, hex8_golds::rhs, 1.0e-12);
   unit_test_kernel_utils::expect_all_near<8>(
@@ -789,11 +1235,14 @@ TEST_F(SSTKernelHex8Mesh, NGP_tke_sst_des_sust_node)
   unit_test_utils::NodeHelperObjects helperObjs(
     bulk_, stk::topology::HEX_8, 1, partVec_[0]);
 
-  sierra::nalu::Realm& realm = helperObjs.realm;
-  realm.solutionOptions_->turbModelConstantMap_[sierra::nalu::TM_tkeAmb] = 5.0;
-  realm.solutionOptions_->turbModelConstantMap_[sierra::nalu::TM_sdrAmb] = 50.0;
+  sierra::kynema_ugf::Realm& realm = helperObjs.realm;
+  realm.solutionOptions_->turbModelConstantMap_[sierra::kynema_ugf::TM_tkeAmb] =
+    5.0;
+  realm.solutionOptions_->turbModelConstantMap_[sierra::kynema_ugf::TM_sdrAmb] =
+    50.0;
 
-  helperObjs.nodeAlg->add_kernel<sierra::nalu::TKESSTDESNodeKernel>(*meta_);
+  helperObjs.nodeAlg->add_kernel<sierra::kynema_ugf::TKESSTDESNodeKernel>(
+    *meta_);
 
   helperObjs.execute();
 
@@ -809,6 +1258,42 @@ TEST_F(SSTKernelHex8Mesh, NGP_tke_sst_des_sust_node)
     helperObjs.linsys->rhs_, hex8_golds::tke_sst_des_sust::rhs, 1.0e-12);
   unit_test_kernel_utils::expect_all_near<8>(
     helperObjs.linsys->lhs_, hex8_golds::tke_sst_des::lhs, 1.0e-12);
+}
+
+TEST_F(SSTKernelHex8Mesh, NGP_tke_sst_trans_node)
+{
+  // Only execute for 1 processor runs
+  if (bulk_->parallel_size() > 1)
+    return;
+
+  fill_mesh_and_init_fields();
+
+  // Setup solution options
+  solnOpts_.meshMotion_ = false;
+  solnOpts_.externalMeshDeformation_ = false;
+  solnOpts_.initialize_turbulence_constants();
+
+  unit_test_utils::NodeHelperObjects helperObjs(
+    bulk_, stk::topology::HEX_8, 1, partVec_[0]);
+
+  helperObjs.nodeAlg->add_kernel<sierra::kynema_ugf::TKESSTBLTM2015NodeKernel>(
+    *meta_);
+
+  helperObjs.execute();
+
+  Kokkos::deep_copy(
+    helperObjs.linsys->hostNumSumIntoCalls_,
+    helperObjs.linsys->numSumIntoCalls_);
+  EXPECT_EQ(helperObjs.linsys->lhs_.extent(0), 8u);
+  EXPECT_EQ(helperObjs.linsys->lhs_.extent(1), 8u);
+  EXPECT_EQ(helperObjs.linsys->rhs_.extent(0), 8u);
+  EXPECT_EQ(helperObjs.linsys->hostNumSumIntoCalls_(0), 8u);
+
+  namespace hex8_golds = hex8_golds::tke_sst_trans;
+  unit_test_kernel_utils::expect_all_near(
+    helperObjs.linsys->rhs_, hex8_golds::rhs, 1.0e-12);
+  unit_test_kernel_utils::expect_all_near<8>(
+    helperObjs.linsys->lhs_, hex8_golds::lhs, 1.0e-12);
 }
 
 TEST_F(SSTKernelHex8Mesh, NGP_sdr_sst_node)
@@ -827,7 +1312,7 @@ TEST_F(SSTKernelHex8Mesh, NGP_sdr_sst_node)
   unit_test_utils::NodeHelperObjects helperObjs(
     bulk_, stk::topology::HEX_8, 1, partVec_[0]);
 
-  helperObjs.nodeAlg->add_kernel<sierra::nalu::SDRSSTNodeKernel>(*meta_);
+  helperObjs.nodeAlg->add_kernel<sierra::kynema_ugf::SDRSSTNodeKernel>(*meta_);
 
   helperObjs.execute();
 
@@ -862,11 +1347,13 @@ TEST_F(SSTKernelHex8Mesh, NGP_sdr_sst_sust_node)
   unit_test_utils::NodeHelperObjects helperObjs(
     bulk_, stk::topology::HEX_8, 1, partVec_[0]);
 
-  sierra::nalu::Realm& realm = helperObjs.realm;
-  realm.solutionOptions_->turbModelConstantMap_[sierra::nalu::TM_tkeAmb] = 5.0;
-  realm.solutionOptions_->turbModelConstantMap_[sierra::nalu::TM_sdrAmb] = 50.0;
+  sierra::kynema_ugf::Realm& realm = helperObjs.realm;
+  realm.solutionOptions_->turbModelConstantMap_[sierra::kynema_ugf::TM_tkeAmb] =
+    5.0;
+  realm.solutionOptions_->turbModelConstantMap_[sierra::kynema_ugf::TM_sdrAmb] =
+    50.0;
 
-  helperObjs.nodeAlg->add_kernel<sierra::nalu::SDRSSTNodeKernel>(*meta_);
+  helperObjs.nodeAlg->add_kernel<sierra::kynema_ugf::SDRSSTNodeKernel>(*meta_);
 
   helperObjs.execute();
 
@@ -900,7 +1387,8 @@ TEST_F(SSTKernelHex8Mesh, NGP_sdr_sstlr_node)
   unit_test_utils::NodeHelperObjects helperObjs(
     bulk_, stk::topology::HEX_8, 1, partVec_[0]);
 
-  helperObjs.nodeAlg->add_kernel<sierra::nalu::SDRSSTLRNodeKernel>(*meta_);
+  helperObjs.nodeAlg->add_kernel<sierra::kynema_ugf::SDRSSTLRNodeKernel>(
+    *meta_);
 
   helperObjs.execute();
 
@@ -935,7 +1423,8 @@ TEST_F(SSTKernelHex8Mesh, NGP_sdr_sst_des_node)
   unit_test_utils::NodeHelperObjects helperObjs(
     bulk_, stk::topology::HEX_8, 1, partVec_[0]);
 
-  helperObjs.nodeAlg->add_kernel<sierra::nalu::SDRSSTDESNodeKernel>(*meta_);
+  helperObjs.nodeAlg->add_kernel<sierra::kynema_ugf::SDRSSTDESNodeKernel>(
+    *meta_);
 
   helperObjs.execute();
 
@@ -971,11 +1460,14 @@ TEST_F(SSTKernelHex8Mesh, NGP_sdr_sst_des_sust_node)
   unit_test_utils::NodeHelperObjects helperObjs(
     bulk_, stk::topology::HEX_8, 1, partVec_[0]);
 
-  sierra::nalu::Realm& realm = helperObjs.realm;
-  realm.solutionOptions_->turbModelConstantMap_[sierra::nalu::TM_tkeAmb] = 5.0;
-  realm.solutionOptions_->turbModelConstantMap_[sierra::nalu::TM_sdrAmb] = 50.0;
+  sierra::kynema_ugf::Realm& realm = helperObjs.realm;
+  realm.solutionOptions_->turbModelConstantMap_[sierra::kynema_ugf::TM_tkeAmb] =
+    5.0;
+  realm.solutionOptions_->turbModelConstantMap_[sierra::kynema_ugf::TM_sdrAmb] =
+    50.0;
 
-  helperObjs.nodeAlg->add_kernel<sierra::nalu::SDRSSTDESNodeKernel>(*meta_);
+  helperObjs.nodeAlg->add_kernel<sierra::kynema_ugf::SDRSSTDESNodeKernel>(
+    *meta_);
 
   helperObjs.execute();
 
@@ -992,4 +1484,40 @@ TEST_F(SSTKernelHex8Mesh, NGP_sdr_sst_des_sust_node)
     helperObjs.linsys->rhs_, hex8_golds::sdr_sst_des_sust::rhs, 1.0e-12);
   unit_test_kernel_utils::expect_all_near<8>(
     helperObjs.linsys->lhs_, hex8_golds::sdr_sst_des::lhs, 1.0e-12);
+}
+
+TEST_F(SSTKernelHex8Mesh, NGP_sdr_sst_trans_node)
+{
+  // Only execute for 1 processor runs
+  if (bulk_->parallel_size() > 1)
+    return;
+
+  fill_mesh_and_init_fields();
+
+  // Setup solution options
+  solnOpts_.meshMotion_ = false;
+  solnOpts_.externalMeshDeformation_ = false;
+  solnOpts_.initialize_turbulence_constants();
+
+  unit_test_utils::NodeHelperObjects helperObjs(
+    bulk_, stk::topology::HEX_8, 1, partVec_[0]);
+
+  helperObjs.nodeAlg->add_kernel<sierra::kynema_ugf::SDRSSTBLTM2015NodeKernel>(
+    *meta_);
+
+  helperObjs.execute();
+
+  Kokkos::deep_copy(
+    helperObjs.linsys->hostNumSumIntoCalls_,
+    helperObjs.linsys->numSumIntoCalls_);
+  EXPECT_EQ(helperObjs.linsys->lhs_.extent(0), 8u);
+  EXPECT_EQ(helperObjs.linsys->lhs_.extent(1), 8u);
+  EXPECT_EQ(helperObjs.linsys->rhs_.extent(0), 8u);
+  EXPECT_EQ(helperObjs.linsys->hostNumSumIntoCalls_(0), 8u);
+
+  namespace hex8_golds = hex8_golds::sdr_sst_trans;
+  unit_test_kernel_utils::expect_all_near(
+    helperObjs.linsys->rhs_, hex8_golds::rhs, 1.0e-12);
+  unit_test_kernel_utils::expect_all_near<8>(
+    helperObjs.linsys->lhs_, hex8_golds::lhs, 1.0e-12);
 }

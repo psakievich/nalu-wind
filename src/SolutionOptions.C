@@ -9,8 +9,8 @@
 
 #include <SolutionOptions.h>
 #include <Enums.h>
-#include <NaluEnv.h>
-#include <NaluParsing.h>
+#include <KynemaUGFEnv.h>
+#include <KynemaUGFParsing.h>
 #include <FixPressureAtNodeInfo.h>
 
 // basic c++
@@ -18,7 +18,7 @@
 #include <utility>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //==========================================================================
 // Class Definition
@@ -49,11 +49,13 @@ SolutionOptions::SolutionOptions()
     nearestFaceEntrain_(0.0),
     includeDivU_(0.0),
     mdotInterpRhoUTogether_(true),
+    solveIncompressibleContinuity_(false),
     isTurbulent_(false),
     turbulenceModel_(TurbulenceModel::LAMINAR),
     meshMotion_(false),
     meshTransformation_(false),
     externalMeshDeformation_(false),
+    openfastFSI_(false),
     ncAlgGaussLabatto_(true),
     ncAlgUpwindAdvection_(true),
     ncAlgIncludePstab_(true),
@@ -130,6 +132,23 @@ SolutionOptions::load(const YAML::Node& y_node)
       y_solution_options, "interp_rhou_together_for_mdot",
       mdotInterpRhoUTogether_, mdotInterpRhoUTogether_);
 
+    get_if_present(
+      y_solution_options, "use_balanced_buoyancy_force",
+      use_balanced_buoyancy_force_, use_balanced_buoyancy_force_);
+
+    get_if_present(
+      y_solution_options, "vof_sharpening_scaling_factor",
+      vof_sharpening_scaling_factor_, vof_sharpening_scaling_factor_);
+
+    get_if_present(
+      y_solution_options, "vof_diffusion_scaling_factor",
+      vof_diffusion_scaling_factor_, vof_diffusion_scaling_factor_);
+
+    // Solve for incompressible continuity
+    get_if_present(
+      y_solution_options, "solve_incompressible_continuity",
+      solveIncompressibleContinuity_, solveIncompressibleContinuity_);
+
     // external mesh motion expected
     get_if_present(
       y_solution_options, "externally_provided_mesh_deformation",
@@ -184,8 +203,9 @@ SolutionOptions::load(const YAML::Node& y_node)
     else if (projected_timescale_type == "momentum_diag_inv")
       tscaleType_ = TSCALE_UDIAGINV;
     else
-      throw std::runtime_error("SolutionOptions: Invalid option provided for "
-                               "projected_timescale_type");
+      throw std::runtime_error(
+        "SolutionOptions: Invalid option provided for "
+        "projected_timescale_type");
 
     // reset running AMS averages to instantaneous quantities during
     // intialization you would want to do this when restarting from a RANS
@@ -204,8 +224,8 @@ SolutionOptions::load(const YAML::Node& y_node)
     bool matchedTurbulenceModel = false;
     for (int k = 0; k < static_cast<int>(TurbulenceModel::TurbulenceModel_END);
          ++k) {
-      if (case_insensitive_compare(
-            specifiedTurbModel, TurbulenceModelNames[k])) {
+      if (
+        case_insensitive_compare(specifiedTurbModel, TurbulenceModelNames[k])) {
         turbulenceModel_ = TurbulenceModel(k);
         matchedTurbulenceModel = true;
         break;
@@ -234,7 +254,9 @@ SolutionOptions::load(const YAML::Node& y_node)
         y_solution_options, "strelets_upwinding", useStreletsUpwinding_,
         useStreletsUpwinding_);
     }
-    if (turbulenceModel_ == TurbulenceModel::SST) {
+    if (
+      turbulenceModel_ == TurbulenceModel::SST ||
+      turbulenceModel_ == TurbulenceModel::SST_IDDES) {
       get_if_present(
         y_solution_options, "transition_model", transition_model_,
         transition_model_);
@@ -303,23 +325,23 @@ SolutionOptions::load(const YAML::Node& y_node)
           ySrc >> elemSrcTermsMap_;
         } else if (expect_map(y_option, "source_term_parameters", optional)) {
           y_option["source_term_parameters"] >> srcTermParamMap_;
-        } else if (expect_map(
-                     y_option, "element_source_term_parameters", optional)) {
+        } else if (
+          expect_map(y_option, "element_source_term_parameters", optional)) {
           y_option["element_source_term_parameters"] >> elemSrcTermParamMap_;
         } else if (expect_map(y_option, "projected_nodal_gradient", optional)) {
           y_option["projected_nodal_gradient"] >> nodalGradMap_;
         } else if (expect_map(y_option, "noc_correction", optional)) {
           y_option["noc_correction"] >> nocMap_;
-        } else if (expect_map(
-                     y_option, "shifted_gradient_operator", optional)) {
+        } else if (
+          expect_map(y_option, "shifted_gradient_operator", optional)) {
           y_option["shifted_gradient_operator"] >> shiftedGradOpMap_;
         } else if (expect_map(y_option, "skew_symmetric_advection", optional)) {
           y_option["skew_symmetric_advection"] >> skewSymmetricMap_;
-        } else if (expect_map(
-                     y_option, "input_variables_from_file", optional)) {
+        } else if (
+          expect_map(y_option, "input_variables_from_file", optional)) {
           y_option["input_variables_from_file"] >> inputVarFromFileMap_;
-        } else if (expect_map(
-                     y_option, "turbulence_model_constants", optional)) {
+        } else if (
+          expect_map(y_option, "turbulence_model_constants", optional)) {
           std::map<std::string, double> turbConstMap;
           y_option["turbulence_model_constants"] >> turbConstMap;
           // iterate the parsed map
@@ -340,14 +362,14 @@ SolutionOptions::load(const YAML::Node& y_node)
             }
             // error check..
             if (!foundIt) {
-              NaluEnv::self().naluOutputP0()
+              KynemaUGFEnv::self().kynema_ugfOutputP0()
                 << "Sorry, turbulence model constant with name " << theConstName
                 << " was not found " << std::endl;
-              NaluEnv::self().naluOutputP0()
+              KynemaUGFEnv::self().kynema_ugfOutputP0()
                 << "List of turbulence model constant names are as follows:"
                 << std::endl;
               for (int k = 0; k < TM_END; ++k) {
-                NaluEnv::self().naluOutputP0()
+                KynemaUGFEnv::self().kynema_ugfOutputP0()
                   << TurbulenceModelConstantNames[k] << std::endl;
               }
             }
@@ -366,7 +388,7 @@ SolutionOptions::load(const YAML::Node& y_node)
             y_user_constants["reference_temperature"] &&
             !y_user_constants[thermal_expansion_option]) {
             thermalExpansionCoeff_ = 1 / referenceTemperature_;
-            NaluEnv::self().naluOutputP0()
+            KynemaUGFEnv::self().kynema_ugfOutputP0()
               << "Using ideal gas relationship for thermal expansion "
                  "coefficient of "
               << thermalExpansionCoeff_ << "\n  -- specify "
@@ -449,11 +471,11 @@ SolutionOptions::load(const YAML::Node& y_node)
             y_nc, "include_png_penalty", ncAlgPngPenalty_, ncAlgPngPenalty_);
         } else if (expect_map(y_option, "peclet_function_form", optional)) {
           y_option["peclet_function_form"] >> tanhFormMap_;
-        } else if (expect_map(
-                     y_option, "peclet_function_tanh_transition", optional)) {
+        } else if (
+          expect_map(y_option, "peclet_function_tanh_transition", optional)) {
           y_option["peclet_function_tanh_transition"] >> tanhTransMap_;
-        } else if (expect_map(
-                     y_option, "peclet_function_tanh_width", optional)) {
+        } else if (
+          expect_map(y_option, "peclet_function_tanh_width", optional)) {
           y_option["peclet_function_tanh_width"] >> tanhWidthMap_;
         }
         // overload line command, however, push to the same tanh data structure
@@ -463,11 +485,11 @@ SolutionOptions::load(const YAML::Node& y_node)
           y_option["tanh_transition"] >> tanhTransMap_;
         } else if (expect_map(y_option, "tanh_width", optional)) {
           y_option["tanh_width"] >> tanhWidthMap_;
-        } else if (expect_map(
-                     y_option, "consistent_mass_matrix_png", optional)) {
+        } else if (
+          expect_map(y_option, "consistent_mass_matrix_png", optional)) {
           y_option["consistent_mass_matrix_png"] >> consistentMassMatrixPngMap_;
-        } else if (expect_map(
-                     y_option, "dynamic_body_force_box_parameters", optional)) {
+        } else if (
+          expect_map(y_option, "dynamic_body_force_box_parameters", optional)) {
           const YAML::Node yDyn = y_option["dynamic_body_force_box_parameters"];
           get_required(yDyn, "forcing_direction", dynamicBodyForceDir_);
           get_required(
@@ -485,15 +507,16 @@ SolutionOptions::load(const YAML::Node& y_node)
           get_required(yDyn, "output_file_name", dynamicBodyForceOutFile_);
           dynamicBodyForceBox_ = true;
         } else {
-          if (!NaluEnv::self().parallel_rank()) {
+          if (!KynemaUGFEnv::self().parallel_rank()) {
             std::cout
               << "Error: parsing at "
-              << NaluParsingHelper::info(y_option)
-              //<< "... at parent ... " << NaluParsingHelper::info(y_node)
+              << KynemaUGFParsingHelper::info(y_option)
+              //<< "... at parent ... " << KynemaUGFParsingHelper::info(y_node)
               << std::endl;
           }
           throw std::runtime_error(
-            "unknown solution option: " + NaluParsingHelper::info(y_option));
+            "unknown solution option: " +
+            KynemaUGFParsingHelper::info(y_option));
         }
       }
     }
@@ -501,11 +524,12 @@ SolutionOptions::load(const YAML::Node& y_node)
     // Handle old mesh motion section and throw an error early if the user is
     // attempting to use an old file with the latest branch
     if (y_solution_options["mesh_motion"]) {
-      NaluEnv::self().naluOutput() << "SolutionOptions: Detected mesh motion "
-                                      "section within solution_options. "
-                                      "This is no longer supported. Please "
-                                      "update your input file appropriately"
-                                   << std::endl;
+      KynemaUGFEnv::self().kynema_ugfOutput()
+        << "SolutionOptions: Detected mesh motion "
+           "section within solution_options. "
+           "This is no longer supported. Please "
+           "update your input file appropriately"
+        << std::endl;
       throw std::runtime_error(
         "mesh_motion in solution_options is deprecated.");
     }
@@ -543,13 +567,13 @@ SolutionOptions::load(const YAML::Node& y_node)
             fix_pressure["search_method"].as<std::string>();
           if (searchMethodName == "boost_rtree") {
             fixPressureInfo_->searchMethod_ = stk::search::KDTREE;
-            NaluEnv::self().naluOutputP0()
+            KynemaUGFEnv::self().kynema_ugfOutputP0()
               << "Warning: search method 'boost_rtree' has been"
               << " deprecated. Switching to 'stk_kdtree'." << std::endl;
           } else if (searchMethodName == "stk_kdtree")
             fixPressureInfo_->searchMethod_ = stk::search::KDTREE;
           else
-            NaluEnv::self().naluOutputP0()
+            KynemaUGFEnv::self().kynema_ugfOutputP0()
               << "ABL Fix Pressure: Search will use stk_kdtree" << std::endl;
         }
       } else {
@@ -559,37 +583,47 @@ SolutionOptions::load(const YAML::Node& y_node)
     }
   }
 
-  NaluEnv::self().naluOutputP0() << std::endl;
-  NaluEnv::self().naluOutputP0() << "Turbulence Model Review:   " << std::endl;
-  NaluEnv::self().naluOutputP0() << "===========================" << std::endl;
-  NaluEnv::self().naluOutputP0()
+  KynemaUGFEnv::self().kynema_ugfOutputP0() << std::endl;
+  KynemaUGFEnv::self().kynema_ugfOutputP0()
+    << "Turbulence Model Review:   " << std::endl;
+  KynemaUGFEnv::self().kynema_ugfOutputP0()
+    << "===========================" << std::endl;
+  KynemaUGFEnv::self().kynema_ugfOutputP0()
     << "Turbulence Model is: "
     << TurbulenceModelNames[static_cast<int>(turbulenceModel_)] << " "
     << isTurbulent_ << std::endl;
   if (gammaEqActive_ == true) {
-    NaluEnv::self().naluOutputP0()
-      << "Transition Model is: One Equation Gamma" << std::endl;
+    if (turbModelConstantMap_[TM_fsti] > 0) {
+      KynemaUGFEnv::self().kynema_ugfOutputP0()
+        << "Transition Model is: One Equation Gamma w/ constant Tu"
+        << std::endl;
+    } else {
+      KynemaUGFEnv::self().kynema_ugfOutputP0()
+        << "Transition Model is: One Equation Gamma w/ local Tu" << std::endl;
+    }
   } else {
-    NaluEnv::self().naluOutputP0() << "No Transition Model" << std::endl;
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
+      << "No Transition Model" << std::endl;
   }
 
   // over view PPE specifications
-  NaluEnv::self().naluOutputP0() << std::endl;
-  NaluEnv::self().naluOutputP0() << "PPE review:   " << std::endl;
-  NaluEnv::self().naluOutputP0() << "===========================" << std::endl;
+  KynemaUGFEnv::self().kynema_ugfOutputP0() << std::endl;
+  KynemaUGFEnv::self().kynema_ugfOutputP0() << "PPE review:   " << std::endl;
+  KynemaUGFEnv::self().kynema_ugfOutputP0()
+    << "===========================" << std::endl;
 
   if (cvfemShiftMdot_)
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << "Shifted CVFEM mass flow rate" << std::endl;
   if (cvfemReducedSensPoisson_)
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << "Reduced sensitivities CVFEM Poisson" << std::endl;
 
   // sanity checks; if user asked for shifted Poisson, then user will have
   // reduced sensitivities
   if (get_shifted_grad_op("pressure")) {
     if (!cvfemReducedSensPoisson_) {
-      NaluEnv::self().naluOutputP0()
+      KynemaUGFEnv::self().kynema_ugfOutputP0()
         << "Reduced sensitivities CVFEM Poisson will be set since reduced "
            "grad_op is requested"
         << std::endl;
@@ -599,13 +633,13 @@ SolutionOptions::load(const YAML::Node& y_node)
 
   // overview gradient operator for CVFEM
   if (shiftedGradOpMap_.size() > 0) {
-    NaluEnv::self().naluOutputP0() << std::endl;
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0() << std::endl;
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << "CVFEM gradient operator review:   " << std::endl;
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << "===========================" << std::endl;
     for (const auto& shiftIt : shiftedGradOpMap_) {
-      NaluEnv::self().naluOutputP0()
+      KynemaUGFEnv::self().kynema_ugfOutputP0()
         << " dof: " << shiftIt.first
         << " shifted: " << (shiftIt.second ? "yes" : "no") << std::endl;
     }
@@ -646,7 +680,7 @@ SolutionOptions::initialize_turbulence_constants()
   turbModelConstantMap_[TM_cmuCs] = 0.17;
   turbModelConstantMap_[TM_Cw] = 0.325;
   turbModelConstantMap_[TM_CbTwo] = 0.35;
-  turbModelConstantMap_[TM_SDRWallFactor] = 1.0;
+  turbModelConstantMap_[TM_SDRWallFactor] = 10.0;
   turbModelConstantMap_[TM_zCV] = 0.5;
   turbModelConstantMap_[TM_ci] = 0.9;
   turbModelConstantMap_[TM_elog] = 9.8;
@@ -692,11 +726,7 @@ SolutionOptions::initialize_turbulence_constants()
   turbModelConstantMap_[TM_sdrAmb] = 0.0;
   turbModelConstantMap_[TM_avgTimeCoeff] = 1.0;
   turbModelConstantMap_[TM_alphaInf] = 0.52;
-  turbModelConstantMap_[TM_caOne] = 2.0;
-  turbModelConstantMap_[TM_caTwo] = 0.06;
-  turbModelConstantMap_[TM_ceOne] = 1.0;
-  turbModelConstantMap_[TM_ceTwo] = 50.0;
-  turbModelConstantMap_[TM_c0t] = 0.03;
+  turbModelConstantMap_[TM_fsti] = -1;
 }
 
 double
@@ -786,8 +816,9 @@ std::vector<double>
 SolutionOptions::get_gravity_vector(const unsigned nDim) const
 {
   if (nDim != gravity_.size())
-    throw std::runtime_error("SolutionOptions::get_gravity_vector():Error "
-                             "Expected size does not equaly nDim");
+    throw std::runtime_error(
+      "SolutionOptions::get_gravity_vector():Error "
+      "Expected size does not equaly nDim");
   else
     return gravity_;
 }
@@ -825,5 +856,5 @@ SolutionOptions::has_set_boussinesq_time_scale()
   return (raBoussinesqTimeScale_ > std::numeric_limits<double>::min());
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

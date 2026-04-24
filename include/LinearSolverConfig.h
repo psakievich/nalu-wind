@@ -23,7 +23,7 @@ class Node;
 }
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class LinearSolverConfig
 {
@@ -123,7 +123,7 @@ class HypreLinearSolverConfig : public LinearSolverConfig
 public:
   HypreLinearSolverConfig();
 
-  virtual ~HypreLinearSolverConfig(){};
+  virtual ~HypreLinearSolverConfig() {};
 
   //! Process and validate the user inputs and register calls to appropriate
   //! Hypre functions to configure the solver and preconditioner.
@@ -203,7 +203,7 @@ private:
   void configure_hypre_solver(const YAML::Node&);
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

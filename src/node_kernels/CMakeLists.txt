@@ -1,4 +1,4 @@
-target_sources(nalu PRIVATE
+target_sources(${kynema_ugf_lib_name} PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/ContinuityGclNodeKernel.C
   ${CMAKE_CURRENT_SOURCE_DIR}/ContinuityMassBDFNodeKernel.C
   ${CMAKE_CURRENT_SOURCE_DIR}/EnthalpyABLForceNodeKernel.C
@@ -6,6 +6,7 @@ target_sources(nalu PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/MomentumBodyForceNodeKernel.C
   ${CMAKE_CURRENT_SOURCE_DIR}/MomentumBodyForceBoxNodeKernel.C
   ${CMAKE_CURRENT_SOURCE_DIR}/MomentumBoussinesqNodeKernel.C
+  ${CMAKE_CURRENT_SOURCE_DIR}/MomentumBuoyancyNodeKernel.C
   ${CMAKE_CURRENT_SOURCE_DIR}/MomentumGclNodeKernel.C
   ${CMAKE_CURRENT_SOURCE_DIR}/MomentumMassBDFNodeKernel.C
   ${CMAKE_CURRENT_SOURCE_DIR}/MomentumActuatorNodeKernel.C
@@ -30,4 +31,9 @@ target_sources(nalu PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/SDRSSTDESNodeKernel.C
   ${CMAKE_CURRENT_SOURCE_DIR}/WallDistNodeKernel.C
   ${CMAKE_CURRENT_SOURCE_DIR}/BLTGammaM2015NodeKernel.C
+  ${CMAKE_CURRENT_SOURCE_DIR}/TKESSTBLTM2015NodeKernel.C
+  ${CMAKE_CURRENT_SOURCE_DIR}/SDRSSTBLTM2015NodeKernel.C
+  ${CMAKE_CURRENT_SOURCE_DIR}/TKESSTIDDESBLTM2015NodeKernel.C
+  ${CMAKE_CURRENT_SOURCE_DIR}/VOFGclNodeKernel.C
+  ${CMAKE_CURRENT_SOURCE_DIR}/VOFMassBDFNodeKernel.C
   )

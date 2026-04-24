@@ -19,7 +19,7 @@
 #include <LinearSolvers.h>
 #include <LinearSolver.h>
 #include <LinearSystem.h>
-#include <NaluEnv.h>
+#include <KynemaUGFEnv.h>
 #include <Realm.h>
 #include <Realms.h>
 #include <Simulation.h>
@@ -32,9 +32,8 @@
 #include <stk_mesh/base/BulkData.hpp>
 #include <stk_mesh/base/Field.hpp>
 #include <stk_mesh/base/FieldParallel.hpp>
-#include <stk_mesh/base/GetBuckets.hpp>
+
 #include <stk_mesh/base/GetEntities.hpp>
-#include <stk_mesh/base/CoordinateSystems.hpp>
 #include <stk_mesh/base/MetaData.hpp>
 #include <stk_mesh/base/SkinMesh.hpp>
 #include <stk_mesh/base/Comm.hpp>
@@ -51,7 +50,7 @@
 #include <overset/UpdateOversetFringeAlgorithmDriver.h>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //==========================================================================
 // Class Definition
@@ -130,20 +129,23 @@ ProjectedNodalGradientEquationSystem::get_name_given_bc(
 //--------------------------------------------------------------------------
 void
 ProjectedNodalGradientEquationSystem::register_nodal_fields(
-  stk::mesh::Part* part)
+  const stk::mesh::PartVector& part_vec)
 {
   stk::mesh::MetaData& meta_data = realm_.meta_data();
 
   const int nDim = meta_data.spatial_dimension();
+  stk::mesh::Selector selector = stk::mesh::selectUnion(part_vec);
 
-  dqdx_ = &(meta_data.declare_field<VectorFieldType>(
-    stk::topology::NODE_RANK, dofName_));
-  stk::mesh::put_field_on_mesh(*dqdx_, *part, nDim, nullptr);
+  dqdx_ =
+    &(meta_data.declare_field<double>(stk::topology::NODE_RANK, dofName_));
+  stk::mesh::put_field_on_mesh(*dqdx_, selector, nDim, nullptr);
+  stk::io::set_field_output_type(*dqdx_, stk::io::FieldOutputType::VECTOR_3D);
 
   // delta solution for linear solver
-  qTmp_ = &(meta_data.declare_field<VectorFieldType>(
-    stk::topology::NODE_RANK, deltaName_));
-  stk::mesh::put_field_on_mesh(*qTmp_, *part, nDim, nullptr);
+  qTmp_ =
+    &(meta_data.declare_field<double>(stk::topology::NODE_RANK, deltaName_));
+  stk::mesh::put_field_on_mesh(*qTmp_, selector, nDim, nullptr);
+  stk::io::set_field_output_type(*qTmp_, stk::io::FieldOutputType::VECTOR_3D);
 }
 
 //--------------------------------------------------------------------------
@@ -362,11 +364,11 @@ ProjectedNodalGradientEquationSystem::solve_and_update_external()
     assemble_and_solve(qTmp_);
 
     // update
-    double timeA = NaluEnv::self().nalu_time();
+    double timeA = KynemaUGFEnv::self().kynema_ugf_time();
     field_axpby(
       realm_.meta_data(), realm_.bulk_data(), 1.0, *qTmp_, 1.0, *dqdx_,
       realm_.get_activate_aura());
-    double timeB = NaluEnv::self().nalu_time();
+    double timeB = KynemaUGFEnv::self().kynema_ugf_time();
     timerAssemble_ += (timeB - timeA);
   }
 }
@@ -380,5 +382,5 @@ ProjectedNodalGradientEquationSystem::deactivate_output()
   linsys_->provideOutput_ = false;
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

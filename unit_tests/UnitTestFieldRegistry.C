@@ -14,7 +14,7 @@
 #include <stdexcept>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace {
 
 class FieldRegistryTest : public testing::Test
@@ -24,6 +24,7 @@ protected:
   {
     stk::mesh::MeshBuilder builder(MPI_COMM_WORLD);
     meta_ = builder.create_meta_data();
+    meta_->use_simple_fields();
     key_ = "velocity";
   }
   std::shared_ptr<stk::mesh::MetaData> meta_;
@@ -33,17 +34,19 @@ protected:
 TEST_F(FieldRegistryTest, allDataNeededToDeclareFieldIsKnownThroughQuery)
 {
   const int num_states = 2;
-  auto def = FieldRegistry::query(num_states, key_);
+  const int num_dims = 3;
+  auto def = FieldRegistry::query(num_dims, num_states, key_);
 
-  ASSERT_NO_THROW(std::visit(
-    [&](auto arg) {
-      meta_->declare_field<typename decltype(arg)::FieldType>(
-        arg.rank, key_, arg.num_states);
-    },
-    def));
+  ASSERT_NO_THROW(
+    std::visit(
+      [&](auto arg) {
+        meta_->declare_field<typename decltype(arg)::DataType>(
+          arg.rank, key_, arg.num_states);
+      },
+      def));
 
   const auto findFieldPtr =
-    meta_->get_field<VectorFieldType>(stk::topology::NODE_RANK, key_);
+    meta_->get_field<double>(stk::topology::NODE_RANK, key_);
   // pointer to field is valid through stk api
   EXPECT_TRUE(findFieldPtr);
 }
@@ -51,27 +54,29 @@ TEST_F(FieldRegistryTest, allDataNeededToDeclareFieldIsKnownThroughQuery)
 TEST_F(FieldRegistryTest, registeredFieldPointerCanBeStored)
 {
   const int num_states = 3;
-  auto def = FieldRegistry::query(num_states, key_);
+  const int num_dims = 3;
+  auto def = FieldRegistry::query(num_dims, num_states, key_);
   std::vector<FieldPointerTypes> field_pointers;
 
   EXPECT_EQ(0, field_pointers.size());
-  ASSERT_NO_THROW(std::visit(
-    [&](auto arg) {
-      auto* ptr = &(meta_->declare_field<typename decltype(arg)::FieldType>(
-        arg.rank, key_, arg.num_states));
-      field_pointers.push_back(ptr);
-    },
-    def));
+  ASSERT_NO_THROW(
+    std::visit(
+      [&](auto arg) {
+        auto* ptr = &(meta_->declare_field<typename decltype(arg)::DataType>(
+          arg.rank, key_, arg.num_states));
+        field_pointers.push_back(ptr);
+      },
+      def));
 
   // pointer storage has increased
   EXPECT_EQ(1, field_pointers.size());
 
   const auto findFieldPtr =
-    meta_->get_field<VectorFieldType>(stk::topology::NODE_RANK, key_);
+    meta_->get_field<double>(stk::topology::NODE_RANK, key_);
   // stk api and stored pointer are the same
   EXPECT_EQ(findFieldPtr, std::get<VectorFieldType*>(field_pointers[0]));
 }
 
 } // namespace
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

@@ -10,9 +10,8 @@
 #include "gcl/MeshVelocityEdgeAlg.h"
 #include "BuildTemplates.h"
 #include "master_element/MasterElement.h"
-#include "master_element/MasterElementFactory.h"
+#include "master_element/MasterElementRepo.h"
 #include "master_element/Hex8GeometryFunctions.h"
-#include "ngp_algorithms/ViewHelper.h"
 #include "ngp_utils/NgpLoopUtils.h"
 #include "ngp_utils/NgpFieldOps.h"
 #include "Realm.h"
@@ -23,7 +22,7 @@
 #include <cmath>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 template <typename AlgTraits>
 MeshVelocityEdgeAlg<AlgTraits>::MeshVelocityEdgeAlg(
@@ -48,7 +47,8 @@ MeshVelocityEdgeAlg<AlgTraits>::MeshVelocityEdgeAlg(
       "edge_swept_face_volume",
       stk::mesh::StateN,
       stk::topology::EDGE_RANK)),
-    meSCS_(MasterElementRepo::get_surface_master_element<AlgTraits>()),
+    meSCS_(
+      MasterElementRepo::get_surface_master_element_on_dev(AlgTraits::topo_)),
     scsFaceNodeMapDeviceView_("scsFaceNodeMap"),
     isoCoordsShapeFcnDeviceView_("isoCoordShapFcn"),
     isoCoordsShapeFcnHostView_("isoCoordShapFcnHost")
@@ -64,13 +64,19 @@ MeshVelocityEdgeAlg<AlgTraits>::MeshVelocityEdgeAlg(
   elemData_.add_gathered_nodal_field(meshDispN_, AlgTraits::nDim_);
 
   elemData_.add_master_element_call(SCS_AREAV, CURRENT_COORDINATES);
-  meSCS_->general_shape_fcn(
-    19, isoParCoords_, isoCoordsShapeFcnHostView_.data());
+  auto* hostMeSCS =
+    MasterElementRepo::get_surface_master_element_on_host(AlgTraits::topo_);
+  hostMeSCS->general_shape_fcn(
+    19, &isoParCoords_[0], isoCoordsShapeFcnHostView_.data());
   Kokkos::deep_copy(isoCoordsShapeFcnDeviceView_, isoCoordsShapeFcnHostView_);
 
-  Kokkos::View<
-    const int**, Kokkos::HostSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>>
-    scsFaceNodeMapHostView(&scsFaceNodeMap_[0][0], 12, 4);
+  auto scsFaceNodeMapHostView =
+    Kokkos::create_mirror(scsFaceNodeMapDeviceView_);
+  for (int i = 0; i < 12; ++i) {
+    for (int j = 0; j < 4; ++j) {
+      scsFaceNodeMapHostView(i, j) = scsFaceNodeMap_[i][j];
+    }
+  }
   Kokkos::deep_copy(scsFaceNodeMapDeviceView_, scsFaceNodeMapHostView);
   if (!std::is_same<AlgTraits, AlgTraitsHex8>::value) {
     throw std::runtime_error("MeshVelocityEdgeAlg is only supported for Hex8");
@@ -82,7 +88,7 @@ void
 MeshVelocityEdgeAlg<AlgTraits>::execute()
 {
   using ElemSimdDataType =
-    sierra::nalu::nalu_ngp::ElemSimdData<stk::mesh::NgpMesh>;
+    sierra::kynema_ugf::kynema_ugf_ngp::ElemSimdData<stk::mesh::NgpMesh>;
 
   const auto& meshInfo = realm_.mesh_info();
   const auto& meta = meshInfo.meta();
@@ -108,9 +114,12 @@ MeshVelocityEdgeAlg<AlgTraits>::execute()
   const auto nDim = AlgTraits::nDim_;
   const auto numScsIp = AlgTraits::numScsIp_;
 
+  edgeSweptVol.sync_to_device();
+  edgeFaceVelMag.sync_to_device();
+
   const std::string algName =
     "compute_mesh_vel_" + std::to_string(AlgTraits::topo_);
-  nalu_ngp::run_elem_algorithm(
+  kynema_ugf_ngp::run_elem_algorithm(
     algName, meshInfo, stk::topology::ELEM_RANK, elemData_, sel,
     KOKKOS_LAMBDA(ElemSimdDataType & edata) {
       const int* lrscv = meSCS->adjacentNodes();
@@ -190,9 +199,13 @@ MeshVelocityEdgeAlg<AlgTraits>::execute()
         }
       }
     });
+  edgeSweptVol.modify_on_device();
+  edgeFaceVelMag.modify_on_device();
+  edgeSweptVol.sync_to_host();
+  edgeFaceVelMag.sync_to_host();
 }
 
 INSTANTIATE_KERNEL(MeshVelocityEdgeAlg)
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

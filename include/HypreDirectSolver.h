@@ -14,24 +14,29 @@
 
 #include "XSDKHypreInterface.h"
 
+#include "HYPRE_config.h"
 #include "HYPRE_IJ_mv.h"
 #include "HYPRE_parcsr_ls.h"
 #include "HYPRE_parcsr_mv.h"
+#if (HYPRE_RELEASE_NUMBER >= 30000)
+#include "HYPRE_krylov.h"
+#else
 #include "krylov.h"
+#endif
 #include "HYPRE.h"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
-/** Nalu interface to Hypre Solvers and Preconditioners
+/** KynemaUGF interface to Hypre Solvers and Preconditioners
  *
  *  This class is responsible creation, initialization, execution, and clean up
  *  of Hypre solver and preconditioner data structures during the simulation. It
  *  provides an abstraction layer so that the user can choose different Hypre
- *  solvers via input parameters. This class interacts with rest of Nalu solely
- *  via sierra::nalu::HypreLinearSystem. The configuration of Hypre solver is
- *  controlled via user input parameters processed in
- *  sierra::nalu::HypreLinearSolverConfig
+ *  solvers via input parameters. This class interacts with rest of KynemaUGF
+ * solely via sierra::kynema_ugf::HypreLinearSystem. The configuration of Hypre
+ * solver is controlled via user input parameters processed in
+ *  sierra::kynema_ugf::HypreLinearSolverConfig
  *
  *  Users are referred to the [Hypre Reference
  *  Manual](https://computation.llnl.gov/projects/hypre-scalable-linear-solvers-multigrid-methods/software)
@@ -146,7 +151,7 @@ private:
   HypreDirectSolver(const HypreDirectSolver&) = delete;
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif /* HYPREDIRECTSOLVER_H */

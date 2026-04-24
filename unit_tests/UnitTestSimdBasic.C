@@ -18,16 +18,9 @@ TEST(Simd, basic)
 
 TEST(Simd, whichInstructions)
 {
-#if defined(STK_SIMD_AVX512)
-  std::cout << "STK_SIMD_AVX512";
-#elif defined(STK_SIMD_AVX)
-  std::cout << "STK_SIMD_AVX";
-#elif defined(STK_SIMD_SSE)
-  std::cout << "STK_SIMD_SSE";
-#else
-  std::cout << "no simd instructions!" << std::endl;
-#endif
-  std::cout << ", stk::simd::ndoubles=" << stk::simd::ndoubles << std::endl;
+  std::cout << "STK simd native type: "
+            << typeid(kokkos_simd::simd_abi::native).name() << std::endl;
+  std::cout << "stk::simd::ndoubles = " << stk::simd::ndoubles << std::endl;
 }
 
 typedef std::vector<double, non_std::AlignedAllocator<double, 64>>
@@ -70,7 +63,8 @@ TEST(Simd, stkMath)
 TEST(Simd, Views)
 {
   const int N = 3;
-  Kokkos::View<stk::simd::Double**> DoubleView("DoubleView", N, N);
+  auto DoubleView =
+    Kokkos::View<stk::simd::Double**, Kokkos::HostSpace>("DoubleView", N, N);
 
   for (int i = 0; i < N; ++i) {
     for (int j = 0; j < N; ++j) {

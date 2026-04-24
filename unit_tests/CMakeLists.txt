@@ -1,5 +1,6 @@
 target_sources(${utest_ex_name} PRIVATE
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTest1ElemCoordCheck.C
+   ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestArrayND.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestBasicKokkos.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestCopyAndInterleave.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestCreateOnDevice.C
@@ -27,6 +28,7 @@ target_sources(${utest_ex_name} PRIVATE
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestPecletFunction.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestRadarPattern.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestRealm.C
+   ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestSmartField.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestScanningLidarPattern.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestScratchViews.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestShmemAlignment.C
@@ -37,7 +39,10 @@ target_sources(${utest_ex_name} PRIVATE
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestSimdBasic.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestSingleHexPromotion.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestSpinnerLidarPattern.C
+   ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestStringTimeCoordFunction.C
+   ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestStringTimeCoordTemperatureAuxFunction.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestSuppAlgDataSharing.C
+   ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestTabulatedTemperatureAuxFunction.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestUtils.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestVSpace.C
 )

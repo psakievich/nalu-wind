@@ -12,7 +12,7 @@
 
 #include <EquationSystem.h>
 #include <FieldTypeDef.h>
-#include <NaluParsedTypes.h>
+#include <KynemaUGFParsedTypes.h>
 
 #include "ngp_algorithms/NodalGradAlgDriver.h"
 
@@ -21,7 +21,7 @@ struct topology;
 }
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class Realm;
 class LinearSystem;
@@ -34,7 +34,7 @@ public:
   GammaEquationSystem(EquationSystems& equationSystems);
   virtual ~GammaEquationSystem();
 
-  virtual void register_nodal_fields(stk::mesh::Part* part);
+  virtual void register_nodal_fields(const stk::mesh::PartVector& part_vec);
 
   void register_interior_algorithm(stk::mesh::Part* part);
 
@@ -73,15 +73,20 @@ public:
   VectorFieldType* dgamdx_;
   ScalarFieldType* gamTmp_;
   ScalarFieldType* minDistanceToWall_;
+  VectorFieldType* dwalldistdx_;
+  ScalarFieldType* nDotV_;
+  VectorFieldType* dnDotVdx_;
   ScalarFieldType* visc_;
   ScalarFieldType* tvisc_;
   ScalarFieldType* evisc_;
   ScalarNodalGradAlgDriver nodalGradAlgDriver_;
+  ScalarNodalGradAlgDriver wallDistGradAlgDriver_;
+  ScalarNodalGradAlgDriver nDotVGradAlgDriver_;
 
   std::unique_ptr<Algorithm> effDiffFluxAlg_;
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

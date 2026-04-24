@@ -14,31 +14,31 @@
 
 #include <type_traits>
 
-#ifndef NALU_POLYNOMIAL_ORDER1
-#define NALU_POLYNOMIAL_ORDER1 1
+#ifndef KYNEMA_UGF_POLYNOMIAL_ORDER1
+#define KYNEMA_UGF_POLYNOMIAL_ORDER1 1
 #endif
 
-#ifndef NALU_POLYNOMIAL_ORDER2
-#define NALU_POLYNOMIAL_ORDER2 2
+#ifndef KYNEMA_UGF_POLYNOMIAL_ORDER2
+#define KYNEMA_UGF_POLYNOMIAL_ORDER2 2
 #endif
 
-#ifndef NALU_POLYNOMIAL_ORDER3
-#define NALU_POLYNOMIAL_ORDER3 3
+#ifndef KYNEMA_UGF_POLYNOMIAL_ORDER3
+#define KYNEMA_UGF_POLYNOMIAL_ORDER3 3
 #endif
 
-#ifndef NALU_POLYNOMIAL_ORDER4
-#define NALU_POLYNOMIAL_ORDER4 4
+#ifndef KYNEMA_UGF_POLYNOMIAL_ORDER4
+#define KYNEMA_UGF_POLYNOMIAL_ORDER4 4
 #endif
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 namespace inst {
 enum {
-  P1 = NALU_POLYNOMIAL_ORDER1,
-  P2 = NALU_POLYNOMIAL_ORDER2,
-  P3 = NALU_POLYNOMIAL_ORDER3,
-  P4 = NALU_POLYNOMIAL_ORDER4
+  P1 = KYNEMA_UGF_POLYNOMIAL_ORDER1,
+  P2 = KYNEMA_UGF_POLYNOMIAL_ORDER2,
+  P3 = KYNEMA_UGF_POLYNOMIAL_ORDER3,
+  P4 = KYNEMA_UGF_POLYNOMIAL_ORDER4
 };
 }
 
@@ -56,31 +56,31 @@ enum {
 #define P_INVOKEABLE(func)                                                     \
   template <int p, typename... Args>                                           \
   auto func(Args&&... args)                                                    \
-    ->decltype(IMPLNAME(func) < p > ::invoke(std::forward<Args>(args)...))     \
+    -> decltype(IMPLNAME(func) < p > ::invoke(std::forward<Args>(args)...))    \
   {                                                                            \
     return IMPLNAME(func)<p>::invoke(std::forward<Args>(args)...);             \
   }
 
 // can't return a value dependent on template parameter
-#define SWITCH_INVOKEABLE(func)                                                   \
-  template <typename... Args>                                                     \
-  auto func(int p, Args&&... args)                                                \
-    ->decltype(IMPLNAME(func) < inst::P1 > ::invoke(std::forward<Args>(args)...)) \
-  {                                                                               \
-    switch (p) {                                                                  \
-    case inst::P2:                                                                \
-      return IMPLNAME(func)<inst::P2>::invoke(std::forward<Args>(args)...);       \
-    case inst::P3:                                                                \
-      return IMPLNAME(func)<inst::P3>::invoke(std::forward<Args>(args)...);       \
-    case inst::P4:                                                                \
-      return IMPLNAME(func)<inst::P4>::invoke(std::forward<Args>(args)...);       \
-    default:                                                                      \
-      return IMPLNAME(func)<inst::P1>::invoke(std::forward<Args>(args)...);       \
-    }                                                                             \
+#define SWITCH_INVOKEABLE(func)                                                    \
+  template <typename... Args>                                                      \
+  auto func(int p, Args&&... args)                                                 \
+    -> decltype(IMPLNAME(func) < inst::P1 > ::invoke(std::forward<Args>(args)...)) \
+  {                                                                                \
+    switch (p) {                                                                   \
+    case inst::P2:                                                                 \
+      return IMPLNAME(func)<inst::P2>::invoke(std::forward<Args>(args)...);        \
+    case inst::P3:                                                                 \
+      return IMPLNAME(func)<inst::P3>::invoke(std::forward<Args>(args)...);        \
+    case inst::P4:                                                                 \
+      return IMPLNAME(func)<inst::P4>::invoke(std::forward<Args>(args)...);        \
+    default:                                                                       \
+      return IMPLNAME(func)<inst::P1>::invoke(std::forward<Args>(args)...);        \
+    }                                                                              \
   }
 
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

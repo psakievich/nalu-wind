@@ -35,46 +35,52 @@ const double testTol = 1e-12;
 TEST(utils, compute_vector_divergence)
 {
   // create realm
-  unit_test_utils::NaluTest naluObj;
-  sierra::nalu::Realm& realm = naluObj.create_realm();
+  unit_test_utils::KynemaUGFTest kynema_ugfObj;
+  sierra::kynema_ugf::Realm& realm = kynema_ugfObj.create_realm();
 
   // declare relevant fields
   int nDim = realm.meta_data().spatial_dimension();
 
-  ScalarFieldType* duaNdlVol =
-    &(realm.meta_data().declare_field<ScalarFieldType>(
+  sierra::kynema_ugf::ScalarFieldType* duaNdlVol =
+    &(realm.meta_data().declare_field<double>(
       stk::topology::NODE_RANK, "dual_nodal_volume"));
   stk::mesh::put_field_on_mesh(
     *duaNdlVol, realm.meta_data().universal_part(), nullptr);
 
-  ScalarFieldType& elemVol = realm.meta_data().declare_field<ScalarFieldType>(
-    stk::topology::ELEMENT_RANK, "element_volume");
+  sierra::kynema_ugf::ScalarFieldType& elemVol =
+    realm.meta_data().declare_field<double>(
+      stk::topology::ELEMENT_RANK, "element_volume");
   stk::mesh::put_field_on_mesh(
     elemVol, realm.meta_data().universal_part(), nullptr);
 
-  auto& edgeAreaVec = realm.meta_data().declare_field<VectorFieldType>(
+  auto& edgeAreaVec = realm.meta_data().declare_field<double>(
     stk::topology::EDGE_RANK, "edge_area_vector");
   stk::mesh::put_field_on_mesh(
     edgeAreaVec, realm.meta_data().universal_part(), nDim, nullptr);
+  stk::io::set_field_output_type(
+    edgeAreaVec, stk::io::FieldOutputType::VECTOR_3D);
 
-  VectorFieldType* meshVec = &(realm.meta_data().declare_field<VectorFieldType>(
-    stk::topology::NODE_RANK, "mesh_vector"));
+  sierra::kynema_ugf::VectorFieldType* meshVec =
+    &(realm.meta_data().declare_field<double>(
+      stk::topology::NODE_RANK, "mesh_vector"));
   stk::mesh::put_field_on_mesh(
     *meshVec, realm.meta_data().universal_part(), nDim, nullptr);
+  stk::io::set_field_output_type(*meshVec, stk::io::FieldOutputType::VECTOR_3D);
 
-  const sierra::nalu::MasterElement* meFC =
-    sierra::nalu::MasterElementRepo::get_surface_master_element(
+  const sierra::kynema_ugf::MasterElement* meFC =
+    sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
       stk::topology::QUAD_4);
   const int numScsIp = meFC->num_integration_points();
-  GenericFieldType* exposedAreaVec =
-    &(realm.meta_data().declare_field<GenericFieldType>(
+  sierra::kynema_ugf::GenericFieldType* exposedAreaVec =
+    &(realm.meta_data().declare_field<double>(
       realm.meta_data().side_rank(), "exposed_area_vector"));
   stk::mesh::put_field_on_mesh(
     *exposedAreaVec, realm.meta_data().universal_part(), nDim * numScsIp,
     nullptr);
 
-  ScalarFieldType* divV = &(realm.meta_data().declare_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, "div_mesh_vector"));
+  sierra::kynema_ugf::ScalarFieldType* divV =
+    &(realm.meta_data().declare_field<double>(
+      stk::topology::NODE_RANK, "div_mesh_vector"));
   stk::mesh::put_field_on_mesh(
     *divV, realm.meta_data().universal_part(), nullptr);
 
@@ -82,17 +88,21 @@ TEST(utils, compute_vector_divergence)
   const std::string meshSpec("generated:4x4x4");
   unit_test_utils::fill_hex8_mesh(meshSpec, realm.bulk_data());
 
-  sierra::nalu::GeometryAlgDriver geomAlgDriver(realm);
-  geomAlgDriver.register_elem_algorithm<sierra::nalu::GeometryInteriorAlg>(
-    sierra::nalu::INTERIOR, realm.meta_data().get_part("block_1"), "geometry");
-  geomAlgDriver.register_face_algorithm<sierra::nalu::GeometryBoundaryAlg>(
-    sierra::nalu::BOUNDARY, realm.meta_data().get_part("surface_1"),
-    "geometry");
+  sierra::kynema_ugf::GeometryAlgDriver geomAlgDriver(realm);
+  geomAlgDriver
+    .register_elem_algorithm<sierra::kynema_ugf::GeometryInteriorAlg>(
+      sierra::kynema_ugf::INTERIOR, realm.meta_data().get_part("block_1"),
+      "geometry");
+  geomAlgDriver
+    .register_face_algorithm<sierra::kynema_ugf::GeometryBoundaryAlg>(
+      sierra::kynema_ugf::BOUNDARY, realm.meta_data().get_part("surface_1"),
+      "geometry");
   geomAlgDriver.execute();
 
   // get coordinate field
-  VectorFieldType* modelCoords = realm.meta_data().get_field<VectorFieldType>(
-    stk::topology::NODE_RANK, "coordinates");
+  sierra::kynema_ugf::VectorFieldType* modelCoords =
+    realm.meta_data().get_field<double>(
+      stk::topology::NODE_RANK, "coordinates");
 
   // get the universal part
   stk::mesh::Selector sel =
@@ -115,7 +125,7 @@ TEST(utils, compute_vector_divergence)
         vecField[d] = vecCoeff[d] * xyz[d];
 
     } // end for loop - in index
-  }   // end for loop - bkts
+  } // end for loop - bkts
 
   // compute divergence
   stk::mesh::PartVector partVec;
@@ -124,7 +134,7 @@ TEST(utils, compute_vector_divergence)
   stk::mesh::PartVector bndyPartVec;
   bndyPartVec.push_back(realm.meta_data().get_part("surface_1"));
 
-  sierra::nalu::compute_vector_divergence(
+  sierra::kynema_ugf::compute_vector_divergence(
     realm.bulk_data(), partVec, bndyPartVec, meshVec, divV);
 
   // check values
@@ -138,5 +148,5 @@ TEST(utils, compute_vector_divergence)
       EXPECT_NEAR(divVal[0], coeffSum, testTol);
 
     } // end for loop - in index
-  }   // end for loop - bkts
+  } // end for loop - bkts
 }

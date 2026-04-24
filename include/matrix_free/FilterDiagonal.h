@@ -13,10 +13,10 @@
 #include "Tpetra_MultiVector.hpp"
 #include "matrix_free/PolynomialOrders.h"
 #include "matrix_free/KokkosViewTypes.h"
-#include "matrix_free/LocalArray.h"
+#include "ArrayND.h"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 namespace impl {
 template <int p>
@@ -31,6 +31,6 @@ struct filter_diagonal_t
 } // namespace impl
 P_INVOKEABLE(filter_diagonal)
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 #endif

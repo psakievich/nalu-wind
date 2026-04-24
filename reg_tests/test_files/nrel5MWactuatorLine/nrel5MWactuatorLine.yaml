@@ -3,27 +3,76 @@ Simulations:
     time_integrator: ti_1
     optimizer: opt1
 
+# Hypre memory and other configurations
+hypre_config:
+    memory_pool_mbs: 1500
+    use_vendor_spgemm: no
+    use_vendor_spmv: no
+    use_vendor_sptrans: no
+
+# Specify the linear system solvers.
 linear_solvers:
 
-  - name: solve_scalar
-    type: tpetra
-    method: gmres
-    preconditioner: mt_sgs
+  - name: solve_mom
+    type: hypre
+    method: hypre_gmres
+    preconditioner: boomerAMG
     tolerance: 1e-12
     max_iterations: 200
-    kspace: 50
+    kspace: 75
     output_level: 0
+    segregated_solver: no
+    write_matrix_files: no
+    reuse_linear_system: yes
+    recompute_preconditioner_frequency: 100
+    simple_hypre_matrix_assemble: no
+    dump_hypre_matrix_stats: no
+    write_preassembly_matrix_files: no
 
-  - name: solve_cont
-    type: tpetra
-    method: gmres
-    preconditioner: muelu
+    # File containing hypre specific configuration options
+    hypre_cfg_file: ../../hypre_settings/hypre_blade_resolved.yaml
+    # YAML node used for this linear solver
+    hypre_cfg_node: hypre_simple_precon
+
+  - name: solve_scalar
+    type: hypre
+    method: hypre_gmres
+    preconditioner: boomerAMG
     tolerance: 1e-12
     max_iterations: 200
-    kspace: 50
+    kspace: 75
     output_level: 0
-    muelu_xml_file_name: ../../xml/milestone.xml
-    summarize_muelu_timer: no
+    write_matrix_files: no
+    reuse_linear_system: yes
+    recompute_preconditioner_frequency: 100
+    simple_hypre_matrix_assemble: no
+    dump_hypre_matrix_stats: no
+    write_preassembly_matrix_files: no
+
+    # File containing hypre specific configuration options
+    hypre_cfg_file: ../../hypre_settings/hypre_blade_resolved.yaml
+    # YAML node used for this linear solver
+    hypre_cfg_node: hypre_simple_precon
+
+  - name: solve_elliptic
+    type: hypre
+    method: hypre_gmres
+    preconditioner: boomerAMG
+    tolerance: 1e-12
+    max_iterations: 200
+    kspace: 75
+    output_level: 0
+    write_matrix_files: no
+    reuse_linear_system: yes
+    recompute_preconditioner_frequency: 100
+    simple_hypre_matrix_assemble: no
+    dump_hypre_matrix_stats: no
+    write_preassembly_matrix_files: no
+
+    # File containing hypre specific configuration options
+    hypre_cfg_file: ../../hypre_settings/hypre_blade_resolved.yaml
+    # YAML node used for this linear solver
+    hypre_cfg_node: hypre_elliptic
 
 realms:
 
@@ -37,8 +86,8 @@ realms:
       max_iterations: 2
 
       solver_system_specification:
-        velocity: solve_scalar
-        pressure: solve_cont
+        velocity: solve_mom
+        pressure: solve_elliptic
 
       systems:
 
@@ -135,6 +184,7 @@ realms:
         air_density: 1.225
         epsilon: [ 5.0, 5.0, 5.0 ]
         turbine_base_pos: [ 0.0, 0.0, 0.0 ]
+        turbine_hub_pos: [ 0.0, 0.0, 90.0 ]
         restart_filename: "blah"
         fast_input_filename: "nrel5mw.fst"
         turb_id:  1
@@ -151,8 +201,8 @@ realms:
 
     restart:
       restart_data_base_name: actuatorLine.rst
-      restart_frequency: 10
-      restart_start: 10
+      restart_frequency: 5
+      restart_start: 0
       compression_level: 9
       compression_shuffle: yes
 
@@ -160,7 +210,7 @@ Time_Integrators:
   - StandardTimeIntegrator:
       name: ti_1
       start_time: 0
-      termination_step_count: 10
+      termination_step_count: 5
       time_step: 0.0625
       time_stepping_type: fixed
       time_step_count: 0

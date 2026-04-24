@@ -9,7 +9,7 @@
 
 #include "kernel/MomentumSymmetryElemKernel.h"
 #include "master_element/MasterElement.h"
-#include "master_element/MasterElementFactory.h"
+#include "master_element/MasterElementRepo.h"
 #include "SolutionOptions.h"
 
 // template and scratch space
@@ -23,7 +23,7 @@
 #include <stk_mesh/base/Field.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace {
 template <typename BcAlgTraits, typename T>
 void
@@ -58,11 +58,12 @@ MomentumSymmetryElemKernel<BcAlgTraits>::MomentumSymmetryElemKernel(
       get_field_ordinal(metaData, "exposed_area_vector", metaData.side_rank())),
     includeDivU_(solnOpts.includeDivU_),
     meSCS_(
-      MasterElementRepo::get_surface_master_element(BcAlgTraits::elemTopo_)),
+      MasterElementRepo::get_surface_master_element_on_host(
+        BcAlgTraits::elemTopo_)),
     penaltyFactor_(solnOpts.symmetryBcPenaltyFactor_)
 {
-  auto* meFC =
-    MasterElementRepo::get_surface_master_element(BcAlgTraits::faceTopo_);
+  auto* meFC = MasterElementRepo::get_surface_master_element_on_host(
+    BcAlgTraits::faceTopo_);
   auto* meFC_dev = MasterElementRepo::get_surface_master_element_on_dev(
     BcAlgTraits::faceTopo_);
   faceDataPreReqs.add_cvfem_face_me(meFC);
@@ -122,7 +123,7 @@ MomentumSymmetryElemKernel<BcAlgTraits>::execute(
   for (int ip = 0; ip < BcAlgTraits::numFaceIp_; ++ip) {
     const int nn = meSCS_->ipNodeMap(elemFaceOrdinal)[ip];
 
-    NALU_ALIGNED Kokkos::Array<DoubleType, 3> uIp = {{0, 0, 0}};
+    Kokkos::Array<DoubleType, 3> uIp = {{0, 0, 0}};
     DoubleType viscIp = 0.;
     for (int n = 0; n < BcAlgTraits::nodesPerFace_; ++n) {
       const auto r = vf_shape_function_(ip, n);
@@ -155,7 +156,7 @@ MomentumSymmetryElemKernel<BcAlgTraits>::execute(
       rhs(indexR) -= -penaltyFac * un * areavIp[dj] * inv_amag;
     }
 
-    NALU_ALIGNED Kokkos::Array<Kokkos::Array<DoubleType, 3>, 3> viscStressIp;
+    Kokkos::Array<Kokkos::Array<DoubleType, 3>, 3> viscStressIp;
     for (int dj = 0; dj < dim; ++dj) {
       for (int di = 0; di < dim; ++di) {
         viscStressIp[dj][di] = 0;
@@ -205,5 +206,5 @@ MomentumSymmetryElemKernel<BcAlgTraits>::execute(
 
 INSTANTIATE_KERNEL_FACE_ELEMENT(MomentumSymmetryElemKernel)
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

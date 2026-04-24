@@ -24,9 +24,9 @@
 #include "stk_mesh/base/Ngp.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
-namespace nalu_ngp {
+namespace kynema_ugf_ngp {
 namespace impl {
 
 /** Return a Kokkos TeamPolicy object after setting the appropriate scratch
@@ -132,7 +132,7 @@ run_entity_algorithm(
       const size_t bktLen = bkt.size();
       Kokkos::parallel_for(
         Kokkos::TeamThreadRange(team, bktLen), [&](const size_t& bktIndex) {
-          MeshIndex meshIdx{&bkt, static_cast<unsigned>(bktIndex)};
+          MeshIndex meshIdx{bkt.bucket_id(), static_cast<unsigned>(bktIndex)};
           algorithm(meshIdx);
         });
     });
@@ -181,7 +181,7 @@ run_entity_par_reduce(
       Kokkos::parallel_reduce(
         Kokkos::TeamThreadRange(team, bktLen),
         [&](const size_t& bktIndex, ReducerType& threadVal) {
-          MeshIndex meshIdx{&bkt, static_cast<unsigned>(bktIndex)};
+          MeshIndex meshIdx{bkt.bucket_id(), static_cast<unsigned>(bktIndex)};
           algorithm(meshIdx, threadVal);
         },
         bktVal);
@@ -222,7 +222,7 @@ run_entity_par_reduce(
       Kokkos::parallel_reduce(
         Kokkos::TeamThreadRange(team, bktLen),
         [&](const size_t& bktIndex, value_type& threadVal) {
-          MeshIndex meshIdx{&bkt, static_cast<unsigned>(bktIndex)};
+          MeshIndex meshIdx{bkt.bucket_id(), static_cast<unsigned>(bktIndex)};
           algorithm(meshIdx, threadVal);
         },
         ReducerType(bktVal));
@@ -258,9 +258,10 @@ run_edge_algorithm(
 
   run_entity_algorithm(
     algName, mesh, rank, sel, KOKKOS_LAMBDA(MeshIndex & meshIdx) {
-      algorithm(EntityInfo<Mesh>{
-        meshIdx, (*meshIdx.bucket)[meshIdx.bucketOrd],
-        mesh.get_nodes(meshIdx)});
+      algorithm(
+        EntityInfo<Mesh>{
+          meshIdx, mesh.get_entity(rank, meshIdx),
+          mesh.get_nodes(rank, meshIdx)});
     });
 }
 
@@ -292,9 +293,10 @@ run_elem_algorithm(
 
   run_entity_algorithm(
     algName, mesh, rank, sel, KOKKOS_LAMBDA(MeshIndex & meshIdx) {
-      algorithm(EntityInfo<Mesh>{
-        meshIdx, (*meshIdx.bucket)[meshIdx.bucketOrd],
-        mesh.get_nodes(meshIdx)});
+      algorithm(
+        EntityInfo<Mesh>{
+          meshIdx, mesh.get_entity(rank, meshIdx),
+          mesh.get_nodes(rank, meshIdx)});
     });
 }
 
@@ -337,16 +339,16 @@ run_elem_algorithm(
   const auto& ngpMesh = meshInfo.ngp_mesh();
   const auto& fieldMgr = meshInfo.ngp_field_manager();
 
-  ElemDataRequestsGPU dataReqNGP(fieldMgr, dataReqs, meshInfo.num_fields());
+  ElemDataRequestsGPU dataReqNGP(fieldMgr, dataReqs);
 
   const int nodesPerElement = nodes_per_entity(dataReqNGP);
-  NGP_ThrowRequire(nodesPerElement != 0);
+  STK_NGP_ThrowRequire(nodesPerElement != 0);
 
   const auto reqType =
     (rank == stk::topology::ELEM_RANK) ? ElemReqType::ELEM : ElemReqType::FACE;
   const int bytes_per_team = 0;
   const int bytes_per_thread =
-    impl::ngp_calc_thread_shmem_size<sierra::nalu::DoubleType>(
+    impl::ngp_calc_thread_shmem_size<sierra::kynema_ugf::DoubleType>(
       ndim, dataReqNGP, reqType);
 
   const auto& buckets = ngpMesh.get_bucket_ids(rank, sel);
@@ -370,10 +372,10 @@ run_elem_algorithm(
 
           for (int is = 0; is < nSimdElems; ++is) {
             const unsigned bktOrd = bktIndex * simdLen + is;
-            MeshIndex meshIdx{&bkt, bktOrd};
+            MeshIndex meshIdx{bkt.bucket_id(), bktOrd};
             const auto& elem = bkt[bktOrd];
             elemData.elemInfo[is] =
-              EntityInfo<Mesh>{meshIdx, elem, ngpMesh.get_nodes(meshIdx)};
+              EntityInfo<Mesh>{meshIdx, elem, ngpMesh.get_nodes(rank, meshIdx)};
 
             fill_pre_req_data(
               dataReqNGP, ngpMesh, rank, elem, *elemData.scrView[is]);
@@ -433,16 +435,16 @@ run_elem_par_reduce(
   const auto& ngpMesh = meshInfo.ngp_mesh();
   const auto& fieldMgr = meshInfo.ngp_field_manager();
 
-  ElemDataRequestsGPU dataReqNGP(fieldMgr, dataReqs, meshInfo.num_fields());
+  ElemDataRequestsGPU dataReqNGP(fieldMgr, dataReqs);
 
   const int nodesPerElement = nodes_per_entity(dataReqNGP);
-  NGP_ThrowRequire(nodesPerElement != 0);
+  STK_NGP_ThrowRequire(nodesPerElement != 0);
 
   const auto reqType =
     (rank == stk::topology::ELEM_RANK) ? ElemReqType::ELEM : ElemReqType::FACE;
   const int bytes_per_team = 0;
   const int bytes_per_thread =
-    impl::ngp_calc_thread_shmem_size<sierra::nalu::DoubleType>(
+    impl::ngp_calc_thread_shmem_size<sierra::kynema_ugf::DoubleType>(
       ndim, dataReqNGP, reqType);
 
   const auto& buckets = ngpMesh.get_bucket_ids(rank, sel);
@@ -469,10 +471,10 @@ run_elem_par_reduce(
 
           for (int is = 0; is < nSimdElems; ++is) {
             const unsigned bktOrd = bktIndex * simdLen + is;
-            MeshIndex meshIdx{&bkt, bktOrd};
+            MeshIndex meshIdx{bkt.bucket_id(), bktOrd};
             const auto& elem = bkt[bktOrd];
             elemData.elemInfo[is] =
-              EntityInfo<Mesh>{meshIdx, elem, ngpMesh.get_nodes(meshIdx)};
+              EntityInfo<Mesh>{meshIdx, elem, ngpMesh.get_nodes(rank, meshIdx)};
 
             fill_pre_req_data(
               dataReqNGP, ngpMesh, rank, elem, *elemData.scrView[is]);
@@ -518,19 +520,18 @@ run_face_elem_algorithm(
   const auto& ndim = meshInfo.ndim();
   const auto& ngpMesh = meshInfo.ngp_mesh();
   const auto& fieldMgr = meshInfo.ngp_field_manager();
-  const auto& numFields = meshInfo.num_fields();
 
-  ElemDataRequestsGPU faceDataNGP(fieldMgr, faceDataReqs, numFields);
-  ElemDataRequestsGPU elemDataNGP(fieldMgr, elemDataReqs, numFields);
+  ElemDataRequestsGPU faceDataNGP(fieldMgr, faceDataReqs);
+  ElemDataRequestsGPU elemDataNGP(fieldMgr, elemDataReqs);
 
   const int nodesPerElement = nodes_per_entity(elemDataNGP);
   const int nodesPerFace = nodes_per_entity(faceDataNGP, METype::FACE);
-  NGP_ThrowRequire(nodesPerElement != 0);
-  NGP_ThrowRequire(nodesPerFace != 0);
+  STK_NGP_ThrowRequire(nodesPerElement != 0);
+  STK_NGP_ThrowRequire(nodesPerFace != 0);
 
   const int bytes_per_team = 0;
   const int bytes_per_thread =
-    impl::ngp_calc_thread_shmem_size<sierra::nalu::DoubleType>(
+    impl::ngp_calc_thread_shmem_size<sierra::kynema_ugf::DoubleType>(
       ndim, faceDataNGP, elemDataNGP);
 
   const auto& buckets = ngpMesh.get_bucket_ids(sideRank, sel);
@@ -572,7 +573,7 @@ run_face_elem_algorithm(
                 break;
 
               const auto elems = ngpMesh.get_elements(sideRank, faceIdx);
-              MeshIndex meshIdx{&bkt, static_cast<unsigned>(bktOrd)};
+              MeshIndex meshIdx{bkt.bucket_id(), static_cast<unsigned>(bktOrd)};
               const auto elem = elems[0];
               const auto elemIdx = ngpMesh.fast_mesh_index(elem);
               faceElemData.faceInfo[simdFaceIdx] = BcFaceElemInfo<Mesh>{
@@ -643,19 +644,18 @@ run_face_elem_par_reduce(
   const auto& ndim = meshInfo.ndim();
   const auto& ngpMesh = meshInfo.ngp_mesh();
   const auto& fieldMgr = meshInfo.ngp_field_manager();
-  const auto& numFields = meshInfo.num_fields();
 
-  ElemDataRequestsGPU faceDataNGP(fieldMgr, faceDataReqs, numFields);
-  ElemDataRequestsGPU elemDataNGP(fieldMgr, elemDataReqs, numFields);
+  ElemDataRequestsGPU faceDataNGP(fieldMgr, faceDataReqs);
+  ElemDataRequestsGPU elemDataNGP(fieldMgr, elemDataReqs);
 
   const int nodesPerElement = nodes_per_entity(elemDataNGP);
   const int nodesPerFace = nodes_per_entity(faceDataNGP, METype::FACE);
-  NGP_ThrowRequire(nodesPerElement != 0);
-  NGP_ThrowRequire(nodesPerFace != 0);
+  STK_NGP_ThrowRequire(nodesPerElement != 0);
+  STK_NGP_ThrowRequire(nodesPerFace != 0);
 
   const int bytes_per_team = 0;
   const int bytes_per_thread =
-    impl::ngp_calc_thread_shmem_size<sierra::nalu::DoubleType>(
+    impl::ngp_calc_thread_shmem_size<sierra::kynema_ugf::DoubleType>(
       ndim, faceDataNGP, elemDataNGP);
 
   const auto& buckets = ngpMesh.get_bucket_ids(sideRank, sel);
@@ -700,7 +700,7 @@ run_face_elem_par_reduce(
                 break;
 
               const auto elems = ngpMesh.get_elements(sideRank, faceIdx);
-              MeshIndex meshIdx{&bkt, static_cast<unsigned>(bktOrd)};
+              MeshIndex meshIdx{bkt.bucket_id(), static_cast<unsigned>(bktOrd)};
               const auto elem = elems[0];
               const auto elemIdx = ngpMesh.fast_mesh_index(elem);
               faceElemData.faceInfo[simdFaceIdx] = BcFaceElemInfo<Mesh>{
@@ -772,15 +772,14 @@ run_face_elem_algorithm_nosimd(
   const auto& ndim = meshInfo.ndim();
   const auto& ngpMesh = meshInfo.ngp_mesh();
   const auto& fieldMgr = meshInfo.ngp_field_manager();
-  const auto& numFields = meshInfo.num_fields();
 
-  ElemDataRequestsGPU faceDataNGP(fieldMgr, faceDataReqs, numFields);
-  ElemDataRequestsGPU elemDataNGP(fieldMgr, elemDataReqs, numFields);
+  ElemDataRequestsGPU faceDataNGP(fieldMgr, faceDataReqs);
+  ElemDataRequestsGPU elemDataNGP(fieldMgr, elemDataReqs);
 
   const int nodesPerElement = nodes_per_entity(elemDataNGP);
   const int nodesPerFace = nodes_per_entity(faceDataNGP, METype::FACE);
-  NGP_ThrowRequire(nodesPerElement != 0);
-  NGP_ThrowRequire(nodesPerFace != 0);
+  STK_NGP_ThrowRequire(nodesPerElement != 0);
+  STK_NGP_ThrowRequire(nodesPerFace != 0);
 
   const int bytes_per_team = 0;
   const int bytes_per_thread =
@@ -799,18 +798,16 @@ run_face_elem_algorithm_nosimd(
         team, ndim, nodesPerFace, faceDataNGP);
       typename Traits::ScratchViewsType elemViews(
         team, ndim, nodesPerElement, elemDataNGP);
-      faceViews.fill_static_meviews(faceDataNGP);
-      elemViews.fill_static_meviews(elemDataNGP);
 
       const size_t bktLen = bkt.size();
       Kokkos::parallel_for(
         Kokkos::TeamThreadRange(team, bktLen), [&](const size_t& bktIndex) {
-          MeshIndex meshIdx{&bkt, static_cast<unsigned>(bktIndex)};
+          MeshIndex meshIdx{bkt.bucket_id(), static_cast<unsigned>(bktIndex)};
           const auto face = bkt[bktIndex];
           const auto faceIdx = ngpMesh.fast_mesh_index(face);
           const auto elements = ngpMesh.get_elements(sideRank, faceIdx);
 
-          NGP_ThrowAssert(elements.size() == 1);
+          STK_NGP_ThrowAssert(elements.size() == 1);
           const auto faceOrd =
             ngpMesh.get_element_ordinals(sideRank, faceIdx)[0];
           const auto elem = elements[0];
@@ -831,8 +828,8 @@ run_face_elem_algorithm_nosimd(
     });
 }
 
-} // namespace nalu_ngp
-} // namespace nalu
+} // namespace kynema_ugf_ngp
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif /* NGPLOOPUTILS_H */

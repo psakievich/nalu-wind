@@ -11,7 +11,7 @@
 #include "ngp_algorithms/DynamicPressureOpenAlg.h"
 #include "BuildTemplates.h"
 #include "master_element/MasterElement.h"
-#include "master_element/MasterElementFactory.h"
+#include "master_element/MasterElementRepo.h"
 #include "ngp_algorithms/MdotAlgDriver.h"
 #include "ngp_algorithms/NgpAlgDriver.h"
 #include "ngp_utils/NgpFieldOps.h"
@@ -26,7 +26,7 @@
 #include <stk_mesh/base/FieldState.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 template <typename BcAlgTraits>
 DynamicPressureOpenAlg<BcAlgTraits>::DynamicPressureOpenAlg(
@@ -45,7 +45,8 @@ DynamicPressureOpenAlg<BcAlgTraits>::DynamicPressureOpenAlg(
       realm_.meta_data().side_rank())),
     dynPress_(get_field_ordinal(
       realm_.meta_data(), "dynamic_pressure", realm_.meta_data().side_rank())),
-    meFC_(MasterElementRepo::get_surface_master_element<BcAlgTraits>())
+    meFC_(
+      MasterElementRepo::get_surface_master_element_on_dev(BcAlgTraits::topo_))
 {
   faceData_.add_cvfem_face_me(meFC_);
   faceData_.add_coordinates_field(
@@ -56,25 +57,20 @@ DynamicPressureOpenAlg<BcAlgTraits>::DynamicPressureOpenAlg(
   faceData_.add_face_field(
     exposedAreaVec_, BcAlgTraits::numFaceIp_, BcAlgTraits::nDim_);
   faceData_.add_face_field(openMassFlowRate_, BcAlgTraits::numFaceIp_);
-
-  useShifted_ = realm.solutionOptions_->get_skew_symmetric("velocity") ||
-                realm.realmUsesEdges_;
-  auto shp_fcn = useShifted_ ? FC_SHIFTED_SHAPE_FCN : FC_SHAPE_FCN;
-  faceData_.add_master_element_call(shp_fcn, CURRENT_COORDINATES);
 }
 
 template <typename BcAlgTraits>
 void
 DynamicPressureOpenAlg<BcAlgTraits>::execute()
 {
-  using ElemSimdData = nalu_ngp::ElemSimdData<stk::mesh::NgpMesh>;
+  using ElemSimdData = kynema_ugf_ngp::ElemSimdData<stk::mesh::NgpMesh>;
   const auto& meta = realm_.meta_data();
   const auto& meshInfo = realm_.mesh_info();
   const auto& ngpMesh = meshInfo.ngp_mesh();
   const auto& fieldMgr = meshInfo.ngp_field_manager();
 
   auto dynPress = fieldMgr.template get_field<double>(dynPress_);
-  auto dynPressOps = nalu_ngp::simd_elem_field_updater(ngpMesh, dynPress);
+  auto dynPressOps = kynema_ugf_ngp::simd_elem_field_updater(ngpMesh, dynPress);
 
   const stk::mesh::Selector sel =
     meta.locally_owned_part() & stk::mesh::selectUnion(partVec_);
@@ -86,17 +82,18 @@ DynamicPressureOpenAlg<BcAlgTraits>::execute()
   const unsigned velID = velocity_;
   const auto useShifted = useShifted_;
 
-  nalu_ngp::run_elem_algorithm(
+  const auto shp =
+    shape_fcn<BcAlgTraits, QuadRank::SCV>(use_shifted_quad(useShifted));
+
+  kynema_ugf_ngp::run_elem_algorithm(
     algName, meshInfo, realm_.meta_data().side_rank(), faceData_, sel,
     KOKKOS_LAMBDA(ElemSimdData & edata) {
       auto& scrViews = edata.simdScrView;
       const auto& mdot = scrViews.get_scratch_view_1D(mdotID);
       const auto& area = scrViews.get_scratch_view_2D(areavecID);
       const auto& vel = scrViews.get_scratch_view_2D(velID);
-
       const auto meViews = scrViews.get_me_views(CURRENT_COORDINATES);
-      const auto& interp =
-        useShifted ? meViews.fc_shifted_shape_fcn : meViews.fc_shape_fcn;
+
       for (int ip = 0; ip < BcAlgTraits::numFaceIp_; ++ip) {
         DoubleType asq = 0.0;
         for (int d = 0; d < BcAlgTraits::nDim_; ++d) {
@@ -105,7 +102,7 @@ DynamicPressureOpenAlg<BcAlgTraits>::execute()
         }
         DoubleType unIp = 0;
         for (int n = 0; n < BcAlgTraits::nodesPerFace_; ++n) {
-          const auto r = interp(ip, n);
+          const auto r = shp(ip, n);
           for (int d = 0; d < BcAlgTraits::nDim_; ++d) {
             unIp += r * area(ip, d) * vel(n, d);
           }
@@ -120,5 +117,5 @@ DynamicPressureOpenAlg<BcAlgTraits>::execute()
 
 INSTANTIATE_KERNEL_FACE(DynamicPressureOpenAlg)
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

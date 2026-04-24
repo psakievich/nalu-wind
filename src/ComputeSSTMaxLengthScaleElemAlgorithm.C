@@ -7,7 +7,7 @@
 // for more details.
 //
 
-// nalu
+// kynema_ugf
 #include <ComputeSSTMaxLengthScaleElemAlgorithm.h>
 #include <Algorithm.h>
 
@@ -15,13 +15,13 @@
 #include <Realm.h>
 #include <TimeIntegrator.h>
 #include <master_element/MasterElement.h>
-#include <master_element/MasterElementFactory.h>
+#include <master_element/MasterElementRepo.h>
 
 // stk_mesh/base/fem
 #include <stk_mesh/base/BulkData.hpp>
 #include <stk_mesh/base/Field.hpp>
 #include <stk_mesh/base/FieldParallel.hpp>
-#include <stk_mesh/base/GetBuckets.hpp>
+
 #include <stk_mesh/base/MetaData.hpp>
 #include <stk_mesh/base/Part.hpp>
 
@@ -29,7 +29,7 @@
 #include <stk_util/parallel/ParallelReduce.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //==========================================================================
 // Class Definition
@@ -45,9 +45,9 @@ ComputeSSTMaxLengthScaleElemAlgorithm::ComputeSSTMaxLengthScaleElemAlgorithm(
 {
   // save off data
   stk::mesh::MetaData& meta_data = realm_.meta_data();
-  coordinates_ = meta_data.get_field<VectorFieldType>(
+  coordinates_ = meta_data.get_field<double>(
     stk::topology::NODE_RANK, realm_.get_coordinates_name());
-  maxLengthScale_ = meta_data.get_field<ScalarFieldType>(
+  maxLengthScale_ = meta_data.get_field<double>(
     stk::topology::NODE_RANK, "sst_max_length_scale");
 }
 
@@ -96,7 +96,8 @@ ComputeSSTMaxLengthScaleElemAlgorithm::execute()
 
     // extract master element
     MasterElement* meSCS =
-      sierra::nalu::MasterElementRepo::get_surface_master_element(b.topology());
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
+        b.topology());
 
     // extract master element specifics
     const int numScsIp = meSCS->num_integration_points();
@@ -155,5 +156,5 @@ ComputeSSTMaxLengthScaleElemAlgorithm::execute()
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

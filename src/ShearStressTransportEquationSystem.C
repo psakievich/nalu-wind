@@ -12,9 +12,9 @@
 #include <ComputeSSTMaxLengthScaleElemAlgorithm.h>
 #include <FieldFunctions.h>
 #include <master_element/MasterElement.h>
-#include <master_element/MasterElementFactory.h>
-#include <NaluEnv.h>
-#include <NaluParsing.h>
+#include <master_element/MasterElementRepo.h>
+#include <KynemaUGFEnv.h>
+#include <KynemaUGFParsing.h>
 #include <SpecificDissipationRateEquationSystem.h>
 #include <GammaEquationSystem.h>
 #include <SolutionOptions.h>
@@ -52,7 +52,7 @@
 #include "ngp_utils/NgpFieldBLAS.h"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //==========================================================================
 // Class Definition
@@ -130,40 +130,42 @@ ShearStressTransportEquationSystem::initialize()
 //-------- register_nodal_fields -------------------------------------------
 //--------------------------------------------------------------------------
 void
-ShearStressTransportEquationSystem::register_nodal_fields(stk::mesh::Part* part)
+ShearStressTransportEquationSystem::register_nodal_fields(
+  const stk::mesh::PartVector& part_vec)
 {
 
   stk::mesh::MetaData& meta_data = realm_.meta_data();
   const int numStates = realm_.number_of_states();
+  stk::mesh::Selector selector = stk::mesh::selectUnion(part_vec);
 
   // re-register tke and sdr for convenience
-  tke_ = &(meta_data.declare_field<ScalarFieldType>(
+  tke_ = &(meta_data.declare_field<double>(
     stk::topology::NODE_RANK, "turbulent_ke", numStates));
-  stk::mesh::put_field_on_mesh(*tke_, *part, nullptr);
-  sdr_ = &(meta_data.declare_field<ScalarFieldType>(
+  stk::mesh::put_field_on_mesh(*tke_, selector, nullptr);
+  sdr_ = &(meta_data.declare_field<double>(
     stk::topology::NODE_RANK, "specific_dissipation_rate", numStates));
-  stk::mesh::put_field_on_mesh(*sdr_, *part, nullptr);
+  stk::mesh::put_field_on_mesh(*sdr_, selector, nullptr);
   if (realm_.solutionOptions_->gammaEqActive_) {
-    gamma_ = &(meta_data.declare_field<ScalarFieldType>(
+    gamma_ = &(meta_data.declare_field<double>(
       stk::topology::NODE_RANK, "gamma_transition", numStates));
-    stk::mesh::put_field_on_mesh(*gamma_, *part, nullptr);
+    stk::mesh::put_field_on_mesh(*gamma_, selector, nullptr);
   }
 
   // SST parameters that everyone needs
-  minDistanceToWall_ = &(meta_data.declare_field<ScalarFieldType>(
+  minDistanceToWall_ = &(meta_data.declare_field<double>(
     stk::topology::NODE_RANK, "minimum_distance_to_wall"));
-  stk::mesh::put_field_on_mesh(*minDistanceToWall_, *part, nullptr);
-  fOneBlending_ = &(meta_data.declare_field<ScalarFieldType>(
+  stk::mesh::put_field_on_mesh(*minDistanceToWall_, selector, nullptr);
+  fOneBlending_ = &(meta_data.declare_field<double>(
     stk::topology::NODE_RANK, "sst_f_one_blending"));
-  stk::mesh::put_field_on_mesh(*fOneBlending_, *part, nullptr);
+  stk::mesh::put_field_on_mesh(*fOneBlending_, selector, nullptr);
 
   // DES model
   if (
     (TurbulenceModel::SST_DES == realm_.solutionOptions_->turbulenceModel_) ||
     (TurbulenceModel::SST_IDDES == realm_.solutionOptions_->turbulenceModel_)) {
-    maxLengthScale_ = &(meta_data.declare_field<ScalarFieldType>(
+    maxLengthScale_ = &(meta_data.declare_field<double>(
       stk::topology::NODE_RANK, "sst_max_length_scale"));
-    stk::mesh::put_field_on_mesh(*maxLengthScale_, *part, nullptr);
+    stk::mesh::put_field_on_mesh(*maxLengthScale_, selector, nullptr);
   }
 
   // add to restart field
@@ -219,23 +221,23 @@ ShearStressTransportEquationSystem::register_wall_bc(
   wallBcPart_.push_back(part);
 
   auto& meta = realm_.meta_data();
-  auto& assembledWallArea = meta.declare_field<ScalarFieldType>(
+  auto& assembledWallArea = meta.declare_field<double>(
     stk::topology::NODE_RANK, "assembled_wall_area_wf");
   stk::mesh::put_field_on_mesh(assembledWallArea, *part, nullptr);
-  auto& assembledWallNormDist = meta.declare_field<ScalarFieldType>(
+  auto& assembledWallNormDist = meta.declare_field<double>(
     stk::topology::NODE_RANK, "assembled_wall_normal_distance");
   stk::mesh::put_field_on_mesh(assembledWallNormDist, *part, nullptr);
-  auto& wallNormDistBip = meta.declare_field<GenericFieldType>(
-    meta.side_rank(), "wall_normal_distance_bip");
-  auto* meFC = MasterElementRepo::get_surface_master_element(partTopo);
+  auto& wallNormDistBip =
+    meta.declare_field<double>(meta.side_rank(), "wall_normal_distance_bip");
+  auto* meFC = MasterElementRepo::get_surface_master_element_on_host(partTopo);
   const int numScsBip = meFC->num_integration_points();
   stk::mesh::put_field_on_mesh(wallNormDistBip, *part, numScsBip, nullptr);
 
   RoughnessHeight rough = userData.z0_;
   double z0 = rough.z0_;
   realm_.geometryAlgDriver_->register_wall_func_algorithm<WallFuncGeometryAlg>(
-    sierra::nalu::WALL, part, get_elem_topo(realm_, *part), "sst_geometry_wall",
-    RANSAblBcApproach, z0);
+    sierra::kynema_ugf::WALL, part, get_elem_topo(realm_, *part),
+    "sst_geometry_wall", RANSAblBcApproach, z0);
 }
 
 //--------------------------------------------------------------------------
@@ -287,7 +289,7 @@ ShearStressTransportEquationSystem::solve_and_update()
   // start the iteration loop
   for (int k = 0; k < maxIterations_; ++k) {
 
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << " " << k + 1 << "/" << maxIterations_ << std::setw(15) << std::right
       << name_ << std::endl;
 
@@ -362,13 +364,11 @@ ShearStressTransportEquationSystem::post_external_data_transfer_work()
     clip_sst_gamma(ngpMesh, interior_sel, gammaNp1);
   }
 
-  auto sdrBCField =
-    meta.get_field<ScalarFieldType>(stk::topology::NODE_RANK, "sdr_bc");
-  auto tkeBCField =
-    meta.get_field<ScalarFieldType>(stk::topology::NODE_RANK, "tke_bc");
+  auto sdrBCField = meta.get_field<double>(stk::topology::NODE_RANK, "sdr_bc");
+  auto tkeBCField = meta.get_field<double>(stk::topology::NODE_RANK, "tke_bc");
 
   if (sdrBCField != nullptr) {
-    ThrowRequire(tkeBCField);
+    STK_ThrowRequire(tkeBCField);
     auto bc_sel = owned_and_shared & stk::mesh::selectField(*sdrBCField);
     auto ngpTkeBC =
       fieldMgr.get_field<double>(tkeBCField->mesh_meta_data_ordinal());
@@ -379,7 +379,7 @@ ShearStressTransportEquationSystem::post_external_data_transfer_work()
 
     if (realm_.solutionOptions_->gammaEqActive_) {
       auto gammaBCField =
-        meta.get_field<ScalarFieldType>(stk::topology::NODE_RANK, "gamma_bc");
+        meta.get_field<double>(stk::topology::NODE_RANK, "gamma_bc");
 
       auto ngpGammaBC =
         fieldMgr.get_field<double>(gammaBCField->mesh_meta_data_ordinal());
@@ -394,7 +394,7 @@ ShearStressTransportEquationSystem::post_external_data_transfer_work()
 void
 ShearStressTransportEquationSystem::update_and_clip()
 {
-  using MeshIndex = nalu_ngp::NGPMeshTraits<>::MeshIndex;
+  using MeshIndex = kynema_ugf_ngp::NGPMeshTraits<>::MeshIndex;
 
   const auto& meshInfo = realm_.mesh_info();
   const auto& meta = meshInfo.meta();
@@ -408,8 +408,8 @@ ShearStressTransportEquationSystem::update_and_clip()
   const auto& wTmp =
     fieldMgr.get_field<double>(sdrEqSys_->wTmp_->mesh_meta_data_ordinal());
 
-  auto* turbViscosity = meta.get_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, "turbulent_viscosity");
+  auto* turbViscosity =
+    meta.get_field<double>(stk::topology::NODE_RANK, "turbulent_viscosity");
 
   const stk::mesh::Selector sel =
     (meta.locally_owned_part() | meta.globally_shared_part()) &
@@ -422,7 +422,7 @@ ShearStressTransportEquationSystem::update_and_clip()
   tkeNp1.sync_to_device();
   sdrNp1.sync_to_device();
 
-  nalu_ngp::run_entity_algorithm(
+  kynema_ugf_ngp::run_entity_algorithm(
     "SST::update_and_clip", ngpMesh, stk::topology::NODE_RANK, sel,
     KOKKOS_LAMBDA(const MeshIndex& mi) {
       const double tkeNew = tkeNp1.get(mi, 0) + kTmp.get(mi, 0);
@@ -439,7 +439,7 @@ ShearStressTransportEquationSystem::update_and_clip()
 void
 ShearStressTransportEquationSystem::update_and_clip_gamma()
 {
-  using MeshIndex = nalu_ngp::NGPMeshTraits<>::MeshIndex;
+  using MeshIndex = kynema_ugf_ngp::NGPMeshTraits<>::MeshIndex;
 
   const auto& meshInfo = realm_.mesh_info();
   const auto& meta = meshInfo.meta();
@@ -449,8 +449,8 @@ ShearStressTransportEquationSystem::update_and_clip_gamma()
   auto& gammaNp1 = fieldMgr.get_field<double>(gamma_->mesh_meta_data_ordinal());
   const auto& gamTmp =
     fieldMgr.get_field<double>(gammaEqSys_->gamTmp_->mesh_meta_data_ordinal());
-  auto* turbViscosity = meta.get_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, "turbulent_viscosity");
+  auto* turbViscosity =
+    meta.get_field<double>(stk::topology::NODE_RANK, "turbulent_viscosity");
 
   const stk::mesh::Selector sel =
     (meta.locally_owned_part() | meta.globally_shared_part()) &
@@ -460,7 +460,7 @@ ShearStressTransportEquationSystem::update_and_clip_gamma()
 
   gammaNp1.sync_to_device();
 
-  nalu_ngp::run_entity_algorithm(
+  kynema_ugf_ngp::run_entity_algorithm(
     "SST_GammaEQActive::update_and_clip", ngpMesh, stk::topology::NODE_RANK,
     sel, KOKKOS_LAMBDA(const MeshIndex& mi) {
       const double gammaNew = gammaNp1.get(mi, 0) + gamTmp.get(mi, 0);
@@ -485,9 +485,9 @@ ShearStressTransportEquationSystem::clip_sst(
   const double tkeMinVal = tkeMinValue_;
   const double sdrMinVal = sdrMinValue_;
 
-  nalu_ngp::run_entity_algorithm(
+  kynema_ugf_ngp::run_entity_algorithm(
     "SST::clip", ngpMesh, stk::topology::NODE_RANK, sel,
-    KOKKOS_LAMBDA(const nalu_ngp::NGPMeshTraits<>::MeshIndex& mi) {
+    KOKKOS_LAMBDA(const kynema_ugf_ngp::NGPMeshTraits<>::MeshIndex& mi) {
       const double tkeNew = tke.get(mi, 0);
       const double sdrNew = sdr.get(mi, 0);
 
@@ -508,9 +508,9 @@ ShearStressTransportEquationSystem::clip_sst_gamma(
   const double gammaMinVal = gammaMinValue_;
   const double gammaMaxVal = gammaMaxValue_;
 
-  nalu_ngp::run_entity_algorithm(
+  kynema_ugf_ngp::run_entity_algorithm(
     "SST::clip", ngpMesh, stk::topology::NODE_RANK, sel,
-    KOKKOS_LAMBDA(const nalu_ngp::NGPMeshTraits<>::MeshIndex& mi) {
+    KOKKOS_LAMBDA(const kynema_ugf_ngp::NGPMeshTraits<>::MeshIndex& mi) {
       const double gammaNew = gamma.get(mi, 0);
       gamma.get(mi, 0) =
         stk::math::min(stk::math::max(gammaNew, gammaMinVal), gammaMaxVal);
@@ -524,23 +524,26 @@ ShearStressTransportEquationSystem::clip_sst_gamma(
 void
 ShearStressTransportEquationSystem::clip_min_distance_to_wall()
 {
-  using MeshIndex = nalu_ngp::NGPMeshTraits<>::MeshIndex;
+  using MeshIndex = kynema_ugf_ngp::NGPMeshTraits<>::MeshIndex;
   const auto& meshInfo = realm_.mesh_info();
   const auto& ngpMesh = meshInfo.ngp_mesh();
   const auto& meta = meshInfo.meta();
   const auto& fieldMgr = meshInfo.ngp_field_manager();
 
+  if (wallBcPart_.empty())
+    return;
+
   auto& ndtw =
     fieldMgr.get_field<double>(minDistanceToWall_->mesh_meta_data_ordinal());
   const auto& wallNormDist =
-    nalu_ngp::get_ngp_field(meshInfo, "assembled_wall_normal_distance");
+    kynema_ugf_ngp::get_ngp_field(meshInfo, "assembled_wall_normal_distance");
 
   const stk::mesh::Selector sel =
     (meta.locally_owned_part() | meta.globally_shared_part()) &
     stk::mesh::selectUnion(wallBcPart_);
 
   ndtw.sync_to_device();
-  nalu_ngp::run_entity_algorithm(
+  kynema_ugf_ngp::run_entity_algorithm(
     "SST::clip_ndtw", ngpMesh, stk::topology::NODE_RANK, sel,
     KOKKOS_LAMBDA(const MeshIndex& mi) {
       const double minD = ndtw.get(mi, 0);
@@ -550,9 +553,8 @@ ShearStressTransportEquationSystem::clip_min_distance_to_wall()
   ndtw.modify_on_device();
 
   stk::mesh::parallel_max(realm_.bulk_data(), {minDistanceToWall_});
-  if (realm_.hasPeriodic_) {
+  if (realm_.hasPeriodic_)
     realm_.periodic_field_max(minDistanceToWall_, 1);
-  }
 }
 
 /** Compute f1 field with parameters appropriate for 2003 SST implementation
@@ -560,7 +562,7 @@ ShearStressTransportEquationSystem::clip_min_distance_to_wall()
 void
 ShearStressTransportEquationSystem::compute_f_one_blending()
 {
-  using MeshIndex = nalu_ngp::NGPMeshTraits<>::MeshIndex;
+  using MeshIndex = kynema_ugf_ngp::NGPMeshTraits<>::MeshIndex;
 
   const auto& meshInfo = realm_.mesh_info();
   const auto& meta = meshInfo.meta();
@@ -571,13 +573,14 @@ ShearStressTransportEquationSystem::compute_f_one_blending()
   const double betaStar = realm_.get_turb_model_constant(TM_betaStar);
   const double sigmaWTwo = realm_.get_turb_model_constant(TM_sigmaWTwo);
   const double CDkwClip = 1.0e-10; // 2003 SST
+  const auto gammaEqActive = realm_.solutionOptions_->gammaEqActive_;
 
   const auto& tkeNp1 =
     fieldMgr.get_field<double>(tke_->mesh_meta_data_ordinal());
   const auto& sdrNp1 =
     fieldMgr.get_field<double>(sdr_->mesh_meta_data_ordinal());
-  const auto& density = nalu_ngp::get_ngp_field(meshInfo, "density");
-  const auto& viscosity = nalu_ngp::get_ngp_field(meshInfo, "viscosity");
+  const auto& density = kynema_ugf_ngp::get_ngp_field(meshInfo, "density");
+  const auto& viscosity = kynema_ugf_ngp::get_ngp_field(meshInfo, "viscosity");
   const auto& dkdx =
     fieldMgr.get_field<double>(tkeEqSys_->dkdx_->mesh_meta_data_ordinal());
   const auto& dwdx =
@@ -593,7 +596,7 @@ ShearStressTransportEquationSystem::compute_f_one_blending()
 
   fOneBlend.sync_to_device();
 
-  nalu_ngp::run_entity_algorithm(
+  kynema_ugf_ngp::run_entity_algorithm(
     "SST::compute_fone_blending", ngpMesh, stk::topology::NODE_RANK, sel,
     KOKKOS_LAMBDA(const MeshIndex& mi) {
       const double tke = tkeNp1.get(mi, 0);
@@ -619,6 +622,16 @@ ShearStressTransportEquationSystem::compute_f_one_blending()
 
       fOneBlend.get(mi, 0) =
         stk::math::tanh(fArgOne * fArgOne * fArgOne * fArgOne);
+
+      // Modifications of f1 blending function for the transition model
+      if (gammaEqActive) {
+        const double f1Orig = fOneBlend.get(mi, 0);
+        const double ry = rho * minD * stk::math::sqrt(tke) / mu;
+        const double arg = ry / 120.0;
+        const double f3 =
+          stk::math::exp(-arg * arg * arg * arg * arg * arg * arg * arg);
+        fOneBlend.get(mi, 0) = stk::math::max(f1Orig, f3);
+      }
     });
 
   fOneBlend.modify_on_device();
@@ -652,8 +665,8 @@ ShearStressTransportEquationSystem::post_iter_work()
     ngpIddesRans.modify_on_device();
     ngpIddesRans.sync_to_host();
 
-    ScalarFieldType* iddesRansInd = meta.get_field<ScalarFieldType>(
-      stk::topology::NODE_RANK, "iddes_rans_indicator");
+    ScalarFieldType* iddesRansInd =
+      meta.get_field<double>(stk::topology::NODE_RANK, "iddes_rans_indicator");
 
     stk::mesh::copy_owned_to_shared(bulk, {iddesRansInd});
     if (realm_.hasPeriodic_) {
@@ -662,5 +675,5 @@ ShearStressTransportEquationSystem::post_iter_work()
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

@@ -21,7 +21,7 @@ class Part;
 } // namespace stk
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class Realm;
 template <typename T>
@@ -69,7 +69,7 @@ public:
   // extra for GGDH
   ScalarFieldType* turbKe_;
   VectorFieldType* velocity_;
-  GenericFieldType* dudx_;
+  TensorFieldType* dudx_;
 
   // peclect function specifics
   PecletFunction<double>* pecletFunction_;
@@ -90,7 +90,7 @@ public:
   int rowMap_[3];
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

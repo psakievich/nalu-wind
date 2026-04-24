@@ -10,7 +10,7 @@
 #include "ngp_algorithms/MdotOpenEdgeAlg.h"
 #include "BuildTemplates.h"
 #include "master_element/MasterElement.h"
-#include "master_element/MasterElementFactory.h"
+#include "master_element/MasterElementRepo.h"
 #include "ngp_algorithms/MdotAlgDriver.h"
 #include "ngp_utils/NgpFieldOps.h"
 #include "ngp_utils/NgpLoopUtils.h"
@@ -23,7 +23,7 @@
 #include "stk_mesh/base/NgpMesh.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 template <typename BcAlgTraits>
 MdotOpenEdgeAlg<BcAlgTraits>::MdotOpenEdgeAlg(
@@ -52,10 +52,12 @@ MdotOpenEdgeAlg<BcAlgTraits>::MdotOpenEdgeAlg(
     Udiag_(get_field_ordinal(realm.meta_data(), "momentum_diag")),
     dynPress_(get_field_ordinal(
       realm_.meta_data(), "dynamic_pressure", realm_.meta_data().side_rank())),
-    meFC_(MasterElementRepo::get_surface_master_element<
-          typename BcAlgTraits::FaceTraits>()),
-    meSCS_(MasterElementRepo::get_surface_master_element<
-           typename BcAlgTraits::ElemTraits>())
+    meFC_(
+      MasterElementRepo::get_surface_master_element_on_dev(
+        BcAlgTraits::FaceTraits::topo_)),
+    meSCS_(
+      MasterElementRepo::get_surface_master_element_on_dev(
+        BcAlgTraits::ElemTraits::topo_))
 {
   faceData_.add_cvfem_face_me(meFC_);
   elemData_.add_cvfem_surface_me(meSCS_);
@@ -81,7 +83,7 @@ template <typename BcAlgTraits>
 void
 MdotOpenEdgeAlg<BcAlgTraits>::execute()
 {
-  using SimdDataType = nalu_ngp::FaceElemSimdData<stk::mesh::NgpMesh>;
+  using SimdDataType = kynema_ugf_ngp::FaceElemSimdData<stk::mesh::NgpMesh>;
   const auto& meta = realm_.meta_data();
   const auto& meshInfo = realm_.mesh_info();
   const auto& ngpMesh = meshInfo.ngp_mesh();
@@ -89,7 +91,7 @@ MdotOpenEdgeAlg<BcAlgTraits>::execute()
 
   auto openMdot = fieldMgr.template get_field<double>(openMassFlowRate_);
   const auto mdotOps =
-    nalu_ngp::simd_face_elem_field_updater(ngpMesh, openMdot);
+    kynema_ugf_ngp::simd_face_elem_field_updater(ngpMesh, openMdot);
 
   const stk::mesh::Selector sel =
     meta.locally_owned_part() & stk::mesh::selectUnion(partVec_);
@@ -116,7 +118,7 @@ MdotOpenEdgeAlg<BcAlgTraits>::execute()
 
   double mdotOpen = 0.0;
   Kokkos::Sum<double> mdotOpenReducer(mdotOpen);
-  nalu_ngp::run_face_elem_par_reduce(
+  kynema_ugf_ngp::run_face_elem_par_reduce(
     algName, meshInfo, faceData_, elemData_, sel,
     KOKKOS_LAMBDA(SimdDataType & fdata, double& pSum) {
       auto& simdElemView = fdata.simdElemView;
@@ -167,7 +169,7 @@ MdotOpenEdgeAlg<BcAlgTraits>::execute()
         }
 
         mdotOps(fdata, ip) = tmdot;
-        nalu_ngp::simd_reduce_sum(pSum, tmdot, fdata.numSimdElems);
+        kynema_ugf_ngp::simd_reduce_sum(pSum, tmdot, fdata.numSimdElems);
       }
     },
     mdotOpenReducer);
@@ -178,5 +180,5 @@ MdotOpenEdgeAlg<BcAlgTraits>::execute()
 
 INSTANTIATE_KERNEL_FACE_ELEMENT(MdotOpenEdgeAlg)
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

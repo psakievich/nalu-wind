@@ -14,7 +14,7 @@
 #include <map>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 enum AlgorithmType {
   INTERIOR = 0,
@@ -82,6 +82,7 @@ enum EquationType {
   EQ_PNG_TKE = 16, // FIXME... Last PNG managed like this..
   EQ_WALL_DISTANCE = 17,
   EQ_GAMMA_TRANS = 18,
+  EQ_VOLUME_OF_FLUID = 19,
   EquationSystemType_END
 };
 
@@ -103,12 +104,15 @@ static const std::string EquationTypeMap[] = {
   "PNG_H",
   "PNG_U",
   "PNG_TKE",
-  "Wall_Distance"};
+  "Wall_Distance",
+  "Gamma_Transition",
+  "Volume_of_Fluid"};
 
 enum UserDataType {
   CONSTANT_UD = 0,
   FUNCTION_UD = 1,
   USER_SUB_UD = 2,
+  STRING_FUNCTION_UD = 3,
   UserDataType_END
 };
 
@@ -148,10 +152,11 @@ enum MaterialPropertyType {
   HDF5_TABLE_MAT = 6,
   IDEAL_GAS_YK_MAT = 7,
   GENERIC = 8,
+  VOF_MAT = 9,
   MaterialPropertyType_END
 };
 
-enum NaluState { NALU_STATE_N = 0, NALU_STATE_NM1 = 1 };
+enum KynemaUGFState { KYNEMA_UGF_STATE_N = 0, KYNEMA_UGF_STATE_NM1 = 1 };
 
 enum class TurbulenceModel {
   LAMINAR,
@@ -240,12 +245,8 @@ enum TurbulenceModelConstant {
   TM_sdrAmb = 63,
   TM_avgTimeCoeff = 64,
   TM_alphaInf = 65,
-  TM_caOne = 66,
-  TM_caTwo = 67,
-  TM_ceOne = 68,
-  TM_ceTwo = 69,
-  TM_c0t = 70,
-  TM_END = 71
+  TM_fsti = 66,
+  TM_END = 67
 };
 
 static const std::string TurbulenceModelConstantNames[] = {
@@ -315,11 +316,7 @@ static const std::string TurbulenceModelConstantNames[] = {
   "sdr_amb",
   "avgTimeCoeff",
   "alphaInf",
-  "caOne",
-  "caTwo",
-  "ceOne",
-  "ceTwo",
-  "c0t",
+  "fsti",
   "END"};
 
 enum ActuatorType {
@@ -350,7 +347,7 @@ static std::map<std::string, EntrainmentMethod> EntrainmentMethodMap{
   {"computed", EntrainmentMethod::COMPUTED},
   {"specified", EntrainmentMethod::SPECIFIED}};
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

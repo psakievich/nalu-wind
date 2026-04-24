@@ -11,7 +11,7 @@
 #include <aero/actuator/UtilitiesActuator.h>
 #include <stk_mesh/base/BulkData.hpp>
 #include <stk_mesh/base/MetaData.hpp>
-#include <NaluEnv.h>
+#include <KynemaUGFEnv.h>
 #include <FieldTypeDef.h>
 #include "utils/LinearInterpolation.h"
 #include <cmath>
@@ -19,15 +19,15 @@
 #include <ostream>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 InterpActuatorDensity::InterpActuatorDensity(
   ActuatorBulkSimple& actBulk, stk::mesh::BulkData& stkBulk)
   : actBulk_(actBulk),
     stkBulk_(stkBulk),
-    coordinates_(stkBulk_.mesh_meta_data().get_field<VectorFieldType>(
+    coordinates_(stkBulk_.mesh_meta_data().get_field<double>(
       stk::topology::NODE_RANK, "coordinates")),
-    density_(stkBulk_.mesh_meta_data().get_field<ScalarFieldType>(
+    density_(stkBulk_.mesh_meta_data().get_field<double>(
       stk::topology::NODE_RANK, "density"))
 {
   actBulk_.density_.sync_host();
@@ -52,7 +52,7 @@ InterpActuatorDensity::operator()(int index) const
     double ws_coordinates[max_size], ws_density[max_size];
 
     // Check to make sure the size is sufficient
-    ThrowAssert(max_size >= 3 * nodesPerElem);
+    STK_ThrowAssert(max_size >= 3 * nodesPerElem);
 
     actuator_utils::gather_field(
       3, &ws_coordinates[0], *coordinates_, stkBulk_.begin_nodes(elem),
@@ -87,7 +87,7 @@ void
 ActSimpleUpdatePoints::operator()(int index) const
 {
 
-  ThrowAssert(turbId_ >= 0);
+  STK_ThrowAssert(turbId_ >= 0);
   const int pointId = index - offsets_(turbId_);
   auto point = Kokkos::subview(points_, index, Kokkos::ALL);
 
@@ -116,9 +116,9 @@ ActSimpleWriteToFile(
   auto density = helper.get_local_view(actBulk.density_);
   const int offset = actBulk.turbIdOffset_.h_view(actBulk.localTurbineId_);
 
-  if (actBulk.localTurbineId_ == NaluEnv::self().parallel_rank()) {
+  if (actBulk.localTurbineId_ == KynemaUGFEnv::self().parallel_rank()) {
     std::ofstream outFile;
-    // ThrowErrorIf(NaluEnv::self().parallel_rank()!=0);
+    // STK_ThrowErrorIf(KynemaUGFEnv::self().parallel_rank()!=0);
 
     outFile.open(filename, std::ios_base::app);
     const int stop =
@@ -162,7 +162,7 @@ ActSimpleAssignVel::operator()(int index) const
   // Use this to double check the velocities and point positions
   auto point = Kokkos::subview(points_, index, Kokkos::ALL);
   if (debug_output_)
-    NaluEnv::self().naluOutput()
+    KynemaUGFEnv::self().kynema_ugfOutput()
       << "Blade " << turbId_ // LCCOUT
       << " pointId: " << pointId << std::scientific << std::setprecision(5)
       << " point: " << point(0) << " " << point(1) << " " << point(2) << " "
@@ -182,6 +182,10 @@ ActSimpleComputeRelativeVelocity(
   auto relVelocity = helper.get_local_view(actBulk.relativeVelocity_);
   auto alpha = helper.get_local_view(actBulk.alpha_);
   auto offset = helper.get_local_view(actBulk.turbIdOffset_);
+  auto twistTableV = helper.get_local_view(actMeta.twistTableDv_);
+  auto p1ZeroAlphaDirV = helper.get_local_view(actMeta.p1ZeroAlphaDir_);
+  auto chordNormalDirV = helper.get_local_view(actMeta.chordNormalDir_);
+  auto spanDirV = helper.get_local_view(actMeta.spanDir_);
 
   const int turbId = actBulk.localTurbineId_;
 
@@ -191,14 +195,12 @@ ActSimpleComputeRelativeVelocity(
   Kokkos::parallel_for(
     "compute relative velocities", actBulk.local_range_policy(),
     ACTUATOR_LAMBDA(int index) {
-      auto twistTable = Kokkos::subview(
-        helper.get_local_view(actMeta.twistTableDv_), turbId, Kokkos::ALL);
-      auto p1ZeroAlphaDir = Kokkos::subview(
-        helper.get_local_view(actMeta.p1ZeroAlphaDir_), turbId, Kokkos::ALL);
-      auto chordNormalDir = Kokkos::subview(
-        helper.get_local_view(actMeta.chordNormalDir_), turbId, Kokkos::ALL);
-      auto spanDir = Kokkos::subview(
-        helper.get_local_view(actMeta.spanDir_), turbId, Kokkos::ALL);
+      auto twistTable = Kokkos::subview(twistTableV, turbId, Kokkos::ALL);
+      auto p1ZeroAlphaDir =
+        Kokkos::subview(p1ZeroAlphaDirV, turbId, Kokkos::ALL);
+      auto chordNormalDir =
+        Kokkos::subview(chordNormalDirV, turbId, Kokkos::ALL);
+      auto spanDir = Kokkos::subview(spanDirV, turbId, Kokkos::ALL);
       const int i = index - offset(turbId);
 
       auto vel = Kokkos::subview(velocity, index, Kokkos::ALL);
@@ -310,7 +312,7 @@ ActSimpleComputeForce(
       pointForce(2) = -(lift * liftdir[2] + drag * ws2Ddir[2]);
 
       if (debug_output)
-        NaluEnv::self().naluOutput()
+        KynemaUGFEnv::self().kynema_ugfOutput()
           << "Blade " << turbId // LCCOUT
           << " pointId: " << localId << std::setprecision(5)
           << " alpha: " << alpha(index) << " ws2D: " << ws2d(0) << " "
@@ -367,8 +369,8 @@ ActSimpleComputeThrustInnerLoop::operator()(
 
   auto offsets = actBulk_.turbIdOffset_.view_host();
 
-  if (NaluEnv::self().parallel_rank() < actBulk_.num_blades_) {
-    int turbId = NaluEnv::self().parallel_rank();
+  if (KynemaUGFEnv::self().parallel_rank() < actBulk_.num_blades_) {
+    int turbId = KynemaUGFEnv::self().parallel_rank();
     auto thrust = Kokkos::subview(actBulk_.turbineThrust_, turbId, Kokkos::ALL);
 
     double forceTerm[3];
@@ -433,5 +435,5 @@ ActSimpleSpreadForceWhProjInnerLoop::operator()(
   }
 }
 
-} /* namespace nalu */
+} /* namespace kynema_ugf */
 } /* namespace sierra */

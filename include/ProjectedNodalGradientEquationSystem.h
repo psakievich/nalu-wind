@@ -13,17 +13,16 @@
 #include <Enums.h>
 #include <EquationSystem.h>
 #include <FieldTypeDef.h>
-#include <NaluParsedTypes.h>
+#include <KynemaUGFParsedTypes.h>
 
 #include <stk_mesh/base/FieldBase.hpp>
-#include <stk_mesh/base/CoordinateSystems.hpp>
 
 namespace stk {
 struct topology;
 }
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class Realm;
 class AssembleNodalGradAlgorithmDriver;
@@ -48,7 +47,7 @@ public:
 
   std::string get_name_given_bc(BoundaryConditionType BC);
 
-  void register_nodal_fields(stk::mesh::Part* part);
+  virtual void register_nodal_fields(const stk::mesh::PartVector& part_vec);
 
   void register_interior_algorithm(stk::mesh::Part* part);
 
@@ -108,7 +107,7 @@ public:
   VectorFieldType* qTmp_;
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

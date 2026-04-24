@@ -73,11 +73,11 @@ SixDOF
 linear_interp_total_velocity(
   const SixDOF start, const SixDOF end, const double interpFactor)
 {
-  auto transDisp = wmp::linear_interp_translation(
+  auto transVel = wmp::linear_interp_translation(
     start.position_, end.position_, interpFactor);
-  auto rotDisp = wmp::linear_interp_translation(
-    start.position_, end.position_, interpFactor);
-  return SixDOF(transDisp, rotDisp);
+  auto rotVel = wmp::linear_interp_translation(
+    start.orientation_, end.orientation_, interpFactor);
+  return SixDOF(transVel, rotVel);
 }
 
 //! Convert a position relative to an aerodynamic point to the intertial
@@ -152,8 +152,25 @@ compute_mesh_velocity(
   const vs::Vector cfdPos)
 {
   const auto pointLocal = local_aero_coordinates(cfdPos, referencePos);
-  const auto pointRotate = wmp::rotate(totalDis.orientation_, pointLocal);
+  const auto pointRotate = wmp::rotate(totalDis.orientation_, pointLocal, true);
   return totalVel.position_ + (totalVel.orientation_ ^ pointRotate);
+}
+
+KOKKOS_FORCEINLINE_FUNCTION
+vs::Vector
+compute_mesh_velocity(
+  const SixDOF totalVel,
+  const SixDOF totalDis,
+  const SixDOF referencePos,
+  const vs::Vector cfdPos,
+  const vs::Vector stiffVel,
+  const double ramp = 1.0)
+{
+  const auto pointLocal = local_aero_coordinates(cfdPos, referencePos);
+  const auto pointRotate = wmp::rotate(totalDis.orientation_, pointLocal, true);
+  const auto totalMeshVel =
+    totalVel.position_ + (totalVel.orientation_ ^ pointRotate);
+  return stiffVel + ramp * (totalMeshVel - stiffVel);
 }
 
 } // namespace aero

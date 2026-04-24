@@ -11,7 +11,7 @@
 
 #include "BuildTemplates.h"
 #include "master_element/MasterElement.h"
-#include "master_element/MasterElementFactory.h"
+#include "master_element/MasterElementRepo.h"
 #include "ngp_utils/NgpLoopUtils.h"
 #include "ngp_utils/NgpFieldOps.h"
 #include "ngp_utils/NgpReduceUtils.h"
@@ -29,7 +29,7 @@
 #include "stk_mesh/base/NgpMesh.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 namespace {
 
@@ -160,10 +160,12 @@ ABLWallFluxesAlg<BcAlgTraits>::ABLWallFluxesAlg(
       "wall_normal_distance_bip",
       realm.meta_data().side_rank())),
     useShifted_(useShifted),
-    meFC_(MasterElementRepo::get_surface_master_element<
-          typename BcAlgTraits::FaceTraits>()),
-    meSCS_(MasterElementRepo::get_surface_master_element<
-           typename BcAlgTraits::ElemTraits>())
+    meFC_(
+      MasterElementRepo::get_surface_master_element_on_dev(
+        BcAlgTraits::FaceTraits::topo_)),
+    meSCS_(
+      MasterElementRepo::get_surface_master_element_on_dev(
+        BcAlgTraits::ElemTraits::topo_))
 {
   faceData_.add_cvfem_face_me(meFC_);
   elemData_.add_cvfem_surface_me(meSCS_);
@@ -180,10 +182,6 @@ ABLWallFluxesAlg<BcAlgTraits>::ABLWallFluxesAlg(
     exposedAreaVec_, BcAlgTraits::numFaceIp_, BcAlgTraits::nDim_);
   faceData_.add_face_field(wallNormDist_, BcAlgTraits::numFaceIp_);
 
-  auto shp_fcn = useShifted_ ? FC_SHIFTED_SHAPE_FCN : FC_SHAPE_FCN;
-  faceData_.add_master_element_call(shp_fcn, CURRENT_COORDINATES);
-
-  // Load the user data from the input file.
   load(node);
 }
 
@@ -266,7 +264,7 @@ ABLWallFluxesAlg<BcAlgTraits>::execute()
 {
   namespace mo = abl_monin_obukhov;
   using FaceElemSimdData =
-    sierra::nalu::nalu_ngp::FaceElemSimdData<stk::mesh::NgpMesh>;
+    sierra::kynema_ugf::kynema_ugf_ngp::FaceElemSimdData<stk::mesh::NgpMesh>;
   const auto& meshInfo = realm_.mesh_info();
   const auto ngpMesh = meshInfo.ngp_mesh();
   const auto& fieldMgr = meshInfo.ngp_field_manager();
@@ -331,35 +329,39 @@ ABLWallFluxesAlg<BcAlgTraits>::execute()
   const stk::mesh::Selector sel =
     realm_.meta_data().locally_owned_part() & stk::mesh::selectUnion(partVec_);
 
-  const auto utauOps = nalu_ngp::simd_face_elem_field_updater(ngpMesh, ngpUtau);
+  const auto utauOps =
+    kynema_ugf_ngp::simd_face_elem_field_updater(ngpMesh, ngpUtau);
   const auto qSurfOps =
-    nalu_ngp::simd_face_elem_field_updater(ngpMesh, ngpqSurf);
+    kynema_ugf_ngp::simd_face_elem_field_updater(ngpMesh, ngpqSurf);
   const auto tauSurfOps =
-    nalu_ngp::simd_face_elem_field_updater(ngpMesh, ngptauSurf);
+    kynema_ugf_ngp::simd_face_elem_field_updater(ngpMesh, ngptauSurf);
 
   // Reducer to accumulate the area-weighted utau sum as well as total area for
   // wall boundary of this specific topology.
-  nalu_ngp::ArraySimdDouble2 utauSum(0.0);
-  Kokkos::Sum<nalu_ngp::ArraySimdDouble2> utauReducer(utauSum);
+  kynema_ugf_ngp::ArraySimdDouble2 utauSum(0.0);
+  Kokkos::Sum<kynema_ugf_ngp::ArraySimdDouble2> utauReducer(utauSum);
 
   const std::string algName = "ABLWallFluxesAlg_" +
                               std::to_string(BcAlgTraits::faceTopo_) + "_" +
                               std::to_string(BcAlgTraits::elemTopo_);
 
-  nalu_ngp::run_face_elem_par_reduce(
+  const auto shp = shape_fcn<typename BcAlgTraits::FaceTraits, QuadRank::SCV>(
+    use_shifted_quad(useShifted));
+
+  kynema_ugf_ngp::run_face_elem_par_reduce(
     algName, meshInfo, faceData_, elemData_, sel,
     KOKKOS_LAMBDA(
-      FaceElemSimdData & feData, nalu_ngp::ArraySimdDouble2 & uSum) {
+      FaceElemSimdData & feData, kynema_ugf_ngp::ArraySimdDouble2 & uSum) {
       // Unit normal vector
-      NALU_ALIGNED DoubleType nx[BcAlgTraits::nDim_];
+      DoubleType nx[BcAlgTraits::nDim_];
 
       // Velocities
-      NALU_ALIGNED DoubleType velIp[BcAlgTraits::nDim_];
-      NALU_ALIGNED DoubleType velOppNode[BcAlgTraits::nDim_];
-      NALU_ALIGNED DoubleType bcVelIp[BcAlgTraits::nDim_];
+      DoubleType velIp[BcAlgTraits::nDim_];
+      DoubleType velOppNode[BcAlgTraits::nDim_];
+      DoubleType bcVelIp[BcAlgTraits::nDim_];
 
       // Surface stress
-      NALU_ALIGNED DoubleType tauSurf_calc[BcAlgTraits::nDim_];
+      DoubleType tauSurf_calc[BcAlgTraits::nDim_];
       DoubleType utau_calc;
       DoubleType qSurf_calc;
 
@@ -375,8 +377,6 @@ ABLWallFluxesAlg<BcAlgTraits>::execute()
       const auto& v_wallnormdist = scrViewsFace.get_scratch_view_1D(wDistID);
 
       const auto meViews = scrViewsFace.get_me_views(CURRENT_COORDINATES);
-      const auto& v_shape_fcn =
-        useShifted ? meViews.fc_shifted_shape_fcn : meViews.fc_shape_fcn;
 
       for (int ip = 0; ip < BcAlgTraits::numFaceIp_; ++ip) {
 
@@ -409,7 +409,7 @@ ABLWallFluxesAlg<BcAlgTraits>::execute()
         DoubleType tempOppNode = 0.0;
 
         for (int ic = 0; ic < BcAlgTraits::nodesPerFace_; ++ic) {
-          const DoubleType r = v_shape_fcn(ip, ic);
+          const DoubleType r = shp(ip, ic);
           heatFluxIp += r * v_bcHeatFlux(ic);
           rhoIp += r * v_rho(ic);
           CpIp += r * v_specHeat(ic);
@@ -430,10 +430,10 @@ ABLWallFluxesAlg<BcAlgTraits>::execute()
         DoubleType uOppNodeTangential = 0.0;
         DoubleType uAverageTangential = 0.0;
 
-        NALU_ALIGNED DoubleType uiIpTan[BcAlgTraits::nDim_];
-        NALU_ALIGNED DoubleType uiOppNodeTan[BcAlgTraits::nDim_];
-        NALU_ALIGNED DoubleType uiAverageTan[BcAlgTraits::nDim_];
-        NALU_ALIGNED DoubleType uiBcTan[BcAlgTraits::nDim_];
+        DoubleType uiIpTan[BcAlgTraits::nDim_];
+        DoubleType uiOppNodeTan[BcAlgTraits::nDim_];
+        DoubleType uiAverageTan[BcAlgTraits::nDim_];
+        DoubleType uiBcTan[BcAlgTraits::nDim_];
         for (int i = 0; i < BcAlgTraits::nDim_; ++i) {
           uiIpTan[i] = 0.0;
           uiOppNodeTan[i] = 0.0;
@@ -524,7 +524,7 @@ ABLWallFluxesAlg<BcAlgTraits>::execute()
 
           DblType tol = 1.0E-6;
           DblType utau = 0.0;
-          NALU_ALIGNED DblType tauSurf[3];
+          DblType tauSurf[3];
           DblType qSurf = 0.0;
 
           // Compute fluxes with algorithm 1.
@@ -631,5 +631,5 @@ ABLWallFluxesAlg<BcAlgTraits>::execute()
 
 INSTANTIATE_KERNEL_FACE_ELEMENT(ABLWallFluxesAlg)
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

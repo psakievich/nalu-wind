@@ -14,13 +14,14 @@
 #include "OpenFAST.H"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 struct ActuatorMetaFAST : public ActuatorMeta
 {
   ActuatorMetaFAST(const ActuatorMeta& actMeta);
 
   // HOST ONLY
+  void set_dt_driver(const double dt) { fastInputs_.dtDriver = dt; }
   fast::fastInputs fastInputs_;
   std::vector<std::string> turbineNames_;
   std::vector<std::string> turbineOutputFileNames_;
@@ -42,7 +43,7 @@ struct ActuatorMetaFAST : public ActuatorMeta
 
 struct ActuatorBulkFAST : public ActuatorBulk
 {
-  ActuatorBulkFAST(const ActuatorMetaFAST& actMeta, double naluTimeStep);
+  ActuatorBulkFAST(ActuatorMetaFAST& actMeta, double kynema_ugfTimeStep);
 
   Kokkos::RangePolicy<Kokkos::DefaultHostExecutionSpace> local_range_policy();
 
@@ -50,11 +51,11 @@ struct ActuatorBulkFAST : public ActuatorBulk
   void step_fast();
   bool fast_is_time_zero();
   void output_torque_info(stk::mesh::BulkData& stkBulk);
-  void
-  init_openfast(const ActuatorMetaFAST& actMeta, const double naluTimeStep);
+  void init_openfast(
+    const ActuatorMetaFAST& actMeta, const double kynema_ugfTimeStep);
   void init_epsilon(const ActuatorMetaFAST& actMeta);
   bool is_tstep_ratio_admissable(
-    const double fastTimeStep, const double naluTimeStep);
+    const double fastTimeStep, const double kynema_ugfTimeStep);
 
   virtual ~ActuatorBulkFAST();
 
@@ -82,7 +83,7 @@ squash_fast_output(std::function<void()> func)
   std::cout.rdbuf(sHoldCout);
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif /* ACTUATORBULKFAST_H_ */

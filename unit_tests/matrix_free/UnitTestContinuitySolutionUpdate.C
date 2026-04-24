@@ -27,12 +27,10 @@
 
 #include "stk_mesh/base/Bucket.hpp"
 #include "stk_mesh/base/BulkData.hpp"
-#include "stk_mesh/base/CoordinateSystems.hpp"
 #include "stk_mesh/base/Entity.hpp"
 #include "stk_mesh/base/Field.hpp"
 #include "stk_mesh/base/FieldBase.hpp"
 #include "stk_mesh/base/FieldState.hpp"
-#include "stk_mesh/base/FieldTraits.hpp"
 #include "stk_mesh/base/GetNgpField.hpp"
 #include "stk_mesh/base/MetaData.hpp"
 #include "stk_mesh/base/Ngp.hpp"
@@ -50,7 +48,7 @@
 #include <type_traits>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 
 namespace test_continuity_solution_update {
@@ -70,8 +68,9 @@ protected:
         Teuchos::rcpFromRef(linsys.owned_and_shared),
         Teuchos::rcpFromRef(linsys.owned)),
       conn(stk_connectivity_map<order>(mesh(), meta.universal_part())),
-      offsets(create_offset_map<order>(
-        mesh(), meta.universal_part(), linsys.stk_lid_to_tpetra_lid)),
+      offsets(
+        create_offset_map<order>(
+          mesh(), meta.universal_part(), linsys.stk_lid_to_tpetra_lid)),
       field_update(Teuchos::ParameterList{}, linsys, exporter, offsets)
   {
   }
@@ -143,5 +142,5 @@ TEST_F(ContinuitySolutionUpdateFixture, solve_is_reasonable)
 }
 
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

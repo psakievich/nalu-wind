@@ -13,7 +13,7 @@
 #include <aero/AeroContainer.h>
 #include <AssembleContinuityNonConformalSolverAlgorithm.h>
 #include <AssembleMomentumEdgeWallFunctionSolverAlgorithm.h>
-#ifdef NALU_USES_FFTW
+#ifdef KYNEMA_UGF_USES_FFTW
 #include <AssembleMomentumEdgeABLTopBC.h>
 #endif
 #include <AssembleMomentumNonConformalSolverAlgorithm.h>
@@ -36,11 +36,11 @@
 #include <LinearSolvers.h>
 #include <LinearSystem.h>
 #include <master_element/MasterElement.h>
-#include <master_element/MasterElementFactory.h>
+#include <master_element/MasterElementRepo.h>
 #include <MomentumBuoyancySrcNodeSuppAlg.h>
 #include <MomentumBoussinesqRASrcNodeSuppAlg.h>
-#include <NaluEnv.h>
-#include <NaluParsing.h>
+#include <KynemaUGFEnv.h>
+#include <KynemaUGFParsing.h>
 #include <NonConformalManager.h>
 #include <NonConformalInfo.h>
 #include <PeriodicManager.h>
@@ -60,7 +60,7 @@
 #include <FixPressureAtNodeAlgorithm.h>
 #include <FixPressureAtNodeInfo.h>
 
-#ifdef NALU_USES_HYPRE
+#ifdef KYNEMA_UGF_USES_HYPRE
 #include <HypreLinearSystem.h>
 #endif
 
@@ -91,6 +91,7 @@
 #include "node_kernels/MomentumBodyForceNodeKernel.h"
 #include "node_kernels/MomentumBodyForceBoxNodeKernel.h"
 #include "node_kernels/MomentumBoussinesqNodeKernel.h"
+#include "node_kernels/MomentumBuoyancyNodeKernel.h"
 #include "node_kernels/MomentumCoriolisNodeKernel.h"
 #include "node_kernels/MomentumMassBDFNodeKernel.h"
 #include "node_kernels/MomentumGclSrcNodeKernel.h"
@@ -100,6 +101,7 @@
 // ngp
 #include "ngp_algorithms/ABLWallFrictionVelAlg.h"
 #include "ngp_algorithms/ABLWallFluxesAlg.h"
+#include "ngp_algorithms/BuoyancySourceAlg.h"
 #include "ngp_algorithms/CourantReAlg.h"
 #include "ngp_algorithms/GeometryAlgDriver.h"
 #include "ngp_algorithms/MdotEdgeAlg.h"
@@ -120,6 +122,7 @@
 #include "ngp_algorithms/WallFuncGeometryAlg.h"
 #include "ngp_algorithms/DynamicPressureOpenAlg.h"
 #include "ngp_algorithms/MomentumABLWallFuncMaskUtil.h"
+#include "ngp_algorithms/NodalBuoyancyFuncUtil.h"
 #include "ngp_utils/NgpLoopUtils.h"
 #include "ngp_utils/NgpFieldBLAS.h"
 #include "ngp_utils/NgpFieldUtils.h"
@@ -173,6 +176,9 @@
 #include <user_functions/PerturbedShearLayerAuxFunctions.h>
 #include <user_functions/GaussJetVelocityAuxFunction.h>
 
+#include <user_functions/DropletVelocityAuxFunction.h>
+#include <user_functions/SloshingTankPressureAuxFunction.h>
+
 // deprecated
 
 // stk_util
@@ -186,13 +192,13 @@
 #include <stk_mesh/base/Field.hpp>
 #include <stk_mesh/base/FieldParallel.hpp>
 #include <stk_mesh/base/FieldBLAS.hpp>
-#include <stk_mesh/base/GetBuckets.hpp>
+
 #include <stk_mesh/base/GetEntities.hpp>
-#include <stk_mesh/base/CoordinateSystems.hpp>
 #include <stk_mesh/base/MetaData.hpp>
 #include <stk_mesh/base/SkinMesh.hpp>
 #include <stk_mesh/base/Comm.hpp>
 #include "stk_mesh/base/NgpMesh.hpp"
+#include "stk_io/IossBridge.hpp"
 
 // stk_topo
 #include <stk_topology/topology.hpp>
@@ -203,7 +209,7 @@
 #include <vector>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //==========================================================================
 // Class Definition
@@ -294,20 +300,22 @@ LowMachEquationSystem::initialize()
 //-------- register_nodal_fields -------------------------------------------
 //--------------------------------------------------------------------------
 void
-LowMachEquationSystem::register_nodal_fields(stk::mesh::Part* part)
+LowMachEquationSystem::register_nodal_fields(
+  const stk::mesh::PartVector& part_vec)
 {
   stk::mesh::MetaData& meta_data = realm_.meta_data();
+  stk::mesh::Selector selector = stk::mesh::selectUnion(part_vec);
 
   // add properties; denisty needs to be a restart field
   const int numStates = realm_.number_of_states();
-  density_ = &(meta_data.declare_field<ScalarFieldType>(
+  density_ = &(meta_data.declare_field<double>(
     stk::topology::NODE_RANK, "density", numStates));
-  stk::mesh::put_field_on_mesh(*density_, *part, nullptr);
+  stk::mesh::put_field_on_mesh(*density_, selector, nullptr);
   realm_.augment_restart_variable_list("density");
 
-  viscosity_ = &(meta_data.declare_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, "viscosity"));
-  stk::mesh::put_field_on_mesh(*viscosity_, *part, nullptr);
+  viscosity_ =
+    &(meta_data.declare_field<double>(stk::topology::NODE_RANK, "viscosity"));
+  stk::mesh::put_field_on_mesh(*viscosity_, selector, nullptr);
 
   // push to property list
   realm_.augment_property_map(DENSITY_ID, density_);
@@ -316,9 +324,9 @@ LowMachEquationSystem::register_nodal_fields(stk::mesh::Part* part)
   // dual nodal volume (should push up...)
   const int numVolStates =
     realm_.does_mesh_move() ? realm_.number_of_states() : 1;
-  dualNodalVolume_ = &(meta_data.declare_field<ScalarFieldType>(
+  dualNodalVolume_ = &(meta_data.declare_field<double>(
     stk::topology::NODE_RANK, "dual_nodal_volume", numVolStates));
-  stk::mesh::put_field_on_mesh(*dualNodalVolume_, *part, nullptr);
+  stk::mesh::put_field_on_mesh(*dualNodalVolume_, selector, nullptr);
   if (numVolStates > 1)
     realm_.augment_restart_variable_list("dual_nodal_volume");
 
@@ -330,7 +338,7 @@ LowMachEquationSystem::register_nodal_fields(stk::mesh::Part* part)
     ScalarFieldType& densityNp1 = density_->field_of_state(stk::mesh::StateNP1);
 
     CopyFieldAlgorithm* theCopyAlgDens = new CopyFieldAlgorithm(
-      realm_, part, &densityNp1, &densityN, 0, 1, stk::topology::NODE_RANK);
+      realm_, part_vec, &densityNp1, &densityN, 0, 1, stk::topology::NODE_RANK);
     copyStateAlg_.push_back(theCopyAlgDens);
 
     if (numVolStates <= 2)
@@ -342,7 +350,8 @@ LowMachEquationSystem::register_nodal_fields(stk::mesh::Part* part)
       dualNodalVolume_->field_of_state(stk::mesh::StateNP1);
 
     CopyFieldAlgorithm* theCopyAlgDlNdVol = new CopyFieldAlgorithm(
-      realm_, part, &dualNdVolNp1, &dualNdVolN, 0, 1, stk::topology::NODE_RANK);
+      realm_, part_vec, &dualNdVolNp1, &dualNdVolN, 0, 1,
+      stk::topology::NODE_RANK);
     copyStateAlg_.push_back(theCopyAlgDlNdVol);
   }
 }
@@ -352,53 +361,56 @@ LowMachEquationSystem::register_nodal_fields(stk::mesh::Part* part)
 //--------------------------------------------------------------------------
 void
 LowMachEquationSystem::register_element_fields(
-  stk::mesh::Part* part, const stk::topology& theTopo)
+  const stk::mesh::PartVector& part_vec, const stk::topology& theTopo)
 {
   stk::mesh::MetaData& meta_data = realm_.meta_data();
+  stk::mesh::Selector selector = stk::mesh::selectUnion(part_vec);
 
   // register mdot for element-based scheme...
   if (elementContinuityEqs_) {
     // extract master element and get scs points
     MasterElement* meSCS =
-      sierra::nalu::MasterElementRepo::get_surface_master_element(theTopo);
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
+        theTopo);
     const int numScsIp = meSCS->num_integration_points();
-    GenericFieldType* massFlowRate =
-      &(meta_data.declare_field<GenericFieldType>(
-        stk::topology::ELEMENT_RANK, "mass_flow_rate_scs"));
-    stk::mesh::put_field_on_mesh(*massFlowRate, *part, numScsIp, nullptr);
+    GenericFieldType* massFlowRate = &(meta_data.declare_field<double>(
+      stk::topology::ELEMENT_RANK, "mass_flow_rate_scs"));
+    stk::mesh::put_field_on_mesh(*massFlowRate, selector, numScsIp, nullptr);
   }
   // register the intersected elemental field
   if (realm_.query_for_overset()) {
     const int sizeOfElemField = 1;
-    GenericFieldType* intersectedElement =
-      &(meta_data.declare_field<GenericFieldType>(
-        stk::topology::ELEMENT_RANK, "intersected_element"));
+    GenericFieldType* intersectedElement = &(meta_data.declare_field<double>(
+      stk::topology::ELEMENT_RANK, "intersected_element"));
     stk::mesh::put_field_on_mesh(
-      *intersectedElement, *part, sizeOfElemField, nullptr);
+      *intersectedElement, selector, sizeOfElemField, nullptr);
   }
 
   // provide mean element Peclet and Courant fields; always...
-  GenericFieldType* elemReynolds = &(meta_data.declare_field<GenericFieldType>(
+  GenericFieldType* elemReynolds = &(meta_data.declare_field<double>(
     stk::topology::ELEMENT_RANK, "element_reynolds"));
-  stk::mesh::put_field_on_mesh(*elemReynolds, *part, 1, nullptr);
-  GenericFieldType* elemCourant = &(meta_data.declare_field<GenericFieldType>(
+  stk::mesh::put_field_on_mesh(*elemReynolds, selector, nullptr);
+  GenericFieldType* elemCourant = &(meta_data.declare_field<double>(
     stk::topology::ELEMENT_RANK, "element_courant"));
-  stk::mesh::put_field_on_mesh(*elemCourant, *part, 1, nullptr);
+  stk::mesh::put_field_on_mesh(*elemCourant, selector, nullptr);
 }
 
 //--------------------------------------------------------------------------
 //-------- register_edge_fields -------------------------------------------
 //--------------------------------------------------------------------------
 void
-LowMachEquationSystem::register_edge_fields(stk::mesh::Part* part)
+LowMachEquationSystem::register_edge_fields(
+  const stk::mesh::PartVector& part_vec)
 {
-
+  stk::mesh::Selector selector = stk::mesh::selectUnion(part_vec);
   if (realm_.realmUsesEdges_) {
     stk::mesh::MetaData& meta_data = realm_.meta_data();
     const int nDim = meta_data.spatial_dimension();
-    edgeAreaVec_ = &(meta_data.declare_field<VectorFieldType>(
+    edgeAreaVec_ = &(meta_data.declare_field<double>(
       stk::topology::EDGE_RANK, "edge_area_vector"));
-    stk::mesh::put_field_on_mesh(*edgeAreaVec_, *part, nDim, nullptr);
+    stk::mesh::put_field_on_mesh(*edgeAreaVec_, selector, nDim, nullptr);
+    stk::io::set_field_output_type(
+      *edgeAreaVec_, stk::io::FieldOutputType::VECTOR_3D);
   }
 }
 
@@ -417,9 +429,11 @@ LowMachEquationSystem::register_open_bc(
 
   const int nDim = metaData.spatial_dimension();
 
-  VectorFieldType* velocityBC = &(metaData.declare_field<VectorFieldType>(
+  VectorFieldType* velocityBC = &(metaData.declare_field<double>(
     stk::topology::NODE_RANK, "open_velocity_bc"));
   stk::mesh::put_field_on_mesh(*velocityBC, *part, nDim, nullptr);
+  stk::io::set_field_output_type(
+    *velocityBC, stk::io::FieldOutputType::VECTOR_3D);
 
   // extract the value for user specified velocity and save off the AuxFunction
   OpenUserData userData = openBCData.userData_;
@@ -441,8 +455,8 @@ LowMachEquationSystem::register_open_bc(
 
   // extract the value for user specified pressure and save off the AuxFunction
   if (!realm_.solutionOptions_->activateOpenMdotCorrection_) {
-    ScalarFieldType* pressureBC = &(metaData.declare_field<ScalarFieldType>(
-      stk::topology::NODE_RANK, "pressure_bc"));
+    ScalarFieldType* pressureBC = &(
+      metaData.declare_field<double>(stk::topology::NODE_RANK, "pressure_bc"));
     stk::mesh::put_field_on_mesh(*pressureBC, *part, nullptr);
 
     Pressure pSpec = userData.p_;
@@ -459,7 +473,7 @@ LowMachEquationSystem::register_open_bc(
     bcDataAlg_.push_back(auxAlgPbc);
   } else {
     if (userData.pSpec_)
-      NaluEnv::self().naluOutputP0()
+      KynemaUGFEnv::self().kynema_ugfOutputP0()
         << "LowMachEqs::register_open_bc Error: Pressure specified at an open "
            "bc while global correction algorithm has been activated"
         << std::endl;
@@ -467,14 +481,15 @@ LowMachEquationSystem::register_open_bc(
 
   // mdot at open bc; register field
   MasterElement* meFC =
-    sierra::nalu::MasterElementRepo::get_surface_master_element(theTopo);
+    sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
+      theTopo);
   const int numScsBip = meFC->num_integration_points();
-  GenericFieldType* mdotBip = &(metaData.declare_field<GenericFieldType>(
+  GenericFieldType* mdotBip = &(metaData.declare_field<double>(
     static_cast<stk::topology::rank_t>(metaData.side_rank()),
     "open_mass_flow_rate"));
   stk::mesh::put_field_on_mesh(*mdotBip, *part, numScsBip, nullptr);
 
-  auto& dynPress = metaData.declare_field<GenericFieldType>(
+  auto& dynPress = metaData.declare_field<double>(
     static_cast<stk::topology::rank_t>(metaData.side_rank()),
     "dynamic_pressure");
   std::vector<double> ic(numScsBip, 0);
@@ -492,27 +507,33 @@ LowMachEquationSystem::register_surface_pp_algorithm(
 
   // register nodal fields in common
   stk::mesh::MetaData& meta_data = realm_.meta_data();
-  VectorFieldType* pressureForce = &(meta_data.declare_field<VectorFieldType>(
+  VectorFieldType* pressureForce = &(meta_data.declare_field<double>(
     stk::topology::NODE_RANK, "pressure_force"));
   stk::mesh::put_field_on_mesh(
     *pressureForce, stk::mesh::selectUnion(partVector),
     meta_data.spatial_dimension(), nullptr);
-  VectorFieldType* viscousForce = &(meta_data.declare_field<VectorFieldType>(
-    stk::topology::NODE_RANK, "viscous_force"));
+  stk::io::set_field_output_type(
+    *pressureForce, stk::io::FieldOutputType::VECTOR_3D);
+  VectorFieldType* viscousForce = &(
+    meta_data.declare_field<double>(stk::topology::NODE_RANK, "viscous_force"));
   stk::mesh::put_field_on_mesh(
     *viscousForce, stk::mesh::selectUnion(partVector),
     meta_data.spatial_dimension(), nullptr);
-  VectorFieldType* tauWallVector = &(meta_data.declare_field<VectorFieldType>(
+  stk::io::set_field_output_type(
+    *viscousForce, stk::io::FieldOutputType::VECTOR_3D);
+  VectorFieldType* tauWallVector = &(meta_data.declare_field<double>(
     stk::topology::NODE_RANK, "tau_wall_vector"));
   stk::mesh::put_field_on_mesh(
     *tauWallVector, stk::mesh::selectUnion(partVector),
     meta_data.spatial_dimension(), nullptr);
-  ScalarFieldType* tauWall = &(meta_data.declare_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, "tau_wall"));
+  stk::io::set_field_output_type(
+    *tauWallVector, stk::io::FieldOutputType::VECTOR_3D);
+  ScalarFieldType* tauWall =
+    &(meta_data.declare_field<double>(stk::topology::NODE_RANK, "tau_wall"));
   stk::mesh::put_field_on_mesh(
     *tauWall, stk::mesh::selectUnion(partVector), nullptr);
-  ScalarFieldType* yplus = &(meta_data.declare_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, "yplus"));
+  ScalarFieldType* yplus =
+    &(meta_data.declare_field<double>(stk::topology::NODE_RANK, "yplus"));
   stk::mesh::put_field_on_mesh(
     *yplus, stk::mesh::selectUnion(partVector), nullptr);
 
@@ -530,7 +551,7 @@ LowMachEquationSystem::register_surface_pp_algorithm(
                 << std::endl;
     }
 
-    ScalarFieldType* assembledArea = &(meta_data.declare_field<ScalarFieldType>(
+    ScalarFieldType* assembledArea = &(meta_data.declare_field<double>(
       stk::topology::NODE_RANK, "assembled_area_force_moment"));
     stk::mesh::put_field_on_mesh(
       *assembledArea, stk::mesh::selectUnion(partVector), nullptr);
@@ -548,7 +569,7 @@ LowMachEquationSystem::register_surface_pp_algorithm(
                 << std::endl;
     }
 
-    ScalarFieldType* assembledArea = &(meta_data.declare_field<ScalarFieldType>(
+    ScalarFieldType* assembledArea = &(meta_data.declare_field<double>(
       stk::topology::NODE_RANK, "assembled_area_force_moment_wf"));
     stk::mesh::put_field_on_mesh(
       *assembledArea, stk::mesh::selectUnion(partVector), nullptr);
@@ -584,8 +605,8 @@ LowMachEquationSystem::register_initial_condition_fcn(
     std::string fcnName = (*iterName).second;
 
     // save off the field (np1 state)
-    VectorFieldType* velocityNp1 = meta_data.get_field<VectorFieldType>(
-      stk::topology::NODE_RANK, "velocity");
+    VectorFieldType* velocityNp1 =
+      meta_data.get_field<double>(stk::topology::NODE_RANK, "velocity");
 
     // create a few Aux things
     AuxFunction* theAuxFunc = NULL;
@@ -624,8 +645,9 @@ LowMachEquationSystem::register_initial_condition_fcn(
         auto& fp = it->second;
         theAuxFunc = new WindEnergyPowerLawAuxFunction(0, nDim, fp);
       } else {
-        throw std::runtime_error("Wind Energy Power Law aux function missing "
-                                 "parameters in initial condition");
+        throw std::runtime_error(
+          "Wind Energy Power Law aux function missing "
+          "parameters in initial condition");
       }
     } else if (fcnName == "kovasznay") {
       theAuxFunc = new KovasznayVelocityAuxFunction(0, nDim);
@@ -647,6 +669,13 @@ LowMachEquationSystem::register_initial_condition_fcn(
       theAuxFunc = new SinProfileChannelFlowVelocityAuxFunction(0, nDim);
     } else if (fcnName == "PerturbedShearLayer") {
       theAuxFunc = new PerturbedShearLayerVelocityAuxFunction(0, nDim);
+    } else if (fcnName == "droplet") {
+      std::map<std::string, std::vector<double>>::const_iterator iterParams =
+        theParams.find(dofName);
+      std::vector<double> fcnParams = (iterParams != theParams.end())
+                                        ? (*iterParams).second
+                                        : std::vector<double>();
+      theAuxFunc = new DropletVelocityAuxFunction(0, nDim, fcnParams);
     } else {
       throw std::runtime_error(
         "InitialCondFunction::non-supported velocity IC");
@@ -680,9 +709,9 @@ LowMachEquationSystem::solve_and_update()
   double timeA, timeB;
   if (isInit_) {
     continuityEqSys_->compute_projected_nodal_gradient();
-    timeA = NaluEnv::self().nalu_time();
+    timeA = KynemaUGFEnv::self().kynema_ugf_time();
     continuityEqSys_->mdotAlgDriver_->execute();
-    timeB = NaluEnv::self().nalu_time();
+    timeB = KynemaUGFEnv::self().kynema_ugf_time();
     continuityEqSys_->timerMisc_ += (timeB - timeA);
 
     if (realm_.solutionOptions_->turbulenceModel_ == TurbulenceModel::SST_AMS) {
@@ -696,16 +725,16 @@ LowMachEquationSystem::solve_and_update()
     continuityEqSys_->assemble_and_solve(continuityEqSys_->pTmp_);
 
     // update pressure
-    timeA = NaluEnv::self().nalu_time();
+    timeA = KynemaUGFEnv::self().kynema_ugf_time();
     solution_update(
       1.0, *continuityEqSys_->pTmp_, 1.0, *continuityEqSys_->pressure_);
-    timeB = NaluEnv::self().nalu_time();
+    timeB = KynemaUGFEnv::self().kynema_ugf_time();
     continuityEqSys_->timerAssemble_ += (timeB - timeA);
 
     // compute mdot
-    timeA = NaluEnv::self().nalu_time();
+    timeA = KynemaUGFEnv::self().kynema_ugf_time();
     continuityEqSys_->mdotAlgDriver_->execute();
-    timeB = NaluEnv::self().nalu_time();
+    timeB = KynemaUGFEnv::self().kynema_ugf_time();
     continuityEqSys_->timerMisc_ += (timeB - timeA);
 
     // project nodal velocity
@@ -716,12 +745,12 @@ LowMachEquationSystem::solve_and_update()
     const double relaxFP =
       realm_.solutionOptions_->get_relaxation_factor(dofName);
     if (std::fabs(1.0 - relaxFP) > 1.0e-3) {
-      timeA = NaluEnv::self().nalu_time();
+      timeA = KynemaUGFEnv::self().kynema_ugf_time();
       solution_update(
         (relaxFP - 1.0), *continuityEqSys_->pTmp_, 1.0,
         *continuityEqSys_->pressure_);
       continuityEqSys_->compute_projected_nodal_gradient();
-      timeB = NaluEnv::self().nalu_time();
+      timeB = KynemaUGFEnv::self().kynema_ugf_time();
       continuityEqSys_->timerAssemble_ += (timeB - timeA);
     }
   }
@@ -732,7 +761,7 @@ LowMachEquationSystem::solve_and_update()
   // start the iteration loop
   for (int k = 0; k < maxIterations_; ++k) {
 
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << " " << k + 1 << "/" << maxIterations_ << std::setw(15) << std::right
       << userSuppliedName_ << std::endl;
 
@@ -742,12 +771,12 @@ LowMachEquationSystem::solve_and_update()
         momentumEqSys_->pecletAlg_->execute();
       momentumEqSys_->assemble_and_solve(momentumEqSys_->uTmp_);
 
-      timeA = NaluEnv::self().nalu_time();
+      timeA = KynemaUGFEnv::self().kynema_ugf_time();
       solution_update(
         1.0, *momentumEqSys_->uTmp_, 1.0,
         momentumEqSys_->velocity_->field_of_state(stk::mesh::StateNP1),
         realm_.meta_data().spatial_dimension());
-      timeB = NaluEnv::self().nalu_time();
+      timeB = KynemaUGFEnv::self().kynema_ugf_time();
       momentumEqSys_->timerAssemble_ += (timeB - timeA);
 
       if (momentumEqSys_->decoupledOverset_ && realm_.hasOverset_)
@@ -761,19 +790,19 @@ LowMachEquationSystem::solve_and_update()
 
     // activate global correction scheme
     if (realm_.solutionOptions_->activateOpenMdotCorrection_) {
-      timeA = NaluEnv::self().nalu_time();
+      timeA = KynemaUGFEnv::self().kynema_ugf_time();
       continuityEqSys_->mdotAlgDriver_->execute();
-      timeB = NaluEnv::self().nalu_time();
+      timeB = KynemaUGFEnv::self().kynema_ugf_time();
       continuityEqSys_->timerMisc_ += (timeB - timeA);
     }
 
     for (int oi = 0; oi < continuityEqSys_->numOversetIters_; ++oi) {
       continuityEqSys_->assemble_and_solve(continuityEqSys_->pTmp_);
 
-      timeA = NaluEnv::self().nalu_time();
+      timeA = KynemaUGFEnv::self().kynema_ugf_time();
       solution_update(
         1.0, *continuityEqSys_->pTmp_, 1.0, *continuityEqSys_->pressure_);
-      timeB = NaluEnv::self().nalu_time();
+      timeB = KynemaUGFEnv::self().kynema_ugf_time();
       continuityEqSys_->timerAssemble_ += (timeB - timeA);
 
       if (continuityEqSys_->decoupledOverset_ && realm_.hasOverset_)
@@ -781,9 +810,9 @@ LowMachEquationSystem::solve_and_update()
     }
 
     // compute mdot
-    timeA = NaluEnv::self().nalu_time();
+    timeA = KynemaUGFEnv::self().kynema_ugf_time();
     continuityEqSys_->mdotAlgDriver_->execute();
-    timeB = NaluEnv::self().nalu_time();
+    timeB = KynemaUGFEnv::self().kynema_ugf_time();
     continuityEqSys_->timerMisc_ += (timeB - timeA);
 
     // project nodal velocity
@@ -793,7 +822,7 @@ LowMachEquationSystem::solve_and_update()
     const std::string dofName = "pressure";
     const double relaxFP =
       realm_.solutionOptions_->get_relaxation_factor(dofName);
-    timeA = NaluEnv::self().nalu_time();
+    timeA = KynemaUGFEnv::self().kynema_ugf_time();
     if (std::fabs(1.0 - relaxFP) > 1.0e-3) {
       // Take care of the possibility that we have multiple overset correctors
       // and we need to do a pressure update that is the sum of all the deltaP
@@ -815,14 +844,14 @@ LowMachEquationSystem::solve_and_update()
       }
 
       continuityEqSys_->compute_projected_nodal_gradient();
-      timeB = NaluEnv::self().nalu_time();
+      timeB = KynemaUGFEnv::self().kynema_ugf_time();
       continuityEqSys_->timerAssemble_ += (timeB - timeA);
     }
     // Pressure isn't actually a state, we do this to support multiple overset
     // correctors when the relaxation factor is not 1.0. So copy the current
     // pressure into `StateN` so that we can perform solution update correction
     // with the correct relaxation factor
-    nalu_ngp::field_copy(
+    kynema_ugf_ngp::field_copy(
       realm_.mesh_info(),
       continuityEqSys_->pressure_->field_of_state(stk::mesh::StateN),
       continuityEqSys_->pressure_->field_of_state(stk::mesh::StateNP1));
@@ -836,9 +865,9 @@ LowMachEquationSystem::solve_and_update()
     // solve/update since dudx is required for tke
     // production
     momentumEqSys_->compute_projected_nodal_gradient();
-    timeA = NaluEnv::self().nalu_time();
+    timeA = KynemaUGFEnv::self().kynema_ugf_time();
     momentumEqSys_->compute_wall_function_params();
-    timeB = NaluEnv::self().nalu_time();
+    timeB = KynemaUGFEnv::self().kynema_ugf_time();
     momentumEqSys_->timerMisc_ += (timeB - timeA);
   }
 
@@ -875,7 +904,7 @@ LowMachEquationSystem::project_nodal_velocity()
   {
     const stk::mesh::Selector sel =
       stk::mesh::selectField(*continuityEqSys_->dpdx_);
-    nalu_ngp::field_copy(ngpMesh, sel, uTmp, dpdx, nDim);
+    kynema_ugf_ngp::field_copy(ngpMesh, sel, uTmp, dpdx, nDim);
   }
 
   //==========================================================
@@ -893,12 +922,12 @@ LowMachEquationSystem::project_nodal_velocity()
   // project u, u^n+1 = u^k+1 - dt/rho*(Gjp^N+1 - uTmp);
   //==========================================================
   {
-    using Traits = nalu_ngp::NGPMeshTraits<>;
+    using Traits = kynema_ugf_ngp::NGPMeshTraits<>;
     using MeshIndex = Traits::MeshIndex;
     const stk::mesh::Selector sel =
       ((!stk::mesh::selectUnion(momentumEqSys_->notProjectedPart_)) &
        stk::mesh::selectField(*continuityEqSys_->dpdx_));
-    nalu_ngp::run_entity_algorithm(
+    kynema_ugf_ngp::run_entity_algorithm(
       "nodal_velocity_projection", ngpMesh, stk::topology::NODE_RANK, sel,
       KOKKOS_LAMBDA(const MeshIndex& mi) {
         // Scaling factor
@@ -910,7 +939,7 @@ LowMachEquationSystem::project_nodal_velocity()
       });
     const stk::mesh::Selector selX =
       (stk::mesh::selectUnion(momentumEqSys_->notProjectedDir_[0]));
-    nalu_ngp::run_entity_algorithm(
+    kynema_ugf_ngp::run_entity_algorithm(
       "nodal_velocity_projection_strongX", ngpMesh, stk::topology::NODE_RANK,
       selX, KOKKOS_LAMBDA(const MeshIndex& mi) {
         // Scaling factor
@@ -920,7 +949,7 @@ LowMachEquationSystem::project_nodal_velocity()
       });
     const stk::mesh::Selector selY =
       (stk::mesh::selectUnion(momentumEqSys_->notProjectedDir_[1]));
-    nalu_ngp::run_entity_algorithm(
+    kynema_ugf_ngp::run_entity_algorithm(
       "nodal_velocity_project_strongY", ngpMesh, stk::topology::NODE_RANK, selY,
       KOKKOS_LAMBDA(const MeshIndex& mi) {
         // Scaling factor
@@ -931,7 +960,7 @@ LowMachEquationSystem::project_nodal_velocity()
     if (nDim == 3) {
       const stk::mesh::Selector selZ =
         (stk::mesh::selectUnion(momentumEqSys_->notProjectedDir_[2]));
-      nalu_ngp::run_entity_algorithm(
+      kynema_ugf_ngp::run_entity_algorithm(
         "nodal_velocity_projection_strongZ", ngpMesh, stk::topology::NODE_RANK,
         selZ, KOKKOS_LAMBDA(const MeshIndex& mi) {
           // Scaling factor
@@ -957,20 +986,22 @@ LowMachEquationSystem::predict_state()
   auto& rhoNp1 = fieldMgr.get_field<double>(
     density_->field_of_state(stk::mesh::StateNP1).mesh_meta_data_ordinal());
   auto& presN =
-    nalu_ngp::get_ngp_field(meshInfo, "pressure", stk::mesh::StateN);
+    kynema_ugf_ngp::get_ngp_field(meshInfo, "pressure", stk::mesh::StateN);
   auto& presNp1 =
-    nalu_ngp::get_ngp_field(meshInfo, "pressure", stk::mesh::StateNP1);
+    kynema_ugf_ngp::get_ngp_field(meshInfo, "pressure", stk::mesh::StateNP1);
 
   rhoN.sync_to_device();
   presN.sync_to_device();
+  rhoNp1.clear_sync_state();
+  presNp1.clear_sync_state();
 
   const auto& meta = realm_.meta_data();
   const stk::mesh::Selector sel =
     (meta.locally_owned_part() | meta.globally_shared_part() |
      meta.aura_part()) &
     stk::mesh::selectField(*density_);
-  nalu_ngp::field_copy(ngpMesh, sel, rhoNp1, rhoN, 1);
-  nalu_ngp::field_copy(ngpMesh, sel, presNp1, presN, 1);
+  kynema_ugf_ngp::field_copy(ngpMesh, sel, rhoNp1, rhoN, 1);
+  kynema_ugf_ngp::field_copy(ngpMesh, sel, presNp1, presN, 1);
   rhoNp1.modify_on_device();
   presNp1.modify_on_device();
 }
@@ -1024,7 +1055,9 @@ MomentumEquationSystem::MomentumEquationSystem(EquationSystems& eqSystems)
     visc_(NULL),
     tvisc_(NULL),
     evisc_(NULL),
-    nodalGradAlgDriver_(realm_, "dudx"),
+    nodalGradAlgDriver_(realm_, "velocity", "dudx"),
+    nodalBuoyancyAlgDriver_(
+      realm_, "buoyancy_source", "buoyancy_source_weight"),
     wallFuncAlgDriver_(realm_),
     dynPressAlgDriver_(realm_),
     cflReAlgDriver_(realm_),
@@ -1043,7 +1076,7 @@ MomentumEquationSystem::MomentumEquationSystem(EquationSystems& eqSystems)
 
   // determine nodal gradient form
   set_nodal_gradient("velocity");
-  NaluEnv::self().naluOutputP0()
+  KynemaUGFEnv::self().kynema_ugfOutputP0()
     << "Edge projected nodal gradient for velocity: " << edgeNodalGradient_
     << std::endl;
 
@@ -1075,11 +1108,14 @@ MomentumEquationSystem::initial_work()
   if (ablWallNodeMask_)
     ablWallNodeMask_->execute();
 
+  if (buoyancySrcMask_)
+    buoyancySrcMask_->execute();
+
   // proceed with a bunch of initial work; wrap in timer
   {
-    const double timeA = NaluEnv::self().nalu_time();
+    const double timeA = KynemaUGFEnv::self().kynema_ugf_time();
     realm_.compute_vrtm();
-    const double timeB = NaluEnv::self().nalu_time();
+    const double timeB = KynemaUGFEnv::self().kynema_ugf_time();
     timerMisc_ += (timeB - timeA);
   }
 
@@ -1089,14 +1125,14 @@ MomentumEquationSystem::initial_work()
     AMSAlgDriver_->initial_work();
 
   {
-    const double timeA = NaluEnv::self().nalu_time();
+    const double timeA = KynemaUGFEnv::self().kynema_ugf_time();
     compute_wall_function_params();
     compute_turbulence_parameters();
     if (pecletAlg_)
       pecletAlg_->execute();
     cflReAlgDriver_.execute();
 
-    const double timeB = NaluEnv::self().nalu_time();
+    const double timeB = KynemaUGFEnv::self().kynema_ugf_time();
     timerMisc_ += (timeB - timeA);
   }
 
@@ -1125,69 +1161,88 @@ MomentumEquationSystem::pre_timestep_work()
 //-------- register_nodal_fields -------------------------------------------
 //--------------------------------------------------------------------------
 void
-MomentumEquationSystem::register_nodal_fields(stk::mesh::Part* part)
+MomentumEquationSystem::register_nodal_fields(
+  const stk::mesh::PartVector& part_vec)
 {
   stk::mesh::MetaData& meta_data = realm_.meta_data();
+  stk::mesh::Selector selector = stk::mesh::selectUnion(part_vec);
 
   const int nDim = meta_data.spatial_dimension();
   const int numStates = realm_.number_of_states();
 
   // register dof; set it as a restart variable
-  velocity_ = &(meta_data.declare_field<VectorFieldType>(
+  velocity_ = &(meta_data.declare_field<double>(
     stk::topology::NODE_RANK, "velocity", numStates));
-  stk::mesh::put_field_on_mesh(*velocity_, *part, nDim, nullptr);
+  stk::mesh::put_field_on_mesh(*velocity_, selector, nDim, nullptr);
+  stk::io::set_field_output_type(
+    *velocity_, stk::io::FieldOutputType::VECTOR_3D);
   realm_.augment_restart_variable_list("velocity");
 
-  dudx_ = &(meta_data.declare_field<GenericFieldType>(
-    stk::topology::NODE_RANK, "dudx"));
-  stk::mesh::put_field_on_mesh(*dudx_, *part, nDim * nDim, nullptr);
+  dudx_ = &(meta_data.declare_field<double>(stk::topology::NODE_RANK, "dudx"));
+  stk::mesh::put_field_on_mesh(*dudx_, selector, nDim * nDim, nullptr);
+  stk::io::set_field_output_type(
+    *dudx_, stk::io::FieldOutputType::FULL_TENSOR_36);
 
   // delta solution for linear solver
-  uTmp_ = &(
-    meta_data.declare_field<VectorFieldType>(stk::topology::NODE_RANK, "uTmp"));
-  stk::mesh::put_field_on_mesh(*uTmp_, *part, nDim, nullptr);
+  uTmp_ = &(meta_data.declare_field<double>(stk::topology::NODE_RANK, "uTmp"));
+  stk::mesh::put_field_on_mesh(*uTmp_, selector, nDim, nullptr);
+  stk::io::set_field_output_type(*uTmp_, stk::io::FieldOutputType::VECTOR_3D);
 
-  coordinates_ = &(meta_data.declare_field<VectorFieldType>(
-    stk::topology::NODE_RANK, "coordinates"));
-  stk::mesh::put_field_on_mesh(*coordinates_, *part, nDim, nullptr);
+  coordinates_ =
+    &(meta_data.declare_field<double>(stk::topology::NODE_RANK, "coordinates"));
+  stk::mesh::put_field_on_mesh(*coordinates_, selector, nDim, nullptr);
+  stk::io::set_field_output_type(
+    *coordinates_, stk::io::FieldOutputType::VECTOR_3D);
 
-  visc_ = &(meta_data.declare_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, "viscosity"));
-  stk::mesh::put_field_on_mesh(*visc_, *part, nullptr);
+  visc_ =
+    &(meta_data.declare_field<double>(stk::topology::NODE_RANK, "viscosity"));
+  stk::mesh::put_field_on_mesh(*visc_, selector, nullptr);
+
+  if (realm_.solutionOptions_->use_balanced_buoyancy_force_) {
+    buoyancy_source_ = &(meta_data.declare_field<double>(
+      stk::topology::NODE_RANK, "buoyancy_source"));
+    stk::mesh::put_field_on_mesh(*buoyancy_source_, selector, nDim, nullptr);
+    buoyancy_source_weight_ = &(meta_data.declare_field<double>(
+      stk::topology::NODE_RANK, "buoyancy_source_weight"));
+    stk::mesh::put_field_on_mesh(*buoyancy_source_weight_, selector, nullptr);
+    ScalarFieldType& node_mask = realm_.meta_data().declare_field<double>(
+      stk::topology::NODE_RANK, "buoyancy_source_mask");
+    double one = 1;
+    stk::mesh::put_field_on_mesh(node_mask, selector, &one);
+  }
 
   if (realm_.is_turbulent()) {
-    tvisc_ = &(meta_data.declare_field<ScalarFieldType>(
+    tvisc_ = &(meta_data.declare_field<double>(
       stk::topology::NODE_RANK, "turbulent_viscosity"));
-    stk::mesh::put_field_on_mesh(*tvisc_, *part, nullptr);
-    evisc_ = &(meta_data.declare_field<ScalarFieldType>(
+    stk::mesh::put_field_on_mesh(*tvisc_, selector, nullptr);
+    evisc_ = &(meta_data.declare_field<double>(
       stk::topology::NODE_RANK, "effective_viscosity_u"));
-    stk::mesh::put_field_on_mesh(*evisc_, *part, nullptr);
+    stk::mesh::put_field_on_mesh(*evisc_, selector, nullptr);
 
     if (realm_.solutionOptions_->turbulenceModel_ == TurbulenceModel::SST_AMS)
-      AMSAlgDriver_->register_nodal_fields(part);
+      AMSAlgDriver_->register_nodal_fields(part_vec);
 
     if (
       realm_.solutionOptions_->turbulenceModel_ == TurbulenceModel::SST_IDDES) {
-      iddesRansIndicator_ = &(meta_data.declare_field<ScalarFieldType>(
+      iddesRansIndicator_ = &(meta_data.declare_field<double>(
         stk::topology::NODE_RANK, "iddes_rans_indicator"));
-      stk::mesh::put_field_on_mesh(*iddesRansIndicator_, *part, nullptr);
+      stk::mesh::put_field_on_mesh(*iddesRansIndicator_, selector, nullptr);
     }
   }
 
   if (realm_.realmUsesEdges_) {
-    ScalarFieldType* pecletAtNodes =
-      &(realm_.meta_data().declare_field<ScalarFieldType>(
-        stk::topology::NODE_RANK, "max_peclet_factor"));
-    stk::mesh::put_field_on_mesh(*pecletAtNodes, *part, nullptr);
+    ScalarFieldType* pecletAtNodes = &(realm_.meta_data().declare_field<double>(
+      stk::topology::NODE_RANK, "max_peclet_factor"));
+    stk::mesh::put_field_on_mesh(*pecletAtNodes, selector, nullptr);
     ScalarFieldType* pecletNumAtNodes =
-      &(realm_.meta_data().declare_field<ScalarFieldType>(
+      &(realm_.meta_data().declare_field<double>(
         stk::topology::NODE_RANK, "max_peclet_number"));
-    stk::mesh::put_field_on_mesh(*pecletNumAtNodes, *part, nullptr);
+    stk::mesh::put_field_on_mesh(*pecletNumAtNodes, selector, nullptr);
   }
 
-  Udiag_ = &(meta_data.declare_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, "momentum_diag"));
-  stk::mesh::put_field_on_mesh(*Udiag_, *part, nullptr);
+  Udiag_ = &(
+    meta_data.declare_field<double>(stk::topology::NODE_RANK, "momentum_diag"));
+  stk::mesh::put_field_on_mesh(*Udiag_, selector, nullptr);
   realm_.augment_restart_variable_list("momentum_diag");
 
   // make sure all states are properly populated (restart can handle this)
@@ -1199,7 +1254,7 @@ MomentumEquationSystem::register_nodal_fields(stk::mesh::Part* part)
       velocity_->field_of_state(stk::mesh::StateNP1);
 
     CopyFieldAlgorithm* theCopyAlg = new CopyFieldAlgorithm(
-      realm_, part, &velocityNp1, &velocityN, 0, nDim,
+      realm_, part_vec, &velocityNp1, &velocityN, 0, nDim,
       stk::topology::NODE_RANK);
     copyStateAlg_.push_back(theCopyAlg);
   }
@@ -1207,31 +1262,32 @@ MomentumEquationSystem::register_nodal_fields(stk::mesh::Part* part)
   // register specialty fields for PNG
   if (managePNG_) {
     // create temp vector field for duidx that will hold the active dudx
-    VectorFieldType* duidx = &(meta_data.declare_field<VectorFieldType>(
-      stk::topology::NODE_RANK, "duidx"));
-    stk::mesh::put_field_on_mesh(*duidx, *part, nDim, nullptr);
+    VectorFieldType* duidx =
+      &(meta_data.declare_field<double>(stk::topology::NODE_RANK, "duidx"));
+    stk::mesh::put_field_on_mesh(*duidx, selector, nDim, nullptr);
+    stk::io::set_field_output_type(*duidx, stk::io::FieldOutputType::VECTOR_3D);
   }
 
   // Add actuator and other source terms
   // put it here because the parts to register are sorted on the equation system
   // probably should go in Realm::register_nodal_fields at some point
   if (realm_.aeroModels_->is_active()) {
-    realm_.aeroModels_->register_nodal_fields(meta_data, part);
+    realm_.aeroModels_->register_nodal_fields(meta_data, part_vec);
   }
 
-  ScalarFieldType& node_mask =
-    realm_.meta_data().declare_field<ScalarFieldType>(
-      stk::topology::NODE_RANK, "abl_wall_no_slip_wall_func_node_mask");
+  ScalarFieldType& node_mask = realm_.meta_data().declare_field<double>(
+    stk::topology::NODE_RANK, "abl_wall_no_slip_wall_func_node_mask");
   double one = 1;
-  stk::mesh::put_field_on_mesh(node_mask, *part, 1, &one);
-}
+  stk::mesh::put_field_on_mesh(node_mask, selector, &one);
+} // namespace kynema_ugf
 
 //--------------------------------------------------------------------------
 //-------- register_element_fields -----------------------------------------
 //--------------------------------------------------------------------------
 void
 MomentumEquationSystem::register_element_fields(
-  stk::mesh::Part* /* part */, const stk::topology& /* theTopo */)
+  const stk::mesh::PartVector& /* part_vec */,
+  const stk::topology& /* theTopo */)
 {
 }
 
@@ -1239,18 +1295,18 @@ MomentumEquationSystem::register_element_fields(
 //-------- register_edge_fields -------------------------------------------
 //--------------------------------------------------------------------------
 void
-MomentumEquationSystem::register_edge_fields(stk::mesh::Part* part)
+MomentumEquationSystem::register_edge_fields(
+  const stk::mesh::PartVector& part_vec)
 {
-  ScalarFieldType* pecletFactor =
-    &(realm_.meta_data().declare_field<ScalarFieldType>(
-      stk::topology::EDGE_RANK, "peclet_factor"));
-  stk::mesh::put_field_on_mesh(*pecletFactor, *part, nullptr);
-  ScalarFieldType* pecletNumber =
-    &(realm_.meta_data().declare_field<ScalarFieldType>(
-      stk::topology::EDGE_RANK, "peclet_number"));
-  stk::mesh::put_field_on_mesh(*pecletNumber, *part, nullptr);
+  stk::mesh::Selector selector = stk::mesh::selectUnion(part_vec);
+  ScalarFieldType* pecletFactor = &(realm_.meta_data().declare_field<double>(
+    stk::topology::EDGE_RANK, "peclet_factor"));
+  stk::mesh::put_field_on_mesh(*pecletFactor, selector, nullptr);
+  ScalarFieldType* pecletNumber = &(realm_.meta_data().declare_field<double>(
+    stk::topology::EDGE_RANK, "peclet_number"));
+  stk::mesh::put_field_on_mesh(*pecletNumber, selector, nullptr);
   if (realm_.solutionOptions_->turbulenceModel_ == TurbulenceModel::SST_AMS)
-    AMSAlgDriver_->register_edge_fields(part);
+    AMSAlgDriver_->register_edge_fields(part_vec);
 }
 
 //--------------------------------------------------------------------------
@@ -1268,17 +1324,23 @@ MomentumEquationSystem::register_interior_algorithm(stk::mesh::Part* part)
     algType, part, "courant_reynolds", cflReAlgDriver_);
 
   VectorFieldType& velocityNp1 = velocity_->field_of_state(stk::mesh::StateNP1);
-  GenericFieldType& dudxNone = dudx_->field_of_state(stk::mesh::StateNone);
+  TensorFieldType& dudxNone = dudx_->field_of_state(stk::mesh::StateNone);
 
   // non-solver; contribution to Gjui; allow for element-based shifted
   if (!managePNG_) {
     if (edgeNodalGradient_ && realm_.realmUsesEdges_)
-      nodalGradAlgDriver_.register_edge_algorithm<VectorNodalGradEdgeAlg>(
+      nodalGradAlgDriver_.register_edge_algorithm<TensorNodalGradEdgeAlg>(
         algType, part, "momentum_nodal_grad", &velocityNp1, &dudxNone);
     else
-      nodalGradAlgDriver_.register_elem_algorithm<VectorNodalGradElemAlg>(
+      nodalGradAlgDriver_.register_elem_algorithm<TensorNodalGradElemAlg>(
         algType, part, "momentum_nodal_grad", &velocityNp1, &dudxNone,
         edgeNodalGradient_);
+  }
+
+  if (realm_.solutionOptions_->use_balanced_buoyancy_force_) {
+    nodalBuoyancyAlgDriver_.register_edge_algorithm<BuoyancySourceAlg>(
+      algType, part, "momentum_buoyancy_source", buoyancy_source_,
+      buoyancy_source_weight_);
   }
 
   const auto theTurbModel = realm_.solutionOptions_->turbulenceModel_;
@@ -1368,6 +1430,9 @@ MomentumEquationSystem::register_interior_algorithm(stk::mesh::Part* part)
         if (srcName == "buoyancy_boussinesq") {
           nodeAlg.add_kernel<MomentumBoussinesqNodeKernel>(
             realm_.bulk_data(), *realm_.solutionOptions_);
+        } else if (srcName == "buoyancy_density") {
+          nodeAlg.add_kernel<MomentumBuoyancyNodeKernel>(
+            realm_.bulk_data(), *realm_.solutionOptions_);
         } else if (srcName == "body_force") {
           const auto it =
             realm_.solutionOptions_->srcTermParamMap_.find("momentum");
@@ -1395,7 +1460,7 @@ MomentumEquationSystem::register_interior_algorithm(stk::mesh::Part* part)
               "MomentumEQS::body_force_box: No force vector found");
           }
         } else if (srcName == "abl_forcing") {
-          ThrowRequireMsg(
+          STK_ThrowRequireMsg(
             ((NULL != realm_.ablForcingAlg_) &&
              (realm_.ablForcingAlg_->momentumForcingOn())),
             "ERROR! ABL Forcing parameters not "
@@ -1416,7 +1481,8 @@ MomentumEquationSystem::register_interior_algorithm(stk::mesh::Part* part)
         }
 
         if (added)
-          NaluEnv::self().naluOutputP0() << "  - " << srcName << std::endl;
+          KynemaUGFEnv::self().kynema_ugfOutputP0()
+            << "  - " << srcName << std::endl;
       });
 
     // Process non-NGP nodal source terms via legacy interface
@@ -1452,7 +1518,7 @@ MomentumEquationSystem::register_interior_algorithm(stk::mesh::Part* part)
             ++nonNgpSrcSkipped;
           }
           if (suppAlg != NULL) {
-            NaluEnv::self().naluOutputP0()
+            KynemaUGFEnv::self().kynema_ugfOutputP0()
               << "MomentumNodalSrcTerms::added() " << sourceName << std::endl;
             theAlg->supplementalAlg_.push_back(suppAlg);
           }
@@ -1545,15 +1611,17 @@ MomentumEquationSystem::register_inflow_bc(
 
   // velocity np1
   VectorFieldType& velocityNp1 = velocity_->field_of_state(stk::mesh::StateNP1);
-  GenericFieldType& dudxNone = dudx_->field_of_state(stk::mesh::StateNone);
+  TensorFieldType& dudxNone = dudx_->field_of_state(stk::mesh::StateNone);
 
   stk::mesh::MetaData& meta_data = realm_.meta_data();
   const unsigned nDim = meta_data.spatial_dimension();
 
   // register boundary data; velocity_bc
-  VectorFieldType* theBcField = &(meta_data.declare_field<VectorFieldType>(
-    stk::topology::NODE_RANK, "velocity_bc"));
+  VectorFieldType* theBcField =
+    &(meta_data.declare_field<double>(stk::topology::NODE_RANK, "velocity_bc"));
   stk::mesh::put_field_on_mesh(*theBcField, *part, nDim, nullptr);
+  stk::io::set_field_output_type(
+    *theBcField, stk::io::FieldOutputType::VECTOR_3D);
 
   // extract the value for user specified velocity and save off the AuxFunction
   InflowUserData userData = inflowBCData.userData_;
@@ -1578,7 +1646,7 @@ MomentumEquationSystem::register_inflow_bc(
     std::vector<double> theParams =
       get_bc_function_params(userData, velocityName);
     if (theParams.size() == 0)
-      NaluEnv::self().naluOutputP0()
+      KynemaUGFEnv::self().kynema_ugfOutputP0()
         << "function parameter size is zero" << std::endl;
     // switch on the name found...
     if (fcnName == "convecting_taylor_vortex") {
@@ -1600,12 +1668,14 @@ MomentumEquationSystem::register_inflow_bc(
     } else if (fcnName == "GaussJet") {
       theAuxFunc = new GaussJetVelocityAuxFunction(0, nDim);
     } else {
-      throw std::runtime_error("MomentumEquationSystem::register_inflow_bc: "
-                               "limited functions supported");
+      throw std::runtime_error(
+        "MomentumEquationSystem::register_inflow_bc: "
+        "limited functions supported");
     }
   } else {
-    throw std::runtime_error("MomentumEquationSystem::register_inflow_bc: only "
-                             "constant and user function supported");
+    throw std::runtime_error(
+      "MomentumEquationSystem::register_inflow_bc: only "
+      "constant and user function supported");
   }
 
   // bc data alg
@@ -1628,7 +1698,7 @@ MomentumEquationSystem::register_inflow_bc(
 
   // non-solver; contribution to Gjui; allow for element-based shifted
   if (!managePNG_) {
-    nodalGradAlgDriver_.register_face_algorithm<VectorNodalGradBndryElemAlg>(
+    nodalGradAlgDriver_.register_face_algorithm<TensorNodalGradBndryElemAlg>(
       algType, part, "momentum_nodal_grad", theBcField, &dudxNone,
       edgeNodalGradient_);
   }
@@ -1663,9 +1733,11 @@ MomentumEquationSystem::register_open_bc(
 
   const int nDim = meta_data.spatial_dimension();
 
-  VectorFieldType* theBcField = &(meta_data.declare_field<VectorFieldType>(
+  VectorFieldType* theBcField = &(meta_data.declare_field<double>(
     stk::topology::NODE_RANK, "open_velocity_bc"));
   stk::mesh::put_field_on_mesh(*theBcField, *part, nDim, nullptr);
+  stk::io::set_field_output_type(
+    *theBcField, stk::io::FieldOutputType::VECTOR_3D);
 
   // extract the value for user specified velocity and save off the AuxFunction
   OpenUserData userData = openBCData.userData_;
@@ -1685,11 +1757,11 @@ MomentumEquationSystem::register_open_bc(
   bcDataAlg_.push_back(auxAlg);
 
   VectorFieldType& velocityNp1 = velocity_->field_of_state(stk::mesh::StateNP1);
-  GenericFieldType& dudxNone = dudx_->field_of_state(stk::mesh::StateNone);
+  TensorFieldType& dudxNone = dudx_->field_of_state(stk::mesh::StateNone);
 
   // non-solver; contribution to Gjui; allow for element-based shifted
   if (!managePNG_) {
-    nodalGradAlgDriver_.register_face_algorithm<VectorNodalGradBndryElemAlg>(
+    nodalGradAlgDriver_.register_face_algorithm<TensorNodalGradBndryElemAlg>(
       algType, part, "momentum_nodal_grad", &velocityNp1, &dudxNone,
       edgeNodalGradient_);
   }
@@ -1754,7 +1826,7 @@ MomentumEquationSystem::register_wall_bc(
 
   // np1 velocity
   VectorFieldType& velocityNp1 = velocity_->field_of_state(stk::mesh::StateNP1);
-  GenericFieldType& dudxNone = dudx_->field_of_state(stk::mesh::StateNone);
+  TensorFieldType& dudxNone = dudx_->field_of_state(stk::mesh::StateNone);
 
   stk::mesh::MetaData& meta_data = realm_.meta_data();
   const unsigned nDim = meta_data.spatial_dimension();
@@ -1763,20 +1835,22 @@ MomentumEquationSystem::register_wall_bc(
     anyWallFunctionActivated ? "wall_velocity_bc" : "velocity_bc";
 
   // register boundary data; velocity_bc
-  VectorFieldType* theBcField = &(meta_data.declare_field<VectorFieldType>(
-    stk::topology::NODE_RANK, bcFieldName));
+  VectorFieldType* theBcField =
+    &(meta_data.declare_field<double>(stk::topology::NODE_RANK, bcFieldName));
   stk::mesh::put_field_on_mesh(*theBcField, *part, nDim, nullptr);
+  stk::io::set_field_output_type(
+    *theBcField, stk::io::FieldOutputType::VECTOR_3D);
 
   // if mesh motion is enabled ...
   if (realm_.does_mesh_move()) {
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << "MomentumEquationSystem::register_wall_bc(): Mesh motion active! "
          "Velocity definition under wall_user_data will be ignored"
       << std::endl;
 
     // get the mesh velocity field
-    VectorFieldType* meshVelocity = meta_data.get_field<VectorFieldType>(
-      stk::topology::NODE_RANK, "mesh_velocity");
+    VectorFieldType* meshVelocity =
+      meta_data.get_field<double>(stk::topology::NODE_RANK, "mesh_velocity");
 
     // create algorithm to copy mesh velocity to wall velocity
     CopyFieldAlgorithm* wallVelCopyAlg = new CopyFieldAlgorithm(
@@ -1814,18 +1888,20 @@ MomentumEquationSystem::register_wall_bc(
         if (fcnName == "tornado") {
           theAuxFunc = new TornadoAuxFunction(0, nDim);
         } else if (fcnName == "wind_energy") {
-          NaluEnv::self().naluOutputP0()
+          KynemaUGFEnv::self().kynema_ugfOutputP0()
             << "MomentumEqSys: WARNING! mesh_motion user function for wall BC "
                "has been deprecated"
             << std::endl;
         } else {
-          throw std::runtime_error("MomentumEqSys::register_wall_function: "
-                                   "Only tornado user functions supported");
+          throw std::runtime_error(
+            "MomentumEqSys::register_wall_function: "
+            "Only tornado user functions supported");
         }
       }
     } else {
-      throw std::runtime_error("Invalid Wall Data Specification; must provide "
-                               "const or fcn for velocity");
+      throw std::runtime_error(
+        "Invalid Wall Data Specification; must provide "
+        "const or fcn for velocity");
     }
 
     auxAlg = new AuxFunctionAlgorithm(
@@ -1855,39 +1931,37 @@ MomentumEquationSystem::register_wall_bc(
   // non-solver; contribution to Gjui; allow for element-based shifted
   if (!managePNG_) {
     const AlgorithmType algTypePNG = anyWallFunctionActivated ? WALL_FCN : WALL;
-    nodalGradAlgDriver_.register_face_algorithm<VectorNodalGradBndryElemAlg>(
+    nodalGradAlgDriver_.register_face_algorithm<TensorNodalGradBndryElemAlg>(
       algTypePNG, part, "momentum_nodal_grad", theBcField, &dudxNone,
       edgeNodalGradient_);
   }
 
   if (anyWallFunctionActivated || RANSAblBcApproach_) {
-    ScalarFieldType* assembledWallArea =
-      &(meta_data.declare_field<ScalarFieldType>(
-        stk::topology::NODE_RANK, "assembled_wall_area_wf"));
+    ScalarFieldType* assembledWallArea = &(meta_data.declare_field<double>(
+      stk::topology::NODE_RANK, "assembled_wall_area_wf"));
     stk::mesh::put_field_on_mesh(*assembledWallArea, *part, nullptr);
 
     ScalarFieldType* assembledWallNormalDistance =
-      &(meta_data.declare_field<ScalarFieldType>(
+      &(meta_data.declare_field<double>(
         stk::topology::NODE_RANK, "assembled_wall_normal_distance"));
     stk::mesh::put_field_on_mesh(*assembledWallNormalDistance, *part, nullptr);
 
     // integration point; size it based on number of boundary integration points
     MasterElement* meFC =
-      sierra::nalu::MasterElementRepo::get_surface_master_element(partTopo);
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
+        partTopo);
     const int numScsBip = meFC->num_integration_points();
 
     stk::topology::rank_t sideRank =
       static_cast<stk::topology::rank_t>(meta_data.side_rank());
 
-    GenericFieldType* wallFrictionVelocityBip =
-      &(meta_data.declare_field<GenericFieldType>(
-        sideRank, "wall_friction_velocity_bip"));
+    GenericFieldType* wallFrictionVelocityBip = &(
+      meta_data.declare_field<double>(sideRank, "wall_friction_velocity_bip"));
     stk::mesh::put_field_on_mesh(
       *wallFrictionVelocityBip, *part, numScsBip, nullptr);
 
     GenericFieldType* wallNormalDistanceBip =
-      &(meta_data.declare_field<GenericFieldType>(
-        sideRank, "wall_normal_distance_bip"));
+      &(meta_data.declare_field<double>(sideRank, "wall_normal_distance_bip"));
     stk::mesh::put_field_on_mesh(
       *wallNormalDistanceBip, *part, numScsBip, nullptr);
 
@@ -1903,8 +1977,7 @@ MomentumEquationSystem::register_wall_bc(
     // Wall models.
     if (anyWallFunctionActivated) {
       GenericFieldType* wallShearStressBip =
-        &(meta_data.declare_field<GenericFieldType>(
-          sideRank, "wall_shear_stress_bip"));
+        &(meta_data.declare_field<double>(sideRank, "wall_shear_stress_bip"));
       stk::mesh::put_field_on_mesh(
         *wallShearStressBip, *part, nDim * numScsBip, nullptr);
 
@@ -1915,9 +1988,8 @@ MomentumEquationSystem::register_wall_bc(
       userSpec[0] = heatFlux.qn_;
       ConstantAuxFunction* theHeatFluxAuxFunc =
         new ConstantAuxFunction(0, 1, userSpec);
-      ScalarFieldType* theHeatFluxBcField =
-        &(meta_data.declare_field<ScalarFieldType>(
-          stk::topology::NODE_RANK, "heat_flux_bc"));
+      ScalarFieldType* theHeatFluxBcField = &(meta_data.declare_field<double>(
+        stk::topology::NODE_RANK, "heat_flux_bc"));
       stk::mesh::put_field_on_mesh(*theHeatFluxBcField, *part, nullptr);
       bcDataAlg_.push_back(new AuxFunctionAlgorithm(
         realm_, part, theHeatFluxBcField, theHeatFluxAuxFunc,
@@ -1931,8 +2003,7 @@ MomentumEquationSystem::register_wall_bc(
         // register boundary data: wall_heat_flux_bip.  This is the ABL
         // integration-point-based heat flux field.
         GenericFieldType* wallHeatFluxBip =
-          &(meta_data.declare_field<GenericFieldType>(
-            sideRank, "wall_heat_flux_bip"));
+          &(meta_data.declare_field<double>(sideRank, "wall_heat_flux_bip"));
         stk::mesh::put_field_on_mesh(
           *wallHeatFluxBip, *part, numScsBip, nullptr);
 
@@ -2033,6 +2104,14 @@ MomentumEquationSystem::register_wall_bc(
     }
   }
 
+  if (realm_.solutionOptions_->use_balanced_buoyancy_force_) {
+    if (!buoyancySrcMask_) {
+      buoyancySrcMask_.reset(new NodalBuoyancyFuncUtil(realm_, part));
+    } else {
+      buoyancySrcMask_->partVec_.push_back(part);
+    }
+  }
+
   // Dirichlet wall boundary condition.
   if (!anyWallFunctionActivated || userData.isNoSlip_) {
     const AlgorithmType algType = WALL;
@@ -2052,7 +2131,7 @@ MomentumEquationSystem::register_wall_bc(
   if (userData.isFsiInterface_) {
     // FIXME: need p^n+1/2; requires "old" pressure... need a utility to save it
     // and compute it...
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << "Warning: Second-order FSI requires p^n+1/2; BC is using p^n+1"
       << std::endl;
   }
@@ -2071,7 +2150,7 @@ MomentumEquationSystem::register_symmetry_bc(
   const AlgorithmType algType = SYMMETRY;
 
   VectorFieldType& velocityNp1 = velocity_->field_of_state(stk::mesh::StateNP1);
-  GenericFieldType& dudxNone = dudx_->field_of_state(stk::mesh::StateNone);
+  TensorFieldType& dudxNone = dudx_->field_of_state(stk::mesh::StateNone);
   using SYMMTYPES = SymmetryUserData::SymmetryTypes;
   const SYMMTYPES symmType = symmBCData.userData_.symmType_;
   unsigned beginPos{0}, endPos{1};
@@ -2080,7 +2159,7 @@ MomentumEquationSystem::register_symmetry_bc(
   AlgorithmType pickTheType = algType;
   // non-solver; contribution to Gjui; allow for element-based shifted
   if (!managePNG_) {
-    nodalGradAlgDriver_.register_face_algorithm<VectorNodalGradBndryElemAlg>(
+    nodalGradAlgDriver_.register_face_algorithm<TensorNodalGradBndryElemAlg>(
       algType, part, "momentum_nodal_grad", &velocityNp1, &dudxNone,
       edgeNodalGradient_);
   }
@@ -2114,10 +2193,8 @@ MomentumEquationSystem::register_symmetry_bc(
         build_face_elem_topo_kernel_automatic<MomentumSymmetryEdgeKernel>(
           partTopo, elemTopo, *this, activeKernels, "momentum_symmetry_edge",
           metaData, *realm_.solutionOptions_,
-          metaData.get_field<VectorFieldType>(
-            stk::topology::NODE_RANK, "velocity"),
-          metaData.get_field<ScalarFieldType>(
-            stk::topology::NODE_RANK, viscName),
+          metaData.get_field<double>(stk::topology::NODE_RANK, "velocity"),
+          metaData.get_field<double>(stk::topology::NODE_RANK, viscName),
           faceElemSolverAlg->faceDataNeeded_,
           faceElemSolverAlg->elemDataNeeded_);
       }
@@ -2141,10 +2218,11 @@ MomentumEquationSystem::register_symmetry_bc(
     break;
   }
 
-#ifdef NALU_USES_HYPRE
+#ifdef KYNEMA_UGF_USES_HYPRE
   if (dynamic_cast<HypreLinearSystem*>(linsys_) != nullptr) {
-    throw std::runtime_error("Hypre is not supported for a momentum solver "
-                             "when using strong_symmetry bc's.");
+    throw std::runtime_error(
+      "Hypre is not supported for a momentum solver "
+      "when using strong_symmetry bc's.");
   }
 #endif
 
@@ -2153,7 +2231,7 @@ MomentumEquationSystem::register_symmetry_bc(
     notProjectedDir_[beginPos].push_back(part);
   }
   if (linsys_->useSegregatedSolver()) {
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << "Warning: You are currently using a segregated solver with a strong "
          "symmetry boundary "
       << "condition. This leads to an approximation of the momentum equation "
@@ -2168,9 +2246,11 @@ MomentumEquationSystem::register_symmetry_bc(
 
   // register boundary data; velocity_bc
   const std::string bcFieldName = "strong_sym_velocity";
-  VectorFieldType* theBcField = &(meta_data.declare_field<VectorFieldType>(
-    stk::topology::NODE_RANK, bcFieldName));
+  VectorFieldType* theBcField =
+    &(meta_data.declare_field<double>(stk::topology::NODE_RANK, bcFieldName));
   stk::mesh::put_field_on_mesh(*theBcField, *part, nDim, nullptr);
+  stk::io::set_field_output_type(
+    *theBcField, stk::io::FieldOutputType::VECTOR_3D);
 
   std::vector<double> userSpec(nDim, 0.0);
   AuxFunction* theAuxFunc = NULL;
@@ -2218,21 +2298,21 @@ MomentumEquationSystem::register_abltop_bc(
     return;
   }
 
-#ifdef NALU_USES_FFTW
+#ifdef KYNEMA_UGF_USES_FFTW
   auto& meta_data = realm_.meta_data();
   // algorithm type
   const AlgorithmType algType = TOP_ABL;
   auto user_data = abltopBCData.userData_;
 
   VectorFieldType& velocityNp1 = velocity_->field_of_state(stk::mesh::StateNP1);
-  GenericFieldType& dudxNone = dudx_->field_of_state(stk::mesh::StateNone);
+  TensorFieldType& dudxNone = dudx_->field_of_state(stk::mesh::StateNone);
 
   // push mesh part
   notProjectedPart_.push_back(part);
 
   // non-solver; contribution to Gjui; allow for element-based shifted
   if (!managePNG_) {
-    nodalGradAlgDriver_.register_face_algorithm<VectorNodalGradBndryElemAlg>(
+    nodalGradAlgDriver_.register_face_algorithm<TensorNodalGradBndryElemAlg>(
       algType, part, "momentum_nodal_grad", &velocityNp1, &dudxNone,
       edgeNodalGradient_);
   }
@@ -2242,9 +2322,11 @@ MomentumEquationSystem::register_abltop_bc(
     std::string bcFieldName =
       realm_.solutionOptions_->activateOpenMdotCorrection_ ? "velocity_bc"
                                                            : "cont_velocity_bc";
-    VectorFieldType* theBcField = &(meta_data.declare_field<VectorFieldType>(
-      stk::topology::NODE_RANK, bcFieldName));
+    VectorFieldType* theBcField =
+      &(meta_data.declare_field<double>(stk::topology::NODE_RANK, bcFieldName));
     stk::mesh::put_field_on_mesh(*theBcField, *part, 3, nullptr);
+    stk::io::set_field_output_type(
+      *theBcField, stk::io::FieldOutputType::VECTOR_3D);
 
     auto it = solverAlgDriver_->solverDirichAlgMap_.find(algType);
     if (it == solverAlgDriver_->solverDirichAlgMap_.end()) {
@@ -2278,20 +2360,19 @@ MomentumEquationSystem::register_abltop_bc(
     //   build_face_elem_topo_kernel_automatic<MomentumSymmetryElemKernel>(
     //       partTopo, elemTopo, *this, activeKernels, "momentum_symmetry",
     //       metaData, *realm_.solutionOptions_,
-    //       metaData.get_field<VectorFieldType>(stk::topology::NODE_RANK,
-    //                                           "velocity"),
-    //       metaData.get_field<ScalarFieldType>(stk::topology::NODE_RANK,
-    //                                           viscName),
+    //       metaData.get_field<double>(stk::topology::NODE_RANK, "velocity"),
+    //       metaData.get_field<double>(stk::topology::NODE_RANK, viscName),
     //       faceElemSolverAlg->faceDataNeeded_,
     //       faceElemSolverAlg->elemDataNeeded_);
     // }
-    throw std::runtime_error("MomentumEqSys: Consolidated algorithm not "
-                             "supported at this time for ABL Top BC.");
+    throw std::runtime_error(
+      "MomentumEqSys: Consolidated algorithm not "
+      "supported at this time for ABL Top BC.");
   }
 #else
   throw std::runtime_error(
     "Cannot initialize ABL top BC because FFTW support is mising.\n Set "
-    "ENABLE_FFTW to ON in nalu-wind/CMakeLists.txt, reconfigure and "
+    "ENABLE_FFTW to ON in kynema_ugf/CMakeLists.txt, reconfigure and "
     "recompile.");
 #endif
 }
@@ -2306,26 +2387,27 @@ MomentumEquationSystem::register_non_conformal_bc(
   const AlgorithmType algType = NON_CONFORMAL;
 
   VectorFieldType& velocityNp1 = velocity_->field_of_state(stk::mesh::StateNP1);
-  GenericFieldType& dudxNone = dudx_->field_of_state(stk::mesh::StateNone);
+  TensorFieldType& dudxNone = dudx_->field_of_state(stk::mesh::StateNone);
 
   stk::mesh::MetaData& meta_data = realm_.meta_data();
 
   // mdot at nc bc; register field; require topo and num ips
   MasterElement* meFC =
-    sierra::nalu::MasterElementRepo::get_surface_master_element(theTopo);
+    sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
+      theTopo);
   const int numScsBip = meFC->num_integration_points();
 
   stk::topology::rank_t sideRank =
     static_cast<stk::topology::rank_t>(meta_data.side_rank());
   GenericFieldType* mdotBip =
-    &(meta_data.declare_field<GenericFieldType>(sideRank, "nc_mass_flow_rate"));
+    &(meta_data.declare_field<double>(sideRank, "nc_mass_flow_rate"));
   stk::mesh::put_field_on_mesh(*mdotBip, *part, numScsBip, nullptr);
 
   // non-solver; contribution to Gjui; DG algorithm decides on locations for
   // integration points
   if (!managePNG_) {
     if (edgeNodalGradient_) {
-      nodalGradAlgDriver_.register_face_algorithm<VectorNodalGradBndryElemAlg>(
+      nodalGradAlgDriver_.register_face_algorithm<TensorNodalGradBndryElemAlg>(
         algType, part, "momentum_nodal_grad", &velocityNp1, &dudxNone,
         edgeNodalGradient_);
     } else {
@@ -2432,7 +2514,8 @@ MomentumEquationSystem::predict_state()
     (meta.locally_owned_part() | meta.globally_shared_part() |
      meta.aura_part()) &
     stk::mesh::selectField(*velocity_);
-  nalu_ngp::field_copy(ngpMesh, sel, velNp1, velN, meta.spatial_dimension());
+  kynema_ugf_ngp::field_copy(
+    ngpMesh, sel, velNp1, velN, meta.spatial_dimension());
   velNp1.modify_on_device();
 
   if (realm_.solutionOptions_->turbulenceModel_ == TurbulenceModel::SST_AMS)
@@ -2478,19 +2561,22 @@ void
 MomentumEquationSystem::compute_projected_nodal_gradient()
 {
   if (!managePNG_) {
-    const double timeA = -NaluEnv::self().nalu_time();
+    const double timeA = -KynemaUGFEnv::self().kynema_ugf_time();
     nodalGradAlgDriver_.execute();
-    timerMisc_ += (NaluEnv::self().nalu_time() + timeA);
+    if (realm_.solutionOptions_->use_balanced_buoyancy_force_) {
+      nodalBuoyancyAlgDriver_.execute();
+    }
+    timerMisc_ += (KynemaUGFEnv::self().kynema_ugf_time() + timeA);
   } else {
     // this option is more complex... Rather than solving a nDim*nDim system, we
     // copy each velocity component i to the expected dof for the PNG system;
     // pTmp
 
     // extract fields
-    ScalarFieldType* pTmp = realm_.meta_data().get_field<ScalarFieldType>(
-      stk::topology::NODE_RANK, "pTmp");
-    VectorFieldType* duidx = realm_.meta_data().get_field<VectorFieldType>(
-      stk::topology::NODE_RANK, "duidx");
+    ScalarFieldType* pTmp =
+      realm_.meta_data().get_field<double>(stk::topology::NODE_RANK, "pTmp");
+    VectorFieldType* duidx =
+      realm_.meta_data().get_field<double>(stk::topology::NODE_RANK, "duidx");
 
     const int nDim = realm_.meta_data().spatial_dimension();
 
@@ -2549,7 +2635,7 @@ MomentumEquationSystem::compute_projected_nodal_gradient()
       std::max(std::numeric_limits<double>::epsilon(), firstPNGResidual_);
     std::string pngName = projectedNodalGradEqs_->linsys_->name();
     const int nameOffset = pngName.length() + 8;
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << std::setw(nameOffset) << std::right << pngName
       << std::setw(32 - nameOffset) << std::right
       << sumLinearIterations / (int)nDim << std::setw(18) << std::right
@@ -2575,11 +2661,11 @@ MomentumEquationSystem::save_diagonal_term(
   const int offset = nEntities * nDim;
 
   for (int in = 0; in < nEntities; in++) {
-    const auto naluID =
-      *stk::mesh::field_data(*realm_.naluGlobalId_, entities[in]);
-    const auto mnode = bulk.get_entity(stk::topology::NODE_RANK, naluID);
+    const auto kynema_ugfID =
+      *stk::mesh::field_data(*realm_.kynema_ugfGlobalId_, entities[in]);
+    const auto mnode = bulk.get_entity(stk::topology::NODE_RANK, kynema_ugfID);
     int ix = in * nDim * (offset + 1);
-    double* diagVal = (double*)stk::mesh::field_data(*Udiag_, mnode);
+    double* diagVal = stk::mesh::field_data(*Udiag_, mnode);
     diagVal[0] += lhs[ix];
   }
 }
@@ -2593,14 +2679,14 @@ MomentumEquationSystem::save_diagonal_term(
   auto& bulk = realm_.bulk_data();
   const int nDim = realm_.spatialDimension_;
   constexpr bool forceAtomic =
-    !std::is_same<sierra::nalu::DeviceSpace, Kokkos::Serial>::value;
+    !std::is_same<sierra::kynema_ugf::DeviceSpace, Kokkos::Serial>::value;
 
   for (unsigned in = 0; in < nEntities; in++) {
-    const auto naluID =
-      *stk::mesh::field_data(*realm_.naluGlobalId_, entities[in]);
-    const auto mnode = bulk.get_entity(stk::topology::NODE_RANK, naluID);
+    const auto kynema_ugfID =
+      *stk::mesh::field_data(*realm_.kynema_ugfGlobalId_, entities[in]);
+    const auto mnode = bulk.get_entity(stk::topology::NODE_RANK, kynema_ugfID);
     int ix = in * nDim;
-    double* diagVal = (double*)stk::mesh::field_data(*Udiag_, mnode);
+    double* diagVal = stk::mesh::field_data(*Udiag_, mnode);
     if (forceAtomic)
       Kokkos::atomic_add(diagVal, lhs(ix, ix));
     else
@@ -2618,14 +2704,14 @@ MomentumEquationSystem::save_diagonal_term(
   auto& bulk = realm_.bulk_data();
   const int nDim = realm_.spatialDimension_;
   constexpr bool forceAtomic =
-    !std::is_same<sierra::nalu::DeviceSpace, Kokkos::Serial>::value;
+    !std::is_same<sierra::kynema_ugf::DeviceSpace, Kokkos::Serial>::value;
 
   for (unsigned in = 0; in < nEntities; in++) {
-    const auto naluID =
-      *stk::mesh::field_data(*realm_.naluGlobalId_, entities[in]);
-    const auto mnode = bulk.get_entity(stk::topology::NODE_RANK, naluID);
+    const auto kynema_ugfID =
+      *stk::mesh::field_data(*realm_.kynema_ugfGlobalId_, entities[in]);
+    const auto mnode = bulk.get_entity(stk::topology::NODE_RANK, kynema_ugfID);
     int ix = in * nDim;
-    double* diagVal = (double*)stk::mesh::field_data(*Udiag_, mnode);
+    double* diagVal = stk::mesh::field_data(*Udiag_, mnode);
     if (forceAtomic)
       Kokkos::atomic_add(diagVal, lhs(ix, ix));
     else
@@ -2645,7 +2731,7 @@ MomentumEquationSystem::save_diagonal_term(
 void
 MomentumEquationSystem::assemble_and_solve(stk::mesh::FieldBase* deltaSolution)
 {
-  using MeshIndex = nalu_ngp::NGPMeshTraits<>::MeshIndex;
+  using MeshIndex = kynema_ugf_ngp::NGPMeshTraits<>::MeshIndex;
   auto& meta = realm_.meta_data();
   auto& bulk = realm_.bulk_data();
 
@@ -2669,10 +2755,10 @@ MomentumEquationSystem::assemble_and_solve(stk::mesh::FieldBase* deltaSolution)
   EquationSystem::assemble_and_solve(deltaSolution);
 
   // Post-process the Udiag term
-  ScalarFieldType* dualVol = meta.get_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, "dual_nodal_volume");
+  ScalarFieldType* dualVol =
+    meta.get_field<double>(stk::topology::NODE_RANK, "dual_nodal_volume");
   ScalarFieldType* density =
-    meta.get_field<ScalarFieldType>(stk::topology::NODE_RANK, "density");
+    meta.get_field<double>(stk::topology::NODE_RANK, "density");
 
   if (realm_.solutionOptions_->tscaleType_ == TSCALE_UDIAGINV) {
     const std::string dofName = "velocity";
@@ -2700,7 +2786,7 @@ MomentumEquationSystem::assemble_and_solve(stk::mesh::FieldBase* deltaSolution)
       fieldMgr.get_field<double>(dualVol->mesh_meta_data_ordinal());
 
     // Remove momentum relaxation factor from diagonal term
-    nalu_ngp::run_entity_algorithm(
+    kynema_ugf_ngp::run_entity_algorithm(
       "LowMach::udiag_post_processing", ngpMesh, stk::topology::NODE_RANK, sel,
       KOKKOS_LAMBDA(const MeshIndex& mi) {
         double udiagTmp =
@@ -2765,7 +2851,7 @@ ContinuityEquationSystem::ContinuityEquationSystem(
     massFlowRate_(NULL),
     coordinates_(NULL),
     pTmp_(NULL),
-    nodalGradAlgDriver_(realm_, "dpdx"),
+    nodalGradAlgDriver_(realm_, "pressure", "dpdx"),
     mdotAlgDriver_(new MdotAlgDriver(realm_, elementContinuityEqs)),
     projectedNodalGradEqs_(NULL)
 {
@@ -2773,14 +2859,15 @@ ContinuityEquationSystem::ContinuityEquationSystem(
 
   // message to user
   if (realm_.realmUsesEdges_ && elementContinuityEqs_)
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << "Edge scheme active (all scalars); element-based (continuity)!"
       << std::endl;
 
   // error check
   if (!elementContinuityEqs_ && !realm_.realmUsesEdges_)
-    throw std::runtime_error("If using the non-element-based continuity "
-                             "system, edges must be active at realm level");
+    throw std::runtime_error(
+      "If using the non-element-based continuity "
+      "system, edges must be active at realm level");
 
   // extract solver name and solver object
   std::string solverName =
@@ -2791,7 +2878,7 @@ ContinuityEquationSystem::ContinuityEquationSystem(
 
   // determine nodal gradient form
   set_nodal_gradient("pressure");
-  NaluEnv::self().naluOutputP0()
+  KynemaUGFEnv::self().kynema_ugfOutputP0()
     << "Edge projected nodal gradient for pressure: " << edgeNodalGradient_
     << std::endl;
 
@@ -2813,32 +2900,35 @@ ContinuityEquationSystem::~ContinuityEquationSystem() {}
 //-------- register_nodal_fields -------------------------------------------
 //--------------------------------------------------------------------------
 void
-ContinuityEquationSystem::register_nodal_fields(stk::mesh::Part* part)
+ContinuityEquationSystem::register_nodal_fields(
+  const stk::mesh::PartVector& part_vec)
 {
 
   stk::mesh::MetaData& meta_data = realm_.meta_data();
+  stk::mesh::Selector selector = stk::mesh::selectUnion(part_vec);
 
   const int nDim = meta_data.spatial_dimension();
 
   // register dof; set it as a restart variable
   const int numStates = 2;
-  pressure_ = &(meta_data.declare_field<ScalarFieldType>(
+  pressure_ = &(meta_data.declare_field<double>(
     stk::topology::NODE_RANK, "pressure", numStates));
-  stk::mesh::put_field_on_mesh(*pressure_, *part, nullptr);
+  stk::mesh::put_field_on_mesh(*pressure_, selector, nullptr);
   realm_.augment_restart_variable_list("pressure");
 
-  dpdx_ = &(
-    meta_data.declare_field<VectorFieldType>(stk::topology::NODE_RANK, "dpdx"));
-  stk::mesh::put_field_on_mesh(*dpdx_, *part, nDim, nullptr);
+  dpdx_ = &(meta_data.declare_field<double>(stk::topology::NODE_RANK, "dpdx"));
+  stk::mesh::put_field_on_mesh(*dpdx_, selector, nDim, nullptr);
+  stk::io::set_field_output_type(*dpdx_, stk::io::FieldOutputType::VECTOR_3D);
 
   // delta solution for linear solver; share delta with other split systems
-  pTmp_ = &(
-    meta_data.declare_field<ScalarFieldType>(stk::topology::NODE_RANK, "pTmp"));
-  stk::mesh::put_field_on_mesh(*pTmp_, *part, nullptr);
+  pTmp_ = &(meta_data.declare_field<double>(stk::topology::NODE_RANK, "pTmp"));
+  stk::mesh::put_field_on_mesh(*pTmp_, selector, nullptr);
 
-  coordinates_ = &(meta_data.declare_field<VectorFieldType>(
-    stk::topology::NODE_RANK, "coordinates"));
-  stk::mesh::put_field_on_mesh(*coordinates_, *part, nDim, nullptr);
+  coordinates_ =
+    &(meta_data.declare_field<double>(stk::topology::NODE_RANK, "coordinates"));
+  stk::mesh::put_field_on_mesh(*coordinates_, selector, nDim, nullptr);
+  stk::io::set_field_output_type(
+    *coordinates_, stk::io::FieldOutputType::VECTOR_3D);
 }
 
 //--------------------------------------------------------------------------
@@ -2846,7 +2936,8 @@ ContinuityEquationSystem::register_nodal_fields(stk::mesh::Part* part)
 //--------------------------------------------------------------------------
 void
 ContinuityEquationSystem::register_element_fields(
-  stk::mesh::Part* /* part */, const stk::topology& /* theTopo */)
+  const stk::mesh::PartVector& /* part_vec */,
+  const stk::topology& /* theTopo */)
 {
   // nothing as of yet
 }
@@ -2855,12 +2946,20 @@ ContinuityEquationSystem::register_element_fields(
 //-------- register_edge_fields -------------------------------------------
 //--------------------------------------------------------------------------
 void
-ContinuityEquationSystem::register_edge_fields(stk::mesh::Part* part)
+ContinuityEquationSystem::register_edge_fields(
+  const stk::mesh::PartVector& part_vec)
 {
+  stk::mesh::Selector selector = stk::mesh::selectUnion(part_vec);
   stk::mesh::MetaData& meta_data = realm_.meta_data();
-  massFlowRate_ = &(meta_data.declare_field<ScalarFieldType>(
+  massFlowRate_ = &(meta_data.declare_field<double>(
     stk::topology::EDGE_RANK, "mass_flow_rate"));
-  stk::mesh::put_field_on_mesh(*massFlowRate_, *part, nullptr);
+  stk::mesh::put_field_on_mesh(*massFlowRate_, selector, nullptr);
+
+  if (realm_.solutionOptions_->realm_has_vof_) {
+    auto massVofBalancedFlowRate_ = &(meta_data.declare_field<double>(
+      stk::topology::EDGE_RANK, "mass_vof_balanced_flow_rate"));
+    stk::mesh::put_field_on_mesh(*massVofBalancedFlowRate_, selector, nullptr);
+  }
 }
 
 //--------------------------------------------------------------------------
@@ -2939,7 +3038,8 @@ ContinuityEquationSystem::register_interior_algorithm(stk::mesh::Part* part)
           }
 
           if (added)
-            NaluEnv::self().naluOutputP0() << " - " << srcName << std::endl;
+            KynemaUGFEnv::self().kynema_ugfOutputP0()
+              << " - " << srcName << std::endl;
         });
     }
     const AlgorithmType algMass = SRC;
@@ -2966,7 +3066,7 @@ ContinuityEquationSystem::register_interior_algorithm(stk::mesh::Part* part)
           ++nonNgpSrcSkipped;
         }
         if (suppAlg != NULL) {
-          NaluEnv::self().naluOutputP0()
+          KynemaUGFEnv::self().kynema_ugfOutputP0()
             << "ContinuityNodalSrcTerms::added " << sourceName << std::endl;
           theAlg->supplementalAlg_.push_back(suppAlg);
         }
@@ -3008,9 +3108,11 @@ ContinuityEquationSystem::register_inflow_bc(
 
   // register boundary data; cont_velocity_bc
   if (!realm_.solutionOptions_->activateOpenMdotCorrection_) {
-    VectorFieldType* theBcField = &(meta_data.declare_field<VectorFieldType>(
+    VectorFieldType* theBcField = &(meta_data.declare_field<double>(
       stk::topology::NODE_RANK, "cont_velocity_bc"));
     stk::mesh::put_field_on_mesh(*theBcField, *part, nDim, nullptr);
+    stk::io::set_field_output_type(
+      *theBcField, stk::io::FieldOutputType::VECTOR_3D);
 
     // extract the value for user specified velocity and save off the
     // AuxFunction
@@ -3035,7 +3137,7 @@ ContinuityEquationSystem::register_inflow_bc(
       std::vector<double> theParams =
         get_bc_function_params(userData, velocityName);
       if (theParams.size() == 0)
-        NaluEnv::self().naluOutputP0()
+        KynemaUGFEnv::self().kynema_ugfOutputP0()
           << "function parameter size is zero" << std::endl;
       // switch on the name found...
       if (fcnName == "convecting_taylor_vortex") {
@@ -3057,12 +3159,14 @@ ContinuityEquationSystem::register_inflow_bc(
       } else if (fcnName == "GaussJet") {
         theAuxFunc = new GaussJetVelocityAuxFunction(0, nDim);
       } else {
-        throw std::runtime_error("ContEquationSystem::register_inflow_bc: "
-                                 "limited functions supported");
+        throw std::runtime_error(
+          "ContEquationSystem::register_inflow_bc: "
+          "limited functions supported");
       }
     } else {
-      throw std::runtime_error("ContEquationSystem::register_inflow_bc: only "
-                               "constant and user function supported");
+      throw std::runtime_error(
+        "ContEquationSystem::register_inflow_bc: only "
+        "constant and user function supported");
     }
 
     // bc data alg
@@ -3137,8 +3241,8 @@ ContinuityEquationSystem::register_open_bc(
   stk::mesh::MetaData& meta_data = realm_.meta_data();
   ScalarFieldType* pressureBC = NULL;
   if (!realm_.solutionOptions_->activateOpenMdotCorrection_) {
-    pressureBC = &(meta_data.declare_field<ScalarFieldType>(
-      stk::topology::NODE_RANK, "pressure_bc"));
+    pressureBC = &(
+      meta_data.declare_field<double>(stk::topology::NODE_RANK, "pressure_bc"));
     stk::mesh::put_field_on_mesh(*pressureBC, *part, nullptr);
   }
 
@@ -3249,7 +3353,7 @@ ContinuityEquationSystem::register_abltop_bc(
     return;
   }
 
-#ifdef NALU_USES_FFTW
+#ifdef KYNEMA_UGF_USES_FFTW
   // algorithm type
   const AlgorithmType algType = TOP_ABL;
 
@@ -3296,7 +3400,7 @@ ContinuityEquationSystem::register_abltop_bc(
 #else
   throw std::runtime_error(
     "Cannot initialize ABL top BC because FFTW support is mising.\n Set "
-    "ENABLE_FFTW to ON in nalu-wind/CMakeLists.txt, reconfigure and "
+    "ENABLE_FFTW to ON in kynema_ugf/CMakeLists.txt, reconfigure and "
     "recompile.");
 #endif
 }
@@ -3314,13 +3418,14 @@ ContinuityEquationSystem::register_non_conformal_bc(
 
   // mdot at nc bc; register field; require topo and num ips
   MasterElement* meFC =
-    sierra::nalu::MasterElementRepo::get_surface_master_element(theTopo);
+    sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
+      theTopo);
   const int numScsBip = meFC->num_integration_points();
 
   stk::topology::rank_t sideRank =
     static_cast<stk::topology::rank_t>(meta_data.side_rank());
   GenericFieldType* mdotBip =
-    &(meta_data.declare_field<GenericFieldType>(sideRank, "nc_mass_flow_rate"));
+    &(meta_data.declare_field<double>(sideRank, "nc_mass_flow_rate"));
   stk::mesh::put_field_on_mesh(*mdotBip, *part, numScsBip, nullptr);
 
   // non-solver; contribution to Gjp; DG algorithm decides on locations for
@@ -3470,9 +3575,19 @@ ContinuityEquationSystem::register_initial_condition_fcn(
       theAuxFunc = new TaylorGreenPressureAuxFunction();
     } else if (fcnName == "kovasznay") {
       theAuxFunc = new KovasznayPressureAuxFunction();
+    } else if (fcnName == "sloshing_tank") {
+      std::map<std::string, std::vector<double>>::const_iterator iterParams =
+        theParams.find(dofName);
+      std::vector<double> fcnParams = (iterParams != theParams.end())
+                                        ? (*iterParams).second
+                                        : std::vector<double>();
+      std::vector<double> gravity = realm_.solutionOptions_->gravity_;
+      fcnParams.emplace_back(gravity[2]);
+      theAuxFunc = new SloshingTankPressureAuxFunction(fcnParams);
     } else {
-      throw std::runtime_error("ContinuityEquationSystem::register_initial_"
-                               "condition_fcn: limited functions supported");
+      throw std::runtime_error(
+        "ContinuityEquationSystem::register_initial_"
+        "condition_fcn: limited functions supported");
     }
 
     // create the algorithm
@@ -3512,9 +3627,9 @@ void
 ContinuityEquationSystem::compute_projected_nodal_gradient()
 {
   if (!managePNG_) {
-    const double timeA = -NaluEnv::self().nalu_time();
+    const double timeA = -KynemaUGFEnv::self().kynema_ugf_time();
     nodalGradAlgDriver_.execute();
-    timerMisc_ += (NaluEnv::self().nalu_time() + timeA);
+    timerMisc_ += (KynemaUGFEnv::self().kynema_ugf_time() + timeA);
   } else {
     projectedNodalGradEqs_->solve_and_update_external();
   }
@@ -3532,10 +3647,11 @@ ContinuityEquationSystem::create_constraint_algorithm(
       new AssembleOversetPressureAlgorithm(realm_, nullptr, this, theField);
     solverAlgDriver_->solverConstraintAlgMap_[algType] = theAlg;
   } else {
-    throw std::runtime_error("ContinuityEquationSystem::register_overset_bc: "
-                             "Multiple invocations of overset is not allowed");
+    throw std::runtime_error(
+      "ContinuityEquationSystem::register_overset_bc: "
+      "Multiple invocations of overset is not allowed");
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

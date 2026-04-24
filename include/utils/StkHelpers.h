@@ -11,7 +11,7 @@
 #include <array>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class Realm;
 
@@ -60,7 +60,7 @@ get_field_ordinal(
   const stk::mesh::EntityRank entity_rank = stk::topology::NODE_RANK)
 {
   stk::mesh::FieldBase* field = meta.get_field(entity_rank, fieldName);
-  ThrowRequireMsg(
+  STK_ThrowRequireMsg(
     (field != nullptr), "Requested field does not exist: " + fieldName);
   return field->mesh_meta_data_ordinal();
 }
@@ -76,9 +76,9 @@ get_field_ordinal(
   const stk::mesh::EntityRank entity_rank = stk::topology::NODE_RANK)
 {
   const auto* field = meta.get_field(entity_rank, fieldName);
-  ThrowRequireMsg(
+  STK_ThrowRequireMsg(
     (field != nullptr), "Requested field does not exist: " + fieldName);
-  ThrowRequireMsg(
+  STK_ThrowRequireMsg(
     (field->is_state_valid(state)), "Requested invalid state: " + fieldName);
 
   const auto* fState = field->field_state(state);
@@ -92,28 +92,19 @@ get_node_field(
   std::string name,
   stk::mesh::FieldState state = stk::mesh::StateNP1)
 {
-  ThrowAssert(meta.get_field(stk::topology::NODE_RANK, name));
-  ThrowAssert(
+  STK_ThrowAssert(meta.get_field(stk::topology::NODE_RANK, name));
+  STK_ThrowAssert(
     meta.get_field(stk::topology::NODE_RANK, name)->field_state(state));
   return stk::mesh::get_updated_ngp_field<T>(
     *meta.get_field(stk::topology::NODE_RANK, name)->field_state(state));
 }
 
-void register_scalar_nodal_field_on_part(
-  stk::mesh::MetaData& meta,
-  std::string name,
-  const stk::mesh::Part& selector,
-  int num_states,
-  double ic = 0);
+// Can replace this function with field.max_extent(0) when
+// using new-enough Trilinos.
+//
+unsigned max_extent(const stk::mesh::FieldBase& field, unsigned dimension);
 
-void register_vector_nodal_field_on_part(
-  stk::mesh::MetaData& meta,
-  std::string name,
-  const stk::mesh::Part& selector,
-  int num_states,
-  std::array<double, 3> x = {{0, 0, 0}});
-
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif /* STKHELPERS_H */

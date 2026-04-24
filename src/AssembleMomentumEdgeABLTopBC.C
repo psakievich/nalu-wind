@@ -7,7 +7,7 @@
 // for more details.
 //
 
-// nalu
+// kynema_ugf
 #include <AssembleMomentumEdgeABLTopBC.h>
 #include <SolverAlgorithm.h>
 #include <EquationSystem.h>
@@ -20,7 +20,7 @@
 #include <stk_mesh/base/BulkData.hpp>
 #include <stk_mesh/base/Field.hpp>
 #include <stk_mesh/base/FieldParallel.hpp>
-#include <stk_mesh/base/GetBuckets.hpp>
+
 #include <stk_mesh/base/GetEntities.hpp>
 #include <stk_mesh/base/MetaData.hpp>
 #include <stk_mesh/base/Part.hpp>
@@ -33,7 +33,7 @@
 #include <cmath>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //==========================================================================
 // Class Definition
@@ -71,10 +71,9 @@ AssembleMomentumEdgeABLTopBC::AssembleMomentumEdgeABLTopBC(
 {
   // save off fields
   stk::mesh::MetaData& meta_data = realm_.meta_data();
-  velocity_ =
-    meta_data.get_field<VectorFieldType>(stk::topology::NODE_RANK, "velocity");
-  bcVelocity_ = meta_data.get_field<VectorFieldType>(
-    stk::topology::NODE_RANK, "cont_velocity_bc");
+  velocity_ = meta_data.get_field<double>(stk::topology::NODE_RANK, "velocity");
+  bcVelocity_ =
+    meta_data.get_field<double>(stk::topology::NODE_RANK, "cont_velocity_bc");
 }
 
 AssembleMomentumEdgeABLTopBC::~AssembleMomentumEdgeABLTopBC()
@@ -241,8 +240,8 @@ AssembleMomentumEdgeABLTopBC::initialize()
   const int nprocs = bulk_data.parallel_size();
   const int myrank = bulk_data.parallel_rank();
 
-  VectorFieldType* coordinates = meta_data.get_field<VectorFieldType>(
-    stk::topology::NODE_RANK, "coordinates");
+  VectorFieldType* coordinates =
+    meta_data.get_field<double>(stk::topology::NODE_RANK, "coordinates");
 
   nx = imax_ - 1;
   ny = jmax_ - 1;
@@ -352,12 +351,14 @@ AssembleMomentumEdgeABLTopBC::initialize()
       "AssembleMomentumEdgeABLTopBC: zSample is not contained in the mesh");
   }
   if ((zSample_ - z0) > 0.95 * zL) {
-    throw std::runtime_error("AssembleMomentumEdgeABLTopBC: zSample is too "
-                             "close to the upper boundary");
+    throw std::runtime_error(
+      "AssembleMomentumEdgeABLTopBC: zSample is too "
+      "close to the upper boundary");
   }
   if ((zSample_ - z0) < 0.5 * zL) {
-    throw std::runtime_error("AssembleMomentumEdgeABLTopBC: zSample is too far "
-                             "away from the upper boundary");
+    throw std::runtime_error(
+      "AssembleMomentumEdgeABLTopBC: zSample is too far "
+      "away from the upper boundary");
   }
 
   // Determine the grid index for the sampling plane.
@@ -1078,5 +1079,5 @@ AssembleMomentumEdgeABLTopBC::potentialBCInflowInflow(
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

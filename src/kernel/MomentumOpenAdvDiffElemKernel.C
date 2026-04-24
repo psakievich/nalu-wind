@@ -11,7 +11,7 @@
 #include "kernel/MomentumOpenAdvDiffElemKernel.h"
 #include "EquationSystem.h"
 #include "master_element/MasterElement.h"
-#include "master_element/MasterElementFactory.h"
+#include "master_element/MasterElementRepo.h"
 #include "PecletFunction.h"
 #include "SolutionOptions.h"
 #include "BuildTemplates.h"
@@ -26,7 +26,7 @@
 #include <stk_mesh/base/Field.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 namespace {
 template <typename BcAlgTraits, typename T, typename S>
@@ -56,7 +56,7 @@ get_shape_fcn_data(
   Kokkos::parallel_for(
     "get_shape_fcn_data", DeviceRangePolicy(0, 1), KOKKOS_LAMBDA(int) {
       SharedMemView<DoubleType**, DeviceShmem> ShmemView(
-        v_shape.data(), BcAlgTraits::numFaceIp_, BcAlgTraits::nodesPerFace_);
+        v_shape.data(), BcAlgTraits::numScsIp_, BcAlgTraits::nodesPerElement_);
       meSCS_dev->shape_fcn<>(ShmemView);
     });
   Kokkos::deep_copy(v_shape_function, v_shape);
@@ -78,8 +78,8 @@ get_shape_fcn_data(
   Kokkos::parallel_for(
     "get_shape_fcn_data", DeviceRangePolicy(0, 1), KOKKOS_LAMBDA(int) {
       SharedMemView<DoubleType**, DeviceShmem> ShmemView(
-        v_adv_shape.data(), BcAlgTraits::numFaceIp_,
-        BcAlgTraits::nodesPerFace_);
+        v_adv_shape.data(), BcAlgTraits::numScsIp_,
+        BcAlgTraits::nodesPerElement_);
       if (skew)
         meSCS_dev->shifted_shape_fcn<>(ShmemView);
       else
@@ -94,7 +94,7 @@ MomentumOpenAdvDiffElemKernel<BcAlgTraits>::MomentumOpenAdvDiffElemKernel(
   const SolutionOptions& solnOpts,
   EquationSystem* eqSystem,
   VectorFieldType* velocity,
-  GenericFieldType* Gjui,
+  TensorFieldType* Gjui,
   ScalarFieldType* viscosity,
   ElemDataRequests& faceDataPreReqs,
   ElemDataRequests& elemDataPreReqs,
@@ -111,13 +111,15 @@ MomentumOpenAdvDiffElemKernel<BcAlgTraits>::MomentumOpenAdvDiffElemKernel(
     nocFac_(solnOpts.get_noc_usage("velocity") ? 1.0 : 0.0),
     shiftedGradOp_(solnOpts.get_shifted_grad_op(velocity->name())),
     entrain_(method),
-    faceIpNodeMap_(sierra::nalu::MasterElementRepo::get_surface_master_element(
-                     BcAlgTraits::faceTopo_)
-                     ->ipNodeMap()),
-    meSCS_(sierra::nalu::MasterElementRepo::get_surface_master_element(
-      BcAlgTraits::elemTopo_)),
+    faceIpNodeMap_(
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
+        BcAlgTraits::faceTopo_)
+        ->ipNodeMap()),
+    meSCS_(
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
+        BcAlgTraits::elemTopo_)),
     meSCS_dev_(
-      sierra::nalu::MasterElementRepo::get_surface_master_element_on_dev(
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_dev(
         BcAlgTraits::elemTopo_)),
     pecletFunction_(
       eqSystem->create_peclet_function<DoubleType>(velocity->name()))
@@ -139,10 +141,10 @@ MomentumOpenAdvDiffElemKernel<BcAlgTraits>::MomentumOpenAdvDiffElemKernel(
 
   // extract master elements
   MasterElement* meFC =
-    sierra::nalu::MasterElementRepo::get_surface_master_element(
+    sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
       BcAlgTraits::faceTopo_);
   MasterElement* meFC_dev =
-    sierra::nalu::MasterElementRepo::get_surface_master_element_on_dev(
+    sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_dev(
       BcAlgTraits::faceTopo_);
 
   // add master elements
@@ -196,16 +198,16 @@ MomentumOpenAdvDiffElemKernel<BcAlgTraits>::execute(
   ScratchViews<DoubleType>& elemScratchViews,
   int elemFaceOrdinal)
 {
-  NALU_ALIGNED DoubleType w_uBip[BcAlgTraits::nDim_];
-  NALU_ALIGNED DoubleType w_uScs[BcAlgTraits::nDim_];
-  NALU_ALIGNED DoubleType w_uBipExtrap[BcAlgTraits::nDim_];
-  NALU_ALIGNED DoubleType w_uspecBip[BcAlgTraits::nDim_];
-  NALU_ALIGNED DoubleType w_coordBip[BcAlgTraits::nDim_];
-  NALU_ALIGNED DoubleType w_nx[BcAlgTraits::nDim_];
-  NALU_ALIGNED DoubleType w_GuBip[BcAlgTraits::nDim_ * BcAlgTraits::nDim_];
-  NALU_ALIGNED DoubleType w_NOC[BcAlgTraits::nDim_];
-  NALU_ALIGNED DoubleType w_coordScs[BcAlgTraits::nDim_];
-  NALU_ALIGNED DoubleType w_dxBip[BcAlgTraits::nDim_];
+  DoubleType w_uBip[BcAlgTraits::nDim_];
+  DoubleType w_uScs[BcAlgTraits::nDim_];
+  DoubleType w_uBipExtrap[BcAlgTraits::nDim_];
+  DoubleType w_uspecBip[BcAlgTraits::nDim_];
+  DoubleType w_coordBip[BcAlgTraits::nDim_];
+  DoubleType w_nx[BcAlgTraits::nDim_];
+  DoubleType w_GuBip[BcAlgTraits::nDim_ * BcAlgTraits::nDim_];
+  DoubleType w_NOC[BcAlgTraits::nDim_];
+  DoubleType w_coordScs[BcAlgTraits::nDim_];
+  DoubleType w_dxBip[BcAlgTraits::nDim_];
 
   const int* face_node_ordinals = meSCS_->side_node_ordinals(elemFaceOrdinal);
 
@@ -469,7 +471,7 @@ MomentumOpenAdvDiffElemKernel<BcAlgTraits>::execute(
         break;
       }
       default:
-        NGP_ThrowErrorMsg("invalid entrainment method");
+        STK_NGP_ThrowErrorMsg("invalid entrainment method");
       }
     }
 
@@ -534,5 +536,5 @@ MomentumOpenAdvDiffElemKernel<BcAlgTraits>::execute(
 
 INSTANTIATE_KERNEL_FACE_ELEMENT(MomentumOpenAdvDiffElemKernel)
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

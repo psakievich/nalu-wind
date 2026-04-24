@@ -34,7 +34,6 @@
 #include "stk_mesh/base/Bucket.hpp"
 #include "stk_mesh/base/Field.hpp"
 #include "stk_mesh/base/FieldBase.hpp"
-#include "stk_mesh/base/FieldTraits.hpp"
 #include "stk_mesh/base/GetNgpField.hpp"
 
 #include "stk_mesh/base/MetaData.hpp"
@@ -51,7 +50,7 @@
 #include <vector>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 
 class GradientSolveFixture : public GradientFixture
@@ -63,8 +62,9 @@ protected:
       exporter(
         Teuchos::rcpFromRef(linsys.owned_and_shared),
         Teuchos::rcpFromRef(linsys.owned)),
-      offsets(create_offset_map<order>(
-        mesh(), active(), linsys.stk_lid_to_tpetra_lid)),
+      offsets(
+        create_offset_map<order>(
+          mesh(), active(), linsys.stk_lid_to_tpetra_lid)),
       bc_faces(
         face_offsets<order>(mesh(), side(), linsys.stk_lid_to_tpetra_lid))
   {
@@ -289,5 +289,5 @@ TEST_F(ComputeGradientFixture, error_in_gradient_is_smallish_for_harmonic_field)
 }
 
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

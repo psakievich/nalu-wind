@@ -10,11 +10,11 @@
 #include <aero/actuator/ActuatorSearch.h>
 #include <stk_search/CoarseSearch.hpp>
 #include <FieldTypeDef.h>
-#include <NaluEnv.h>
+#include <KynemaUGFEnv.h>
 #include <aero/actuator/UtilitiesActuator.h>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 VecBoundSphere
 CreateBoundingSpheres(ActFixVectorDbl points, ActFixScalarDbl radius)
@@ -49,7 +49,7 @@ CreateElementBoxes(
 
   // fields
   VectorFieldType* coordinates =
-    stkMeta.get_field<VectorFieldType>(stk::topology::NODE_RANK, "coordinates");
+    stkMeta.get_field<double>(stk::topology::NODE_RANK, "coordinates");
 
   // point data structures
   Point minCorner, maxCorner;
@@ -161,13 +161,13 @@ ExecuteFineSearch(
 {
   const int nDim = 3;
 
-  ThrowAssert(isLocalPoint.extent(0) == points.extent(0));
-  ThrowAssert(coarsePointIds.extent(0) == coarseElemIds.extent(0));
+  STK_ThrowAssert(isLocalPoint.extent(0) == points.extent(0));
+  STK_ThrowAssert(coarsePointIds.extent(0) == coarseElemIds.extent(0));
 
   // extract fields
   stk::mesh::MetaData& stkMeta = stkBulk.mesh_meta_data();
   VectorFieldType* coordinates =
-    stkMeta.get_field<VectorFieldType>(stk::topology::NODE_RANK, "coordinates");
+    stkMeta.get_field<double>(stk::topology::NODE_RANK, "coordinates");
 
   for (unsigned i = 0; i < isLocalPoint.extent(0); i++) {
     isLocalPoint(i) = false;
@@ -194,7 +194,8 @@ ExecuteFineSearch(
     const stk::mesh::Bucket& theBucket = stkBulk.bucket(elem);
     const stk::topology& elemTopo = theBucket.topology();
     MasterElement* meSCS =
-      sierra::nalu::MasterElementRepo::get_surface_master_element(elemTopo);
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
+        elemTopo);
     const int nodesPerElement = meSCS->nodesPerElement_;
 
     // gather elemental coords
@@ -220,5 +221,5 @@ ExecuteFineSearch(
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

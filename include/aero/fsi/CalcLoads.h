@@ -15,8 +15,20 @@
 // stk
 #include <stk_mesh/base/Part.hpp>
 
+#include "aero/aero_utils/ForceMoment.h"
+
+namespace fsi {
+std::array<double, 6> accumulateLoadsAndMoments(
+  const stk::mesh::BulkData& bulk,
+  const stk::mesh::PartVector& surface,
+  const sierra::kynema_ugf::VectorFieldType& modelCoords,
+  const sierra::kynema_ugf::VectorFieldType& meshDisp,
+  const sierra::kynema_ugf::GenericFieldType& tforceSCS,
+  std::array<double, 3>& center_of_mass);
+}
+
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class Realm;
 
@@ -27,6 +39,8 @@ public:
   ~CalcLoads();
 
   void setup(std::shared_ptr<stk::mesh::BulkData> bulk);
+
+  void initialize();
 
   void execute();
 
@@ -41,12 +55,12 @@ public:
   ScalarFieldType* pressure_;
   ScalarFieldType* density_;
   ScalarFieldType* viscosity_;
-  GenericFieldType* dudx_;
+  TensorFieldType* dudx_;
   GenericFieldType* exposedAreaVec_;
   GenericFieldType* tforceSCS_;
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

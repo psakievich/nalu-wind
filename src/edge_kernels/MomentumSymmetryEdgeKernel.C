@@ -10,7 +10,7 @@
 #include "SimdInterface.h"
 #include "edge_kernels/MomentumSymmetryEdgeKernel.h"
 #include "master_element/MasterElement.h"
-#include "master_element/MasterElementFactory.h"
+#include "master_element/MasterElementRepo.h"
 #include "SolutionOptions.h"
 
 #include "BuildTemplates.h"
@@ -20,7 +20,7 @@
 #include "stk_mesh/base/Field.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 template <typename BcAlgTraits>
 MomentumSymmetryEdgeKernel<BcAlgTraits>::MomentumSymmetryEdgeKernel(
@@ -39,10 +39,12 @@ MomentumSymmetryEdgeKernel<BcAlgTraits>::MomentumSymmetryEdgeKernel(
       get_field_ordinal(meta, "exposed_area_vector", meta.side_rank())),
     dudx_(get_field_ordinal(meta, "dudx")),
     includeDivU_(solnOpts.includeDivU_),
-    meFC_(sierra::nalu::MasterElementRepo::get_surface_master_element<
-          typename BcAlgTraits::FaceTraits>()),
-    meSCS_(sierra::nalu::MasterElementRepo::get_surface_master_element<
-           typename BcAlgTraits::ElemTraits>()),
+    meFC_(
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_dev(
+        BcAlgTraits::FaceTraits::topo_)),
+    meSCS_(
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_dev(
+        BcAlgTraits::ElemTraits::topo_)),
     penaltyFactor_(solnOpts.symmetryBcPenaltyFactor_)
 {
   faceDataPreReqs.add_cvfem_face_me(meFC_);
@@ -68,8 +70,8 @@ MomentumSymmetryEdgeKernel<BcAlgTraits>::execute(
   int elemFaceOrdinal)
 {
   // Work arrays
-  NALU_ALIGNED DoubleType nx[BcAlgTraits::nDim_];
-  NALU_ALIGNED DoubleType duidxj[BcAlgTraits::nDim_][BcAlgTraits::nDim_];
+  DoubleType nx[BcAlgTraits::nDim_];
+  DoubleType duidxj[BcAlgTraits::nDim_][BcAlgTraits::nDim_];
 
   // Field variables on the boundary face
   auto& v_visc = faceScratchViews.get_scratch_view_1D(viscosity_);
@@ -207,5 +209,5 @@ MomentumSymmetryEdgeKernel<BcAlgTraits>::execute(
 
 INSTANTIATE_KERNEL_FACE_ELEMENT(MomentumSymmetryEdgeKernel)
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

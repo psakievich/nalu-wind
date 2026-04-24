@@ -36,7 +36,7 @@ class CommNeighbors;
 }
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class Realm;
 class EquationSystem;
@@ -253,9 +253,9 @@ public:
       const SharedMemView<const double**, DeviceShmem>& lhs,
       const char* trace_tag);
 
-    void free_device_pointer(){};
+    void free_device_pointer() {};
 
-    sierra::nalu::CoeffApplier* device_pointer() { return nullptr; };
+    sierra::kynema_ugf::CoeffApplier* device_pointer() { return nullptr; };
 
   private:
     LinSys::LocalMatrix ownedLocalMatrix_, sharedNotOwnedLocalMatrix_;
@@ -363,12 +363,12 @@ copy_kokkos_unordered_map(
       fail_count += insert_result.failed() ? 1 : 0;
     }
   }
-  ThrowRequire(fail_count == 0);
+  STK_ThrowRequire(fail_count == 0);
 }
 
 int getDofStatus_impl(stk::mesh::Entity node, const Realm& realm);
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

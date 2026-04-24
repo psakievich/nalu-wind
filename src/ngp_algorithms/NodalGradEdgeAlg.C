@@ -16,7 +16,7 @@
 #include "stk_mesh/base/NgpMesh.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 template <typename PhiType, typename GradPhiType>
 NodalGradEdgeAlg<PhiType, GradPhiType>::NodalGradEdgeAlg(
@@ -27,18 +27,39 @@ NodalGradEdgeAlg<PhiType, GradPhiType>::NodalGradEdgeAlg(
     edgeAreaVec_(get_field_ordinal(
       realm_.meta_data(), "edge_area_vector", stk::topology::EDGE_RANK)),
     dualNodalVol_(get_field_ordinal(realm_.meta_data(), "dual_nodal_volume")),
-    dim1_(
-      std::is_same<PhiType, ScalarFieldType>::value ? 1
-                                                    : realm_.spatialDimension_),
+    dim1_(max_extent(*phi, 0)),
     dim2_(realm_.meta_data().spatial_dimension())
 {
+  const int gradPhiSize = max_extent(*gradPhi, 0);
+  if (dim1_ == 1) {
+    STK_ThrowRequireMsg(
+      gradPhiSize == dim2_, "NodalGradEdgeAlg called with scalar input field '"
+                              << phi->name()
+                              << "' but with non-vector output field '"
+                              << gradPhi->name() << "' of length "
+                              << gradPhiSize << " (should be " << dim2_ << ")");
+  } else if (dim1_ == dim2_) {
+    STK_ThrowRequireMsg(
+      gradPhiSize == dim2_ * dim2_,
+      "NodalGradBndryElemAlg called with vector input field '"
+        << phi->name() << "' but with non-tensor output field '"
+        << gradPhi->name() << "' of length " << gradPhiSize << " (should be "
+        << dim2_ * dim2_ << ")");
+  } else {
+    STK_ThrowErrorMsg(
+      "NodalGradBndryElemAlg called with an input field '"
+      << phi->name()
+      << "' that is not a scalar or a vector.  "
+         "Actual length = "
+      << dim1_);
+  }
 }
 
 template <typename PhiType, typename GradPhiType>
 void
 NodalGradEdgeAlg<PhiType, GradPhiType>::execute()
 {
-  using EntityInfoType = nalu_ngp::EntityInfo<stk::mesh::NgpMesh>;
+  using EntityInfoType = kynema_ugf_ngp::EntityInfo<stk::mesh::NgpMesh>;
   const auto& meshInfo = realm_.mesh_info();
   const auto& meta = meshInfo.meta();
   const auto ngpMesh = meshInfo.ngp_mesh();
@@ -48,7 +69,8 @@ NodalGradEdgeAlg<PhiType, GradPhiType>::execute()
   const auto edgeAreaVec = fieldMgr.template get_field<double>(edgeAreaVec_);
   const auto dualVol = fieldMgr.template get_field<double>(dualNodalVol_);
   auto gradPhi = fieldMgr.template get_field<double>(gradPhi_);
-  const auto gradPhiOps = nalu_ngp::edge_nodal_field_updater(ngpMesh, gradPhi);
+  const auto gradPhiOps =
+    kynema_ugf_ngp::edge_nodal_field_updater(ngpMesh, gradPhi);
 
   const stk::mesh::Selector sel = meta.locally_owned_part() &
                                   stk::mesh::selectUnion(partVec_) &
@@ -61,9 +83,9 @@ NodalGradEdgeAlg<PhiType, GradPhiType>::execute()
   gradPhi.sync_to_device();
 
   const std::string algName = meta.get_fields()[gradPhi_]->name() + "_edge";
-  nalu_ngp::run_edge_algorithm(
+  kynema_ugf_ngp::run_edge_algorithm(
     algName, ngpMesh, sel, KOKKOS_LAMBDA(const EntityInfoType& einfo) {
-      NALU_ALIGNED DblType av[NDimMax];
+      DblType av[NDimMax];
 
       for (int d = 0; d < dim2; ++d)
         av[d] = edgeAreaVec.get(einfo.meshIdx, d);
@@ -90,7 +112,6 @@ NodalGradEdgeAlg<PhiType, GradPhiType>::execute()
 }
 
 template class NodalGradEdgeAlg<ScalarFieldType, VectorFieldType>;
-template class NodalGradEdgeAlg<VectorFieldType, GenericFieldType>;
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

@@ -1,6 +1,6 @@
 ############################ BASE ######################################
 cmake_minimum_required (VERSION 3.17.0 FATAL_ERROR)
-project(Nalu-Wind CXX)
+project(Kynema-UGF CXX)
 include(CMakeDependentOption)
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
@@ -10,18 +10,13 @@ option(ENABLE_ROCM "Enable build targeting AMD GPU" OFF)
 option(ENABLE_UMPIRE "Enable Umpire GPU memory pools" OFF)
 option(ENABLE_TESTS "Enable regression testing." OFF)
 option(ENABLE_UNIT_TESTS "Enable unit testing." ON)
-option(ENABLE_EXAMPLES "Enable examples." OFF)
-option(ENABLE_DOCUMENTATION "Build documentation." OFF)
-option(ENABLE_SPHINX_API_DOCS "Link Doxygen API docs to Sphinx" OFF)
-option(ENABLE_WIND_UTILS "Build wind utils along with Nalu-Wind" OFF)
+option(ENABLE_WIND_UTILS "Build wind utils along with Kynema-UGF" OFF)
 option(ENABLE_FFTW "Use the FFTW library to support ABLTopBC" OFF)
 option(ENABLE_HYPRE "Use HYPRE Solver library" ON)
 option(ENABLE_TRILINOS_SOLVERS "Use Trilinos Solvers" ON)
 
 option(ENABLE_OPENFAST
-       "Use OPENFAST tpl to get actuator line positions and forces" OFF)
-cmake_dependent_option(ENABLE_OPENFAST_FSI "Temporary option while FSI features are not merged into main OpenFAST"
-  OFF "ENABLE_OPENFAST" OFF)
+       "Use OPENFAST TPL to get actuator line positions and forces" OFF)
 option(ENABLE_PARAVIEW_CATALYST
       "Enable ParaView Catalyst. Requires external installation of Trilinos Catalyst IOSS adapter."
        OFF)
@@ -29,8 +24,9 @@ option(ENABLE_TIOGA "Use TIOGA TPL to perform overset connectivity" OFF)
 option(ENABLE_OPENMP "Enable OpenMP flags" OFF)
 option(ENABLE_BOOST  "Enable Boost libraries" OFF)
 option(ENABLE_MATRIXFREE "Enable high-order matrix-free computation" ON)
+option(ENABLE_KYNEMA_SIXDOF "Use Kynema as 6 degree-of-freedom solver" OFF)
 
-option(NALU_WIND_SAVE_GOLDS  "Save gold files to directory when running tests" OFF)
+option(KYNEMA_UGF_SAVE_GOLDS  "Save gold files to directory when running tests" OFF)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -46,25 +42,22 @@ if(ENABLE_MATRIXFREE AND NOT ENABLE_TRILINOS_SOLVERS)
 endif()
 
 # Create targets
-set(nalu_ex_name "naluX")
-add_executable(${nalu_ex_name} ${CMAKE_CURRENT_SOURCE_DIR}/nalu.C)
+set(kynema_ugf_ex_name "kynema-ugf")
+add_executable(${kynema_ugf_ex_name} ${CMAKE_CURRENT_SOURCE_DIR}/kynema_ugf.C)
 
 if(ENABLE_UNIT_TESTS)
-  set(utest_ex_name "unittestX")
+  set(utest_ex_name "kynema-ugf-unit-tests")
   add_executable(${utest_ex_name} ${CMAKE_CURRENT_SOURCE_DIR}/unit_tests.C)
 endif()
 
-add_library(nalu "")
-
-########################## MPI ####################################
-find_package(MPI REQUIRED)
-target_link_libraries(nalu PUBLIC $<$<BOOL:${MPI_CXX_FOUND}>:MPI::MPI_CXX>)
+set(kynema_ugf_lib_name "kynema-ugf-lib")
+add_library(${kynema_ugf_lib_name} "")
 
 if(ENABLE_CUDA)
   enable_language(CUDA)
   find_package(CUDAToolkit REQUIRED)
   message(STATUS "Found CUDAToolkit = ${CUDAToolkit_VERSION} (${CUDAToolkit_LIBRARY_DIR})")
-  target_link_libraries(nalu PUBLIC
+  target_link_libraries(${kynema_ugf_lib_name} PUBLIC
     CUDA::cusparse
     CUDA::curand
     CUDA::cudart
@@ -75,23 +68,17 @@ endif()
 if(ENABLE_ROCM)
   find_package(hip REQUIRED)
   message(STATUS "Found HIP = ${HIP_PATH}")
-  target_link_libraries(nalu PUBLIC ${HIP_LIBRARIES})
-endif()
-
-if (ENABLE_UMPIRE)
-  set(CMAKE_PREFIX_PATH ${UMPIRE_DIR} ${CMAKE_PREFIX_PATH})
-  find_package(Umpire REQUIRED)
-  include_directories(SYSTEM ${UMPIRE_INCLUDE_DIRS})
+  target_link_libraries(${kynema_ugf_lib_name} PUBLIC ${HIP_LIBRARIES})
 endif()
 
 # Handle issues for Power9 builds
 if ((${CMAKE_SYSTEM_PROCESSOR} MATCHES "ppc") AND (NOT ENABLE_CUDA))
-  # Fix warnings regarding NALU_ALIGNED in CPU builds
-  target_compile_definitions(nalu PUBLIC NALU_USE_POWER9_ALIGNMENT)
+  # Fix warnings regarding KYNEMA_UGF_ALIGNED in CPU builds
+  target_compile_definitions(${kynema_ugf_lib_name} PUBLIC KYNEMA_UGF_USE_POWER9_ALIGNMENT)
   if ((${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU") AND
       (${CMAKE_CXX_COMPILER_VERSION} VERSION_LESS 9.0))
     # Skip SIMD when building with GCC versions less than 9.0
-    target_compile_definitions(nalu PUBLIC USE_STK_SIMD_NONE)
+    target_compile_definitions(${kynema_ugf_lib_name} PUBLIC USE_STK_SIMD_NONE)
   endif()
 endif()
 
@@ -99,9 +86,9 @@ endif()
 set(CMAKE_PREFIX_PATH ${Trilinos_DIR} ${CMAKE_PREFIX_PATH})
 find_package(Trilinos QUIET REQUIRED)
 message(STATUS "Found Trilinos = ${Trilinos_LIBRARY_DIRS}")
-target_link_libraries(nalu PUBLIC ${Trilinos_LIBRARIES})
-target_include_directories(nalu SYSTEM PUBLIC ${Trilinos_INCLUDE_DIRS})
-target_include_directories(nalu SYSTEM PUBLIC ${Trilinos_TPL_INCLUDE_DIRS})
+target_link_libraries(${kynema_ugf_lib_name} PUBLIC ${Trilinos_LIBRARIES})
+target_include_directories(${kynema_ugf_lib_name} SYSTEM PUBLIC ${Trilinos_INCLUDE_DIRS})
+target_include_directories(${kynema_ugf_lib_name} SYSTEM PUBLIC ${Trilinos_TPL_INCLUDE_DIRS})
 if(Trilinos_BUILD_SHARED_LIBS)
   set(BUILD_SHARED_LIBS ON)
 endif()
@@ -111,39 +98,39 @@ if(ENABLE_BOOST)
   set(CMAKE_PREFIX_PATH ${Boost_DIR} ${CMAKE_PREFIX_PATH})
   find_package(Boost REQUIRED COMPONENTS filesystem iostreams)
   if(Boost_VERSION VERSION_GREATER_EQUAL "1.70.0")
-    target_link_libraries(nalu PUBLIC Boost::filesystem Boost::iostreams)
+    target_link_libraries(${kynema_ugf_lib_name} PUBLIC Boost::filesystem Boost::iostreams)
   else()
-    target_link_libraries(nalu PUBLIC ${Boost_LIBRARIES})
+    target_link_libraries(${kynema_ugf_lib_name} PUBLIC ${Boost_LIBRARIES})
   endif()
-  target_compile_definitions(nalu PUBLIC NALU_USES_BOOST)
+  target_compile_definitions(${kynema_ugf_lib_name} PUBLIC KYNEMA_UGF_USES_BOOST)
 endif()
 
 ############################ YAML ######################################
 set(CMAKE_PREFIX_PATH ${YAML_DIR} ${CMAKE_PREFIX_PATH})
 find_package(YAML-CPP 0.6.2 QUIET REQUIRED)
 message(STATUS "Found YAML-CPP = ${YAML_CPP_CMAKE_DIR}")
-target_link_libraries(nalu PUBLIC yaml-cpp)
-target_include_directories(nalu SYSTEM PUBLIC ${YAML_CPP_INCLUDE_DIR})
+target_link_libraries(${kynema_ugf_lib_name} PUBLIC yaml-cpp)
+target_include_directories(${kynema_ugf_lib_name} SYSTEM PUBLIC ${YAML_CPP_INCLUDE_DIR})
 
 ########################## OpenMP ####################################
 if(ENABLE_OPENMP)
   find_package(OpenMP REQUIRED)
-  target_link_libraries(nalu PUBLIC $<$<BOOL:${OpenMP_CXX_FOUND}>:OpenMP::OpenMP_CXX>)
+  target_link_libraries(${kynema_ugf_lib_name} PUBLIC $<$<BOOL:${OpenMP_CXX_FOUND}>:OpenMP::OpenMP_CXX>)
 endif()
 
 ############################ GPU ######################################
 if(ENABLE_CUDA OR ENABLE_ROCM)
-  target_compile_definitions(nalu PUBLIC USE_STK_SIMD_NONE)
+  target_compile_definitions(${kynema_ugf_lib_name} PUBLIC USE_STK_SIMD_NONE)
   separate_arguments(Trilinos_CXX_COMPILER_FLAGS)
-  target_compile_options(nalu PUBLIC $<$<COMPILE_LANGUAGE:CXX>:${Trilinos_CXX_COMPILER_FLAGS}>)
+  target_compile_options(${kynema_ugf_lib_name} PUBLIC $<$<COMPILE_LANGUAGE:CXX>:${Trilinos_CXX_COMPILER_FLAGS}>)
   if(ENABLE_CUDA)
-    target_compile_options(nalu PUBLIC $<$<COMPILE_LANGUAGE:CXX>:--expt-relaxed-constexpr>)
+    target_compile_options(${kynema_ugf_lib_name} PUBLIC $<$<COMPILE_LANGUAGE:CXX>:--expt-relaxed-constexpr>)
     # if (CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL "11.0.194")
-    #   target_compile_options(nalu PUBLIC $<$<COMPILE_LANGUAGE:CXX>:--Werror ext-lambda-captures-this>)
+    #   target_compile_options(${kynema_ugf_lib_name} PUBLIC $<$<COMPILE_LANGUAGE:CXX>:--Werror ext-lambda-captures-this>)
     # endif()
   endif()
   if(ENABLE_ROCM)
-    target_compile_options(nalu PUBLIC $<$<COMPILE_LANGUAGE:CXX>:-fgpu-rdc -Wno-deprecated-register>)
+    target_compile_options(${kynema_ugf_lib_name} PUBLIC $<$<COMPILE_LANGUAGE:CXX>:-fgpu-rdc -Wno-deprecated-register>)
   endif()
 endif()
 
@@ -152,9 +139,9 @@ if(ENABLE_FFTW)
   set(CMAKE_PREFIX_PATH ${FFTW_DIR} ${CMAKE_PREFIX_PATH})
   find_package(FFTW QUIET REQUIRED)
   message(STATUS "Found FFTW = ${FFTW3_LIBRARY_DIRS}")
-  target_link_libraries(nalu PUBLIC ${FFTW_LIBRARIES})
-  target_include_directories(nalu SYSTEM PUBLIC ${FFTW_INCLUDE_DIRS})
-  target_compile_definitions(nalu PUBLIC NALU_USES_FFTW)
+  target_link_libraries(${kynema_ugf_lib_name} PUBLIC ${FFTW_LIBRARIES})
+  target_include_directories(${kynema_ugf_lib_name} SYSTEM PUBLIC ${FFTW_INCLUDE_DIRS})
+  target_compile_definitions(${kynema_ugf_lib_name} PUBLIC KYNEMA_UGF_USES_FFTW)
 endif()
 
 ############################ HYPRE #####################################
@@ -162,34 +149,47 @@ if(ENABLE_HYPRE)
   set(CMAKE_PREFIX_PATH ${HYPRE_DIR} ${CMAKE_PREFIX_PATH})
   find_package(HYPRE 2.18.2 REQUIRED)
   message(STATUS "Found HYPRE = ${HYPRE_DIR}")
-  target_link_libraries(nalu PUBLIC ${HYPRE_LIBRARIES})
-  target_include_directories(nalu SYSTEM PUBLIC ${HYPRE_INCLUDE_DIRS})
-  target_compile_definitions(nalu PUBLIC NALU_USES_HYPRE)
+  target_link_libraries(${kynema_ugf_lib_name} PUBLIC ${HYPRE_LIBRARIES})
+  target_include_directories(${kynema_ugf_lib_name} SYSTEM PUBLIC ${HYPRE_INCLUDE_DIRS})
+  target_compile_definitions(${kynema_ugf_lib_name} PUBLIC KYNEMA_UGF_USES_HYPRE)
   include(CheckCXXSymbolExists)
   check_cxx_symbol_exists(
-    HYPRE_BIGINT "${HYPRE_INCLUDE_DIRS}/HYPRE_config.h" NALU_HYPRE_BIGINT)
-  if(NOT NALU_HYPRE_BIGINT AND NOT ENABLE_CUDA)
+    HYPRE_BIGINT "${HYPRE_INCLUDE_DIRS}/HYPRE_config.h" KYNEMA_UGF_HYPRE_BIGINT)
+  if(NOT KYNEMA_UGF_HYPRE_BIGINT AND NOT ENABLE_CUDA)
     message(STATUS
       "HYPRE does not enable 64-bit integer support; will fail on large problems!")
   endif()
 endif()
 
+if (ENABLE_UMPIRE)
+  set(CMAKE_PREFIX_PATH ${UMPIRE_DIR} ${CMAKE_PREFIX_PATH})
+  find_package(Umpire REQUIRED)
+  target_include_directories(${kynema_ugf_lib_name} SYSTEM PUBLIC ${UMPIRE_DIR}/include)
+endif()
+
 ##################### Trilinos Solvers: tpetra,belos,muelu ##########################
 if(ENABLE_TRILINOS_SOLVERS)
-  target_compile_definitions(nalu PUBLIC NALU_USES_TRILINOS_SOLVERS)
+  target_compile_definitions(${kynema_ugf_lib_name} PUBLIC KYNEMA_UGF_USES_TRILINOS_SOLVERS)
 endif()
 
 ########################## OPENFAST ####################################
-if(ENABLE_OPENFAST_FSI)
-  target_compile_definitions(nalu PUBLIC NALU_USES_OPENFAST_FSI)
-endif()
 if(ENABLE_OPENFAST)
   set(CMAKE_PREFIX_PATH ${OpenFAST_DIR} ${CMAKE_PREFIX_PATH})
+  enable_language(Fortran)
   find_package(OpenFAST QUIET REQUIRED)
   message(STATUS "Found OpenFAST = ${OpenFAST_LIBRARY_DIRS}")
-  target_link_libraries(nalu PUBLIC ${OpenFAST_LIBRARIES} ${OpenFAST_CPP_LIBRARIES})
-  target_include_directories(nalu SYSTEM PUBLIC ${OpenFAST_INCLUDE_DIRS})
-  target_compile_definitions(nalu PUBLIC NALU_USES_OPENFAST)
+  target_link_libraries(${kynema_ugf_lib_name} PUBLIC ${OpenFAST_LIBRARIES} ${OpenFAST_CPP_LIBRARIES})
+  target_include_directories(${kynema_ugf_lib_name} SYSTEM PUBLIC ${OpenFAST_INCLUDE_DIRS})
+  target_compile_definitions(${kynema_ugf_lib_name} PUBLIC KYNEMA_UGF_USES_OPENFAST)
+endif()
+
+########################## KYNEMA ####################################
+if(ENABLE_KYNEMA_SIXDOF)
+  set(CMAKE_PREFIX_PATH ${KYNEMA_DIR} ${CMAKE_PREFIX_PATH})
+  find_package(Kynema QUIET REQUIRED)
+  message(STATUS "Found Kynema = ${Kynema_LIBRARY_DIRS}")
+  target_link_libraries(${kynema_ugf_lib_name} PRIVATE Kynema::kynema_library)
+  target_compile_definitions(${kynema_ugf_lib_name} PUBLIC KYNEMA_UGF_USES_KYNEMA)
 endif()
 
 ############################ TIOGA #####################################
@@ -197,51 +197,55 @@ if(ENABLE_TIOGA)
   set(CMAKE_PREFIX_PATH ${TIOGA_DIR} ${CMAKE_PREFIX_PATH})
   find_package(TIOGA QUIET REQUIRED)
   message(STATUS "Found TIOGA = ${TIOGA_LIBRARY_DIRS}")
-  target_link_libraries(nalu PUBLIC ${TIOGA_LIBRARIES})
-  target_include_directories(nalu SYSTEM PUBLIC ${TIOGA_INCLUDE_DIRS})
-  target_compile_definitions(nalu PUBLIC NALU_USES_TIOGA)
+  target_link_libraries(${kynema_ugf_lib_name} PUBLIC ${TIOGA_LIBRARIES})
+  target_include_directories(${kynema_ugf_lib_name} SYSTEM PUBLIC ${TIOGA_INCLUDE_DIRS})
+  target_compile_definitions(${kynema_ugf_lib_name} PUBLIC KYNEMA_UGF_USES_TIOGA)
   if(TIOGA_HAS_NODEGID)
-    target_compile_definitions(nalu PUBLIC TIOGA_HAS_NODEGID)
+    target_compile_definitions(${kynema_ugf_lib_name} PUBLIC TIOGA_HAS_NODEGID)
   endif()
 endif()
 
+########################## MPI ####################################
+find_package(MPI REQUIRED)
+target_link_libraries(${kynema_ugf_lib_name} PUBLIC $<$<BOOL:${MPI_CXX_FOUND}>:MPI::MPI_CXX>)
+target_link_libraries(${kynema_ugf_lib_name} PUBLIC $<$<BOOL:${MPI_Fortran_FOUND}>:MPI::MPI_Fortran>)
 
 ############################ MATRIXREE #####################################
 if(ENABLE_MATRIXFREE)
-    target_compile_definitions(nalu PUBLIC NALU_HAS_MATRIXFREE)
+    target_compile_definitions(${kynema_ugf_lib_name} PUBLIC KYNEMA_UGF_HAS_MATRIXFREE)
 endif()
-########################### NALU #####################################
+########################### KYNEMA_UGF #####################################
 message(STATUS "CMAKE_SYSTEM_NAME = ${CMAKE_SYSTEM_NAME}")
 message(STATUS "CMAKE_CXX_COMPILER_ID = ${CMAKE_CXX_COMPILER_ID}")
 message(STATUS "CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 
 # Add -restrict to Intel CXX compiler
-target_compile_options(nalu PUBLIC $<$<COMPILE_LANG_AND_ID:CXX,Intel>:-restrict>)
+target_compile_options(${kynema_ugf_lib_name} PUBLIC $<$<COMPILE_LANG_AND_ID:CXX,Intel>:-restrict>)
 
 # GCC, Clang, and Intel seem to accept these
-list(APPEND NALU_CXX_FLAGS "-Wall" "-Wextra" "-pedantic")
+list(APPEND KYNEMA_UGF_CXX_FLAGS "-Wall" "-Wextra" "-pedantic")
 if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
   # Intel always reports some diagnostics we don't necessarily care about
-  list(APPEND NALU_CXX_FLAGS "-diag-disable:11074,11076")
+  list(APPEND KYNEMA_UGF_CXX_FLAGS "-diag-disable:11074,11076")
 endif()
 if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 7.0)
   # Avoid notes about -faligned-new with GCC > 7
-  list(APPEND NALU_CXX_FLAGS "-faligned-new")
+  list(APPEND KYNEMA_UGF_CXX_FLAGS "-faligned-new")
 endif()
 
 # Add our extra flags according to language
-separate_arguments(NALU_CXX_FLAGS)
-target_compile_options(nalu PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${NALU_CXX_FLAGS}>)
+separate_arguments(KYNEMA_UGF_CXX_FLAGS)
+target_compile_options(${kynema_ugf_lib_name} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${KYNEMA_UGF_CXX_FLAGS}>)
 
 ########################### TAG VERSIONS #####################################
 include(GetGitRevisionDescription)
-get_git_head_revision(NALU_GITREFSPEC NALU_GIT_COMMIT_SHA)
-if (NALU_GIT_COMMIT_SHA)
-  git_describe(NALU_VERSION_TAG "--tags")
-  git_local_changes(NALU_REPO_DIRTY)
-  option(NALU_HAVE_GIT_INFO "Git version tagging for Nalu" ON)
-  if (${NALU_VERSION_TAG} MATCHES ".*-NOTFOUND")
-    set(NALU_VERSION_TAG "v1.2.0")
+get_git_head_revision(KYNEMA_UGF_GITREFSPEC KYNEMA_UGF_GIT_COMMIT_SHA)
+if (KYNEMA_UGF_GIT_COMMIT_SHA)
+  git_describe(KYNEMA_UGF_VERSION_TAG "--tags")
+  git_local_changes(KYNEMA_UGF_REPO_DIRTY)
+  option(KYNEMA_UGF_HAVE_GIT_INFO "Git version tagging for KynemaUGF" ON)
+  if (${KYNEMA_UGF_VERSION_TAG} MATCHES ".*-NOTFOUND")
+    set(KYNEMA_UGF_VERSION_TAG "v1.2.0")
   endif()
 endif()
 
@@ -261,20 +265,20 @@ else()
   set(TRILINOS_VERSION_TAG "${Trilinos_VERSION}")
   message(STATUS "Cannot determine Trilinos git commit")
 endif()
-string(TIMESTAMP NALU_VERSION_TIMESTAMP "%Y-%m-%d %H:%M:%S (UTC)" UTC)
-configure_file("${CMAKE_SOURCE_DIR}/cmake/NaluVersionInfo.h.in"
-  "${CMAKE_BINARY_DIR}/include/NaluVersionInfo.h" @ONLY)
+string(TIMESTAMP KYNEMA_UGF_VERSION_TIMESTAMP "%Y-%m-%d %H:%M:%S (UTC)" UTC)
+configure_file("${CMAKE_SOURCE_DIR}/cmake/KynemaUGFVersionInfo.h.in"
+  "${CMAKE_BINARY_DIR}/include/KynemaUGFVersionInfo.h" @ONLY)
 #### END TAG VERSIONS
 
-target_include_directories(nalu PUBLIC
+target_include_directories(${kynema_ugf_lib_name} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
   $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
   $<INSTALL_INTERFACE:include>)
 
-# Most linking, etc, is set to PUBLIC for libnalu, so we merely link to libnalu for the exes
-target_link_libraries(${nalu_ex_name} PRIVATE nalu)
+# Most linking, etc, is set to PUBLIC for libkynema-ugf, so we merely link to libkynema-ugf for the exes
+target_link_libraries(${kynema_ugf_ex_name} PRIVATE ${kynema_ugf_lib_name})
 if(ENABLE_UNIT_TESTS)
-  target_link_libraries(${utest_ex_name} PRIVATE nalu)
+  target_link_libraries(${utest_ex_name} PRIVATE ${kynema_ugf_lib_name})
   target_include_directories(${utest_ex_name} PRIVATE "${CMAKE_SOURCE_DIR}/unit_tests")
 endif()
 
@@ -284,12 +288,12 @@ if(ENABLE_UNIT_TESTS)
   add_subdirectory(unit_tests)
 endif()
 
-set(nalu_ex_catalyst_name "naluXCatalyst")
+set(kynema_ugf_ex_catalyst_name "kynema-ugfCatalyst")
 if(ENABLE_PARAVIEW_CATALYST)
    set(PARAVIEW_CATALYST_INSTALL_PATH "" CACHE PATH
        "Path to external installation of Trilinos Catalyst IOSS plugin.")
-   configure_file(cmake/naluXCatalyst.in ${nalu_ex_catalyst_name} @ONLY)
-   target_compile_definitions(nalu PUBLIC NALU_USES_CATALYST)
+   configure_file(cmake/kynema-ugfCatalyst.in ${kynema_ugf_ex_catalyst_name} @ONLY)
+   target_compile_definitions(${kynema_ugf_lib_name} PUBLIC KYNEMA_UGF_USES_CATALYST)
 endif()
 
 if(ENABLE_UNIT_TESTS)
@@ -299,7 +303,7 @@ if(ENABLE_UNIT_TESTS)
           ARCHIVE DESTINATION lib
           LIBRARY DESTINATION lib)
 endif()
-install(TARGETS ${nalu_ex_name} nalu
+install(TARGETS ${kynema_ugf_ex_name} ${kynema_ugf_lib_name}
         EXPORT "${PROJECT_NAME}Targets"
         RUNTIME DESTINATION bin
         ARCHIVE DESTINATION lib
@@ -307,24 +311,16 @@ install(TARGETS ${nalu_ex_name} nalu
 install(DIRECTORY include/ DESTINATION include)
 install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include DESTINATION include)
 if(ENABLE_PARAVIEW_CATALYST)
-  install(PROGRAMS ${CMAKE_BINARY_DIR}/naluXCatalyst DESTINATION bin)
+  install(PROGRAMS ${CMAKE_BINARY_DIR}/kynema-ugfCatalyst DESTINATION bin)
 endif()
 
 include(CMakePackageConfigHelpers)
 include(GNUInstallDirs)
 
-if(ENABLE_DOCUMENTATION)
-   add_subdirectory(docs)
-endif()
-
 if(ENABLE_TESTS)
    enable_testing()
    include(CTest)
    add_subdirectory(reg_tests)
-endif()
-
-if(ENABLE_EXAMPLES)
-   add_subdirectory(examples)
 endif()
 
 if (ENABLE_WIND_UTILS)
@@ -341,10 +337,10 @@ if (ENABLE_WIND_UTILS)
 endif()
 
 # Note if you are interested in using Xcode for development,
-# refer to instructions in https://github.com/Exawind/nalu-wind/pull/22
+# refer to instructions in https://github.com/kynema/kynema-ugf/pull/22
 
 export(
-  TARGETS nalu
+  TARGETS ${kynema_ugf_lib_name}
   NAMESPACE ${PROJECT_NAME}::
   FILE ${PROJECT_NAME}Targets.cmake)
 install(

@@ -7,13 +7,13 @@
 // for more details.
 //
 
-// nalu
+// kynema_ugf
 #include <AssembleScalarEigenEdgeSolverAlgorithm.h>
 #include <Enums.h>
 #include <EquationSystem.h>
 #include <FieldTypeDef.h>
 #include <LinearSystem.h>
-#include <NaluEnv.h>
+#include <KynemaUGFEnv.h>
 #include <PecletFunction.h>
 #include <Realm.h>
 #include <SolutionOptions.h>
@@ -21,13 +21,13 @@
 // stk_mesh/base/fem
 #include <stk_mesh/base/BulkData.hpp>
 #include <stk_mesh/base/Field.hpp>
-#include <stk_mesh/base/GetBuckets.hpp>
+
 #include <stk_mesh/base/GetEntities.hpp>
 #include <stk_mesh/base/MetaData.hpp>
 #include <stk_mesh/base/Part.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //==========================================================================
 // Class Definition
@@ -73,27 +73,24 @@ AssembleScalarEigenEdgeSolverAlgorithm::AssembleScalarEigenEdgeSolverAlgorithm(
   // save off fields
   stk::mesh::MetaData& meta_data = realm_.meta_data();
   if (meshMotion_)
-    velocityRTM_ = meta_data.get_field<VectorFieldType>(
-      stk::topology::NODE_RANK, "velocity_rtm");
+    velocityRTM_ =
+      meta_data.get_field<double>(stk::topology::NODE_RANK, "velocity_rtm");
   else
-    velocityRTM_ = meta_data.get_field<VectorFieldType>(
-      stk::topology::NODE_RANK, "velocity");
-  coordinates_ = meta_data.get_field<VectorFieldType>(
+    velocityRTM_ =
+      meta_data.get_field<double>(stk::topology::NODE_RANK, "velocity");
+  coordinates_ = meta_data.get_field<double>(
     stk::topology::NODE_RANK, realm_.get_coordinates_name());
-  density_ =
-    meta_data.get_field<ScalarFieldType>(stk::topology::NODE_RANK, "density");
-  massFlowRate_ = meta_data.get_field<ScalarFieldType>(
-    stk::topology::EDGE_RANK, "mass_flow_rate");
-  edgeAreaVec_ = meta_data.get_field<VectorFieldType>(
-    stk::topology::EDGE_RANK, "edge_area_vector");
+  density_ = meta_data.get_field<double>(stk::topology::NODE_RANK, "density");
+  massFlowRate_ =
+    meta_data.get_field<double>(stk::topology::EDGE_RANK, "mass_flow_rate");
+  edgeAreaVec_ =
+    meta_data.get_field<double>(stk::topology::EDGE_RANK, "edge_area_vector");
 
   // EXTRA GGDH
-  turbKe_ = meta_data.get_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, "turbulent_ke");
-  velocity_ =
-    meta_data.get_field<VectorFieldType>(stk::topology::NODE_RANK, "velocity");
-  dudx_ =
-    meta_data.get_field<GenericFieldType>(stk::topology::NODE_RANK, "dudx");
+  turbKe_ =
+    meta_data.get_field<double>(stk::topology::NODE_RANK, "turbulent_ke");
+  velocity_ = meta_data.get_field<double>(stk::topology::NODE_RANK, "velocity");
+  dudx_ = meta_data.get_field<double>(stk::topology::NODE_RANK, "dudx");
 
   // create the peclet blending function
   pecletFunction_ = eqSystem->create_peclet_function<double>(scalarQ_->name());
@@ -115,7 +112,7 @@ AssembleScalarEigenEdgeSolverAlgorithm::AssembleScalarEigenEdgeSolverAlgorithm(
     BinvXt_[2] = 0.0;
   }
 
-  NaluEnv::self().naluOutputP0()
+  KynemaUGFEnv::self().kynema_ugfOutputP0()
     << "Perturbation model active: towards/delta/tke: " << biasTowards << "/"
     << deltaB_ << "/" << perturbTurbKe_ << std::endl;
 }
@@ -217,7 +214,7 @@ AssembleScalarEigenEdgeSolverAlgorithm::execute()
       stk::mesh::Entity const* edge_node_rels = bulk_data.begin_nodes(edge);
 
       // sanity check on number or nodes
-      ThrowAssert(bulk_data.num_nodes(edge) == 2);
+      STK_ThrowAssert(bulk_data.num_nodes(edge) == 2);
 
       // pointer to edge area vector
       for (int j = 0; j < nDim; ++j)
@@ -562,5 +559,5 @@ AssembleScalarEigenEdgeSolverAlgorithm::perturb(double (&D)[3][3])
   D[rowMap_[2]][rowMap_[2]] = pLamdba3;
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

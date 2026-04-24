@@ -24,7 +24,7 @@
 #include <array>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 // 2D Quad 4 subcontrol volume
 class Quad42DSCV : public MasterElement
@@ -285,11 +285,12 @@ private:
 
   // boundary integration point ip node mapping (ip on an ordinal to local node
   // number)
-  const int ipNodeMap_[4][2] = {         // 2 ips * 4 faces
-                                {0, 1},  // face 0;
-                                {1, 2},  // face 1;
-                                {2, 3},  // face 2;
-                                {3, 0}}; // face 3;
+  const int ipNodeMap_[4][2] = {
+    // 2 ips * 4 faces
+    {0, 1},  // face 0;
+    {1, 2},  // face 1;
+    {2, 3},  // face 2;
+    {3, 0}}; // face 3;
 
   const int sideNodeOrdinals_[4][2] = {{0, 1}, {1, 2}, {2, 3}, {3, 0}};
 
@@ -313,7 +314,7 @@ private:
     SharedMemView<DBLTYPE**, SHMEM>& areav) const;
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

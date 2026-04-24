@@ -20,7 +20,7 @@
 #include <stk_mesh/base/Field.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //==========================================================================
 // Class Definition
@@ -52,10 +52,10 @@ VariableDensityNonIsoContinuitySrcNodeSuppAlg::
 {
   // save off fields
   stk::mesh::MetaData& meta_data = realm_.meta_data();
-  coordinates_ = meta_data.get_field<VectorFieldType>(
+  coordinates_ = meta_data.get_field<double>(
     stk::topology::NODE_RANK, realm_.get_coordinates_name());
-  dualNodalVolume_ = meta_data.get_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, "dual_nodal_volume");
+  dualNodalVolume_ =
+    meta_data.get_field<double>(stk::topology::NODE_RANK, "dual_nodal_volume");
 }
 
 //--------------------------------------------------------------------------
@@ -132,5 +132,5 @@ VariableDensityNonIsoContinuitySrcNodeSuppAlg::node_execute(
   rhs[0] += src * dualVolume / projTimeScale_;
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

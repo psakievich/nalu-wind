@@ -15,12 +15,12 @@
 
 #include <stk_mesh/base/BulkData.hpp>
 #include <stk_mesh/base/Field.hpp>
-#include <stk_mesh/base/GetBuckets.hpp>
+
 #include <stk_mesh/base/MetaData.hpp>
 #include <stk_mesh/base/Selector.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 AuxFunctionAlgorithm::AuxFunctionAlgorithm(
   Realm& realm,
@@ -47,13 +47,13 @@ AuxFunctionAlgorithm::execute()
 {
 
   // make sure that partVec_ is size one
-  ThrowAssert(partVec_.size() == 1);
+  STK_ThrowAssert(partVec_.size() == 1);
 
   stk::mesh::MetaData& meta_data = realm_.meta_data();
 
   const unsigned nDim = meta_data.spatial_dimension();
   const double time = realm_.get_current_time();
-  VectorFieldType* coordinates = meta_data.get_field<VectorFieldType>(
+  VectorFieldType* coordinates = meta_data.get_field<double>(
     stk::topology::NODE_RANK, realm_.get_coordinates_name());
 
   auxFunction_->setup(time);
@@ -85,5 +85,5 @@ AuxFunctionAlgorithm::execute()
   field_->sync_to_device();
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

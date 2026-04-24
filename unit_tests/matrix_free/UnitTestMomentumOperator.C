@@ -39,7 +39,6 @@
 #include "stk_math/StkMath.hpp"
 #include "stk_mesh/base/Bucket.hpp"
 #include "stk_mesh/base/Entity.hpp"
-#include "stk_mesh/base/FieldTraits.hpp"
 #include "stk_mesh/base/GetNgpField.hpp"
 #include "stk_mesh/base/Selector.hpp"
 #include "stk_mesh/base/Types.hpp"
@@ -48,7 +47,7 @@
 #include <type_traits>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 
 class MomentumOperatorFixture : public LowMachFixture
@@ -68,8 +67,9 @@ protected:
       rhs(Teuchos::rcpFromRef(owned_map), 3),
       elid(make_stk_lid_to_tpetra_lid_map(
         mesh(), active(), gid_field_ngp, owned_and_shared_map.getLocalMap())),
-      elid_h(Kokkos::create_mirror_view_and_copy(
-        Kokkos::DefaultHostExecutionSpace{}, elid)),
+      elid_h(
+        Kokkos::create_mirror_view_and_copy(
+          Kokkos::DefaultHostExecutionSpace{}, elid)),
       conn(stk_connectivity_map<order>(mesh(), active())),
       offsets(create_offset_map<order>(mesh(), active(), elid))
   {
@@ -151,7 +151,7 @@ TEST_F(
 {
   {
     auto host_lhs = lhs.getLocalViewHost(Tpetra::Access::ReadWrite);
-    ThrowRequire(host_lhs.extent(1) == 3u);
+    STK_ThrowRequire(host_lhs.extent(1) == 3u);
     for (const auto* ib :
          bulk.get_buckets(stk::topology::NODE_RANK, active())) {
       for (auto node : *ib) {
@@ -187,5 +187,5 @@ TEST_F(
 }
 
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

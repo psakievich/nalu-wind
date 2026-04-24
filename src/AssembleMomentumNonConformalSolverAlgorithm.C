@@ -7,13 +7,13 @@
 // for more details.
 //
 
-// nalu
+// kynema_ugf
 #include <AssembleMomentumNonConformalSolverAlgorithm.h>
 #include <EquationSystem.h>
 #include <DgInfo.h>
 #include <FieldTypeDef.h>
 #include <LinearSystem.h>
-#include <NaluEnv.h>
+#include <KynemaUGFEnv.h>
 #include <NonConformalInfo.h>
 #include <NonConformalManager.h>
 #include <Realm.h>
@@ -28,7 +28,7 @@
 #include <stk_mesh/base/Part.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //==========================================================================
 // Class Definition
@@ -59,12 +59,12 @@ AssembleMomentumNonConformalSolverAlgorithm::
 {
   // save off fields
   stk::mesh::MetaData& meta_data = realm_.meta_data();
-  coordinates_ = meta_data.get_field<VectorFieldType>(
+  coordinates_ = meta_data.get_field<double>(
     stk::topology::NODE_RANK, realm_.get_coordinates_name());
-  exposedAreaVec_ = meta_data.get_field<GenericFieldType>(
-    meta_data.side_rank(), "exposed_area_vector");
-  ncMassFlowRate_ = meta_data.get_field<GenericFieldType>(
-    meta_data.side_rank(), "nc_mass_flow_rate");
+  exposedAreaVec_ =
+    meta_data.get_field<double>(meta_data.side_rank(), "exposed_area_vector");
+  ncMassFlowRate_ =
+    meta_data.get_field<double>(meta_data.side_rank(), "nc_mass_flow_rate");
 
   // what do we need ghosted for this alg to work?
   ghostFieldVec_.push_back(&(velocity_->field_of_state(stk::mesh::StateNP1)));
@@ -73,12 +73,12 @@ AssembleMomentumNonConformalSolverAlgorithm::
 
   // provide output to user
   if (useCurrentNormal_)
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << "AssembleMomentumNonConformalSolverAlgorithm::Options: "
          "use_current_normal is active "
       << std::endl;
   if (realm_.get_nc_alg_upwind_advection())
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << "AssembleMomentumNonConformalSolverAlgorithm::Options: upwind "
          "advective flux is active "
       << std::endl;
@@ -604,5 +604,5 @@ AssembleMomentumNonConformalSolverAlgorithm::execute()
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

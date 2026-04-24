@@ -16,12 +16,12 @@
 
 #include <stk_mesh/base/BulkData.hpp>
 #include <stk_mesh/base/Field.hpp>
-#include <stk_mesh/base/GetBuckets.hpp>
+
 #include <stk_mesh/base/MetaData.hpp>
 #include <stk_mesh/base/Selector.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 GenericPropAlgorithm::GenericPropAlgorithm(
   Realm& realm,
@@ -48,7 +48,7 @@ GenericPropAlgorithm::execute()
   }
 
   // make sure that partVec_ is size one
-  ThrowAssert(partVec_.size() == 1);
+  STK_ThrowAssert(partVec_.size() == 1);
 
   // empty independet variable list; hence "Generic"
   std::vector<double> indVarList(1, 0.0);
@@ -71,5 +71,5 @@ GenericPropAlgorithm::execute()
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

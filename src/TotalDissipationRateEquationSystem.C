@@ -23,8 +23,8 @@
 #include <LinearSolvers.h>
 #include <LinearSolver.h>
 #include <LinearSystem.h>
-#include <NaluEnv.h>
-#include <NaluParsing.h>
+#include <KynemaUGFEnv.h>
+#include <KynemaUGFParsing.h>
 #include <Realm.h>
 #include <Realms.h>
 #include <Simulation.h>
@@ -67,9 +67,8 @@
 #include <stk_mesh/base/BulkData.hpp>
 #include <stk_mesh/base/Field.hpp>
 #include <stk_mesh/base/FieldParallel.hpp>
-#include <stk_mesh/base/GetBuckets.hpp>
+
 #include <stk_mesh/base/GetEntities.hpp>
-#include <stk_mesh/base/CoordinateSystems.hpp>
 #include <stk_mesh/base/MetaData.hpp>
 
 // stk_io
@@ -82,7 +81,7 @@
 #include <stk_util/parallel/ParallelReduce.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //==========================================================================
 // Class Definition
@@ -105,7 +104,7 @@ TotalDissipationRateEquationSystem::TotalDissipationRateEquationSystem(
     tdrWallBc_(NULL),
     assembledWallTdr_(NULL),
     assembledWallArea_(NULL),
-    nodalGradAlgDriver_(realm_, "dedx")
+    nodalGradAlgDriver_(realm_, "total_dissipation_rate", "dedx")
 {
   dofName_ = "total_dissipation_rate";
 
@@ -118,7 +117,7 @@ TotalDissipationRateEquationSystem::TotalDissipationRateEquationSystem(
 
   // determine nodal gradient form
   set_nodal_gradient("total_dissipation_rate");
-  NaluEnv::self().naluOutputP0()
+  KynemaUGFEnv::self().kynema_ugfOutputP0()
     << "Edge projected nodal gradient for total_dissipation_rate: "
     << edgeNodalGradient_ << std::endl;
 
@@ -141,40 +140,41 @@ TotalDissipationRateEquationSystem::~TotalDissipationRateEquationSystem() =
 //-------- register_nodal_fields -------------------------------------------
 //--------------------------------------------------------------------------
 void
-TotalDissipationRateEquationSystem::register_nodal_fields(stk::mesh::Part* part)
+TotalDissipationRateEquationSystem::register_nodal_fields(
+  const stk::mesh::PartVector& part_vec)
 {
 
   stk::mesh::MetaData& meta_data = realm_.meta_data();
 
   const int nDim = meta_data.spatial_dimension();
   const int numStates = realm_.number_of_states();
+  stk::mesh::Selector selector = stk::mesh::selectUnion(part_vec);
 
   // register dof; set it as a restart variable
-  tdr_ = &(meta_data.declare_field<ScalarFieldType>(
+  tdr_ = &(meta_data.declare_field<double>(
     stk::topology::NODE_RANK, "total_dissipation_rate", numStates));
-  stk::mesh::put_field_on_mesh(*tdr_, *part, nullptr);
+  stk::mesh::put_field_on_mesh(*tdr_, selector, nullptr);
   realm_.augment_restart_variable_list("total_dissipation_rate");
 
-  dedx_ = &(
-    meta_data.declare_field<VectorFieldType>(stk::topology::NODE_RANK, "dedx"));
-  stk::mesh::put_field_on_mesh(*dedx_, *part, nDim, nullptr);
+  dedx_ = &(meta_data.declare_field<double>(stk::topology::NODE_RANK, "dedx"));
+  stk::mesh::put_field_on_mesh(*dedx_, selector, nDim, nullptr);
+  stk::io::set_field_output_type(*dedx_, stk::io::FieldOutputType::VECTOR_3D);
 
   // delta solution for linear solver; share delta since this is a split system
-  eTmp_ = &(
-    meta_data.declare_field<ScalarFieldType>(stk::topology::NODE_RANK, "eTmp"));
-  stk::mesh::put_field_on_mesh(*eTmp_, *part, nullptr);
+  eTmp_ = &(meta_data.declare_field<double>(stk::topology::NODE_RANK, "eTmp"));
+  stk::mesh::put_field_on_mesh(*eTmp_, selector, nullptr);
 
-  visc_ = &(meta_data.declare_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, "viscosity"));
-  stk::mesh::put_field_on_mesh(*visc_, *part, nullptr);
+  visc_ =
+    &(meta_data.declare_field<double>(stk::topology::NODE_RANK, "viscosity"));
+  stk::mesh::put_field_on_mesh(*visc_, selector, nullptr);
 
-  tvisc_ = &(meta_data.declare_field<ScalarFieldType>(
+  tvisc_ = &(meta_data.declare_field<double>(
     stk::topology::NODE_RANK, "turbulent_viscosity"));
-  stk::mesh::put_field_on_mesh(*tvisc_, *part, nullptr);
+  stk::mesh::put_field_on_mesh(*tvisc_, selector, nullptr);
 
-  evisc_ = &(meta_data.declare_field<ScalarFieldType>(
+  evisc_ = &(meta_data.declare_field<double>(
     stk::topology::NODE_RANK, "effective_viscosity_tdr"));
-  stk::mesh::put_field_on_mesh(*evisc_, *part, nullptr);
+  stk::mesh::put_field_on_mesh(*evisc_, selector, nullptr);
 
   // make sure all states are properly populated (restart can handle this)
   if (
@@ -184,7 +184,7 @@ TotalDissipationRateEquationSystem::register_nodal_fields(stk::mesh::Part* part)
     ScalarFieldType& tdrNp1 = tdr_->field_of_state(stk::mesh::StateNP1);
 
     CopyFieldAlgorithm* theCopyAlg = new CopyFieldAlgorithm(
-      realm_, part, &tdrNp1, &tdrN, 0, 1, stk::topology::NODE_RANK);
+      realm_, part_vec, &tdrNp1, &tdrN, 0, 1, stk::topology::NODE_RANK);
     copyStateAlg_.push_back(theCopyAlg);
   }
 }
@@ -263,7 +263,8 @@ TotalDissipationRateEquationSystem::register_interior_algorithm(
       [&](AssembleNGPNodeSolverAlgorithm& nodeAlg, std::string& srcName) {
         if (srcName == "gcl") {
           nodeAlg.add_kernel<ScalarGclNodeKernel>(realm_.bulk_data(), tdr_);
-          NaluEnv::self().naluOutputP0() << " - " << srcName << std::endl;
+          KynemaUGFEnv::self().kynema_ugfOutputP0()
+            << " - " << srcName << std::endl;
         } else
           throw std::runtime_error("TDREqSys: Invalid source term: " + srcName);
       });
@@ -301,8 +302,8 @@ TotalDissipationRateEquationSystem::register_inflow_bc(
   stk::mesh::MetaData& meta_data = realm_.meta_data();
 
   // register boundary data; tdr_bc
-  ScalarFieldType* theBcField = &(meta_data.declare_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, "tdr_bc"));
+  ScalarFieldType* theBcField =
+    &(meta_data.declare_field<double>(stk::topology::NODE_RANK, "tdr_bc"));
   stk::mesh::put_field_on_mesh(*theBcField, *part, nullptr);
 
   // extract the value for user specified tke and save off the AuxFunction
@@ -367,8 +368,8 @@ TotalDissipationRateEquationSystem::register_open_bc(
   stk::mesh::MetaData& meta_data = realm_.meta_data();
 
   // register boundary data; tdr_bc
-  ScalarFieldType* theBcField = &(meta_data.declare_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, "open_tdr_bc"));
+  ScalarFieldType* theBcField =
+    &(meta_data.declare_field<double>(stk::topology::NODE_RANK, "open_tdr_bc"));
   stk::mesh::put_field_on_mesh(*theBcField, *part, nullptr);
 
   // extract the value for user specified tke and save off the AuxFunction
@@ -430,17 +431,17 @@ TotalDissipationRateEquationSystem::register_wall_bc(
   stk::mesh::MetaData& meta_data = realm_.meta_data();
 
   // register boundary data; tdr_bc
-  tdrWallBc_ = &(meta_data.declare_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, "tdr_bc"));
+  tdrWallBc_ =
+    &(meta_data.declare_field<double>(stk::topology::NODE_RANK, "tdr_bc"));
   stk::mesh::put_field_on_mesh(*tdrWallBc_, *part, nullptr);
 
   // need to register the assembles wall value for tdr; can not share with
   // tdr_bc
-  assembledWallTdr_ = &(meta_data.declare_field<ScalarFieldType>(
+  assembledWallTdr_ = &(meta_data.declare_field<double>(
     stk::topology::NODE_RANK, "wall_model_tdr_bc"));
   stk::mesh::put_field_on_mesh(*assembledWallTdr_, *part, nullptr);
 
-  assembledWallArea_ = &(meta_data.declare_field<ScalarFieldType>(
+  assembledWallArea_ = &(meta_data.declare_field<double>(
     stk::topology::NODE_RANK, "assembled_wall_area_tdr"));
   stk::mesh::put_field_on_mesh(*assembledWallArea_, *part, nullptr);
 
@@ -574,9 +575,9 @@ TotalDissipationRateEquationSystem::reinitialize_linear_system()
 void
 TotalDissipationRateEquationSystem::assemble_nodal_gradient()
 {
-  const double timeA = -NaluEnv::self().nalu_time();
+  const double timeA = -KynemaUGFEnv::self().kynema_ugf_time();
   nodalGradAlgDriver_.execute();
-  timerMisc_ += (NaluEnv::self().nalu_time() + timeA);
+  timerMisc_ += (KynemaUGFEnv::self().kynema_ugf_time() + timeA);
 }
 
 //--------------------------------------------------------------------------
@@ -585,9 +586,9 @@ TotalDissipationRateEquationSystem::assemble_nodal_gradient()
 void
 TotalDissipationRateEquationSystem::compute_effective_diff_flux_coeff()
 {
-  const double timeA = -NaluEnv::self().nalu_time();
+  const double timeA = -KynemaUGFEnv::self().kynema_ugf_time();
   effDiffFluxAlg_->execute();
-  timerMisc_ += (NaluEnv::self().nalu_time() + timeA);
+  timerMisc_ += (KynemaUGFEnv::self().kynema_ugf_time() + timeA);
 }
 
 //--------------------------------------------------------------------------
@@ -608,8 +609,8 @@ TotalDissipationRateEquationSystem::predict_state()
     (meta.locally_owned_part() | meta.globally_shared_part() |
      meta.aura_part()) &
     stk::mesh::selectField(*tdr_);
-  nalu_ngp::field_copy(ngpMesh, sel, tdrNp1, tdrN);
+  kynema_ugf_ngp::field_copy(ngpMesh, sel, tdrNp1, tdrN);
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

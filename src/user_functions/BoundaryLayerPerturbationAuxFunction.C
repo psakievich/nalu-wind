@@ -16,7 +16,7 @@
 #include <stdexcept>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 BoundaryLayerPerturbationAuxFunction::BoundaryLayerPerturbationAuxFunction(
   const unsigned beginPos,
@@ -31,8 +31,9 @@ BoundaryLayerPerturbationAuxFunction::BoundaryLayerPerturbationAuxFunction(
 {
   // check size and populate
   if (params.size() != 5)
-    throw std::runtime_error("Realm::setup_initial_conditions: "
-                             "boundary_layer_perturbation requires 5 params: ");
+    throw std::runtime_error(
+      "Realm::setup_initial_conditions: "
+      "boundary_layer_perturbation requires 5 params: ");
   amplitude_ = params[0];
   kx_ = params[1];
   ky_ = params[2];
@@ -77,5 +78,5 @@ BoundaryLayerPerturbationAuxFunction::do_evaluate(
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

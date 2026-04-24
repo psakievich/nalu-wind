@@ -14,12 +14,12 @@
 
 #include <stk_mesh/base/BulkData.hpp>
 #include <stk_mesh/base/Field.hpp>
-#include <stk_mesh/base/GetBuckets.hpp>
+
 #include <stk_mesh/base/MetaData.hpp>
 #include <stk_mesh/base/Selector.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 InversePropAlgorithm::InversePropAlgorithm(
   Realm& realm,
@@ -44,7 +44,7 @@ InversePropAlgorithm::execute()
 {
 
   // make sure that partVec_ is size one
-  ThrowAssert(partVec_.size() == 1);
+  STK_ThrowAssert(partVec_.size() == 1);
 
   stk::mesh::Selector selector = stk::mesh::selectUnion(partVec_);
 
@@ -67,5 +67,5 @@ InversePropAlgorithm::execute()
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

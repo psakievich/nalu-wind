@@ -28,7 +28,7 @@ class Part;
 } // namespace stk
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class AssembleFaceElemSolverAlgorithm : public SolverAlgorithm
 {
@@ -48,7 +48,6 @@ public:
   run_face_elem_algorithm(stk::mesh::BulkData& bulk, LambdaFunction lamdbaFunc)
   {
     int nDim = bulk.mesh_meta_data().spatial_dimension();
-    int totalNumFields = bulk.mesh_meta_data().get_fields().size();
 
     // Register face ME instance in elemdata also to obtain face integration
     // points
@@ -59,9 +58,9 @@ public:
         scratchIdsSize = rhsSize;
 
     const stk::mesh::NgpMesh& ngpMesh = realm_.ngp_mesh();
-    const nalu_ngp::FieldManager& fieldMgr = realm_.ngp_field_manager();
-    ElemDataRequestsGPU faceDataNGP(fieldMgr, faceDataNeeded_, totalNumFields);
-    ElemDataRequestsGPU elemDataNGP(fieldMgr, elemDataNeeded_, totalNumFields);
+    const kynema_ugf_ngp::FieldManager& fieldMgr = realm_.ngp_field_manager();
+    ElemDataRequestsGPU faceDataNGP(fieldMgr, faceDataNeeded_);
+    ElemDataRequestsGPU elemDataNGP(fieldMgr, elemDataNeeded_);
 
     const int bytes_per_team = 0;
     const int bytes_per_thread = calculate_shared_mem_bytes_per_thread(
@@ -76,15 +75,16 @@ public:
     const auto& buckets =
       stk::mesh::get_bucket_ids(bulk, sideRank, s_locally_owned_union);
 
-    auto team_exec = sierra::nalu::get_device_team_policy(
+    auto team_exec = sierra::kynema_ugf::get_device_team_policy(
       buckets.size(), bytes_per_team, bytes_per_thread);
     Kokkos::parallel_for(
-      team_exec, KOKKOS_LAMBDA(const sierra::nalu::DeviceTeamHandleType& team) {
+      team_exec,
+      KOKKOS_LAMBDA(const sierra::kynema_ugf::DeviceTeamHandleType& team) {
         auto bktId = buckets.device_get(team.league_rank());
         auto& b = ngpMesh.get_bucket(sideRank, bktId);
 
 #if !defined(KOKKOS_ENABLE_GPU)
-        ThrowAssertMsg(
+        STK_ThrowAssertMsg(
           b.topology().num_nodes() == (unsigned)nodesPerFace_,
           "AssembleFaceElemSolverAlgorithm expected nodesPerEntity_ = "
             << nodesPerFace_
@@ -97,13 +97,14 @@ public:
 
         const size_t bucketLen = b.size();
         const size_t simdBucketLen =
-          sierra::nalu::get_num_simd_groups(bucketLen);
+          sierra::kynema_ugf::get_num_simd_groups(bucketLen);
 
         Kokkos::parallel_for(
           Kokkos::TeamThreadRange(team, simdBucketLen),
           [&](const size_t& bktIndex) {
             size_t simdGroupLen =
-              sierra::nalu::get_length_of_next_simd_group(bktIndex, bucketLen);
+              sierra::kynema_ugf::get_length_of_next_simd_group(
+                bktIndex, bucketLen);
             size_t numFacesProcessed = 0;
             do {
               int elemFaceOrdinal = -1;
@@ -112,7 +113,7 @@ public:
                 stk::mesh::Entity face =
                   b[bktIndex * simdLen + numFacesProcessed + simdFaceIndex];
                 const auto ngpFaceIndex = ngpMesh.fast_mesh_index(face);
-                // ThrowAssertMsg(
+                // STK_ThrowAssertMsg(
                 //   bulk.num_elements(face) == 1,
                 //   "Expecting just 1 element attached to face!");
                 int thisElemFaceOrdinal =
@@ -132,10 +133,10 @@ public:
                   ngpMesh.get_nodes(stk::topology::ELEMENT_RANK, elemIndex);
                 smdata.elemFaceOrdinal = thisElemFaceOrdinal;
                 elemFaceOrdinal = thisElemFaceOrdinal;
-                sierra::nalu::fill_pre_req_data(
+                sierra::kynema_ugf::fill_pre_req_data(
                   faceDataNGP, ngpMesh, sideRank, face,
                   *smdata.faceViews[simdFaceIndex]);
-                sierra::nalu::fill_pre_req_data(
+                sierra::kynema_ugf::fill_pre_req_data(
                   elemDataNGP, ngpMesh, stk::topology::ELEMENT_RANK, elems[0],
                   *smdata.elemViews[simdFaceIndex]);
                 ++simdFaceIndex;
@@ -171,7 +172,7 @@ public:
   int rhsSize_;
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

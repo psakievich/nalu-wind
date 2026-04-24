@@ -16,7 +16,7 @@
 #include "stk_mesh/base/GetNgpField.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 
 using lid_type = typename Tpetra::Map<>::local_ordinal_type;
@@ -35,14 +35,14 @@ struct linsys_info
   static stk::mesh::NgpField<gid_type>
   get_gid_field(const stk::mesh::MetaData& meta)
   {
-    ThrowRequire(meta.get_field(stk::topology::NODE_RANK, gid_name));
+    STK_ThrowRequire(meta.get_field(stk::topology::NODE_RANK, gid_name));
     return stk::mesh::get_updated_ngp_field<gid_type>(
       *meta.get_field(stk::topology::NODE_RANK, gid_name));
   }
 };
 
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

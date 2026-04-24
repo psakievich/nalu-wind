@@ -21,7 +21,7 @@
 #include <map>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class MasterElement;
 
@@ -217,7 +217,7 @@ public:
   get_coordinates_field(const COORDS_TYPES cType) const
   {
     auto it = coordsFields_.find(cType);
-    NGP_ThrowRequireMsg(
+    STK_NGP_ThrowRequireMsg(
       it != coordsFields_.end(),
       "ElemDataRequests:get_coordinates_field: Coordinates field "
       "must be registered to ElemDataRequests before access");
@@ -247,7 +247,7 @@ private:
   MasterElement* meFEM_;
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

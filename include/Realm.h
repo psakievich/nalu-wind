@@ -17,8 +17,9 @@
 #include <InitialConditions.h>
 #include <MaterialPropertys.h>
 #include <EquationSystems.h>
+#include <FieldManager.h>
 
-#if defined(NALU_USES_PERCEPT)
+#if defined(KYNEMA_UGF_USES_PERCEPT)
 #include <Teuchos_RCP.hpp>
 #endif
 #include <Teuchos_ParameterList.hpp>
@@ -52,7 +53,7 @@ class Node;
 }
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class Algorithm;
 class AlgorithmDriver;
@@ -62,6 +63,7 @@ class GeometryAlgDriver;
 class NonConformalManager;
 class ErrorIndicatorAlgorithmDriver;
 class EquationSystems;
+class FieldManager;
 class OutputInfo;
 class OversetManager;
 class PostProcessingInfo;
@@ -97,7 +99,7 @@ class Realm
 {
 public:
   using NgpMeshInfo =
-    nalu_ngp::MeshInfo<stk::mesh::NgpMesh, nalu_ngp::FieldManager>;
+    kynema_ugf_ngp::MeshInfo<stk::mesh::NgpMesh, kynema_ugf_ngp::FieldManager>;
 
   Realm(Realms&, const YAML::Node& node);
   virtual ~Realm();
@@ -118,7 +120,6 @@ public:
   Realms* parent() const;
   Realms* parent();
 
-  bool debug() const;
   bool get_activate_memory_diagnostic();
   void provide_memory_summary();
   std::string convert_bytes(double bytes);
@@ -182,12 +183,12 @@ public:
   void compute_vrtm(const std::string& = "velocity");
   void compute_l2_scaling();
   void output_converged_results();
-  void provide_output();
+  void provide_output(bool forcedOutput = false);
   void provide_restart_output();
 
   void register_interior_algorithm(stk::mesh::Part* part);
 
-  void register_nodal_fields(stk::mesh::Part* part);
+  void register_nodal_fields(const stk::mesh::PartVector& part_vec);
 
   void register_wall_bc(stk::mesh::Part* part, const stk::topology& theTopo);
 
@@ -304,6 +305,7 @@ public:
 
   // pressure poisson nuance
   double get_mdot_interp();
+  double get_incompressible_solve();
   bool get_cvfem_shifted_mdot();
   bool get_cvfem_reduced_sens_poisson();
 
@@ -348,7 +350,7 @@ public:
 
   inline const stk::mesh::NgpMesh& ngp_mesh() { return mesh_info().ngp_mesh(); }
 
-  inline const nalu_ngp::FieldManager& ngp_field_manager()
+  inline const kynema_ugf_ngp::FieldManager& ngp_field_manager()
   {
     return mesh_info().ngp_field_manager();
   }
@@ -364,6 +366,11 @@ public:
   double get_tanh_blending(const std::string dofName);
 
   void output_lidar();
+
+  // kind of annoying we have to do this, but the time ingetrator isn't
+  // populated when the Realm is constructured, so we have to wait until it is
+  // to be able to initialize the FieldManager
+  void setup_field_manager();
 
   Realms& realms_;
 
@@ -387,8 +394,8 @@ public:
   size_t resultsFileIndex_;
   size_t restartFileIndex_;
 
-  // nalu field data
-  GlobalIdFieldType* naluGlobalId_;
+  // kynema-ugf field data
+  GlobalIdFieldType* kynema_ugfGlobalId_;
 
   // algorithm drivers managed by region
   std::unique_ptr<GeometryAlgDriver> geometryAlgDriver_;
@@ -417,6 +424,7 @@ public:
   std::unique_ptr<AeroContainer> aeroModels_;
   ABLForcingAlgorithm* ablForcingAlg_;
   BdyLayerStatistics* bdyLayerStats_{nullptr};
+  std::unique_ptr<FieldManager> fieldManager_;
   std::unique_ptr<MeshMotionAlg> meshMotionAlg_;
   std::unique_ptr<MeshTransformationAlg> meshTransformationAlg_;
   std::unique_ptr<LidarLOS> lidarLOS_;
@@ -473,6 +481,7 @@ public:
 
   // check if there are negative Jacobians
   bool checkJacobians_;
+  bool outputFailedJacobians_;
 
   // types of physics
   bool isothermalFlow_;
@@ -501,7 +510,7 @@ public:
   bool doBalanceNodes_;
   struct BalanceNodeOptions
   {
-    BalanceNodeOptions() : target(1.0), numIters(5){};
+    BalanceNodeOptions() : target(1.0), numIters(5) {};
 
     double target;
     int numIters;
@@ -614,7 +623,8 @@ public:
    *
    *  Note that this is actually the offset into the linear system. This index
    *  must be adjusted accordingly to account for multiple degrees of freedom on
-   *  a particular node. This is performed in sierra::nalu::HypreLinearSystem.
+   *  a particular node. This is performed in
+   * sierra::kynema_ugf::HypreLinearSystem.
    */
   stk::mesh::EntityId hypreILower_;
 
@@ -622,7 +632,8 @@ public:
    *
    *  Note that this is actually the offset into the linear system. This index
    *  must be adjusted accordingly to account for multiple degrees of freedom on
-   *  a particular node. This is performed in sierra::nalu::HypreLinearSystem.
+   *  a particular node. This is performed in
+   * sierra::kynema_ugf::HypreLinearSystem.
    */
   stk::mesh::EntityId hypreIUpper_;
 
@@ -634,9 +645,9 @@ public:
 
   /** Global Row IDs for the HYPRE linear system
    *
-   *  The HYPRE IDs are different from STK IDs and Realm::naluGlobalId_ because
-   *  HYPRE expects contiguous IDs for matrix rows and further requires that the
-   *  IDs be ordered across MPI ranks; i.e., startIdx (MPI_rank + 1) =
+   *  The HYPRE IDs are different from STK IDs and Realm::kynema_ugfGlobalId_
+   * because HYPRE expects contiguous IDs for matrix rows and further requires
+   * that the IDs be ordered across MPI ranks; i.e., startIdx (MPI_rank + 1) =
    *  endIdx(MPI_rank) + 1.
    */
   HypreIDFieldType* hypreGlobalId_{nullptr};
@@ -657,7 +668,7 @@ protected:
   const std::string allElementPartAlias{"all_blocks"};
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif /* REALM_H */

@@ -17,7 +17,7 @@
 #include <stdexcept>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 KovasznayVelocityAuxFunction::KovasznayVelocityAuxFunction(
   const unsigned beginPos, const unsigned endPos)
@@ -26,7 +26,7 @@ KovasznayVelocityAuxFunction::KovasznayVelocityAuxFunction(
     kx_(2 * std::acos(-1.)),
     ky_(2 * std::acos(-1.))
 {
-  ThrowRequireMsg(endPos == 2, "Only 2D for Kovasznay flow");
+  STK_ThrowRequireMsg(endPos == 2, "Only 2D for Kovasznay flow");
 }
 
 void
@@ -54,5 +54,5 @@ KovasznayVelocityAuxFunction::do_evaluate(
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

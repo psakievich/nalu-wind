@@ -1,5 +1,5 @@
 # -*- mode: yaml -*-
-# NALU-WIND PARAMETERS
+# KYNEMA_UGF-WIND PARAMETERS
 # This simulation will converge to the same results as figure 8 
 # in Martinez-Tossas and Meneveau, 2019, Filtered lifting line theory and application to the actuator line model 
 # This was confirmed by running with 600 actuator points on a 50x50x50 grid
@@ -186,8 +186,8 @@ realms:
 
   restart:
     restart_data_base_name: actuatorLine.rst
-    restart_frequency: 10
-    restart_start: 10
+    restart_frequency: 5
+    restart_start: 0
     compression_level: 9
     compression_shuffle: yes
 
@@ -195,7 +195,7 @@ Time_Integrators:
 - StandardTimeIntegrator:
     name: ti_1
     start_time: 0
-    termination_step_count: 10
+    termination_step_count: 3
     time_step: 0.25
     time_stepping_type: fixed
     time_step_count: 0

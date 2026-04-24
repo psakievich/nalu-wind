@@ -15,7 +15,7 @@
 #include "utils/StkHelpers.h"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 ContinuityGclNodeKernel::ContinuityGclNodeKernel(
   const stk::mesh::BulkData& bulk)
@@ -24,7 +24,7 @@ ContinuityGclNodeKernel::ContinuityGclNodeKernel(
   const auto& meta = bulk.mesh_meta_data();
 
   const ScalarFieldType* density =
-    meta.get_field<ScalarFieldType>(stk::topology::NODE_RANK, "density");
+    meta.get_field<double>(stk::topology::NODE_RANK, "density");
 
   densityNp1ID_ = get_field_ordinal(meta, "density", stk::mesh::StateNP1);
   divVID_ = get_field_ordinal(meta, "div_mesh_velocity");
@@ -82,5 +82,5 @@ ContinuityGclNodeKernel::execute(
   // lhs(0, 0) += 0.0;
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

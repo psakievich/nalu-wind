@@ -25,7 +25,7 @@
 #include <memory>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 
 class GatheredFieldManagerFixture : public ::ConductionFixture
@@ -38,8 +38,7 @@ protected:
       field_gather(bulk, meta.universal_part(), {})
   {
     auto& coordField =
-      *meta.get_field<stk::mesh::Field<double, stk::mesh::Cartesian3d>>(
-        stk::topology::NODE_RANK, "coordinates");
+      *meta.get_field<double>(stk::topology::NODE_RANK, "coordinates");
     for (auto ib :
          bulk.get_buckets(stk::topology::NODE_RANK, meta.universal_part())) {
       for (auto node : *ib) {
@@ -91,7 +90,7 @@ sum_field(scalar_view<p> qp1)
 {
   double sum_prev = 0;
   Kokkos::parallel_reduce(
-    sierra::nalu::DeviceRangePolicy(0, qp1.extent_int(0)),
+    sierra::kynema_ugf::DeviceRangePolicy(0, qp1.extent_int(0)),
     KOKKOS_LAMBDA(int index, double& sumval) {
       for (int k = 0; k < p + 1; ++k) {
         for (int j = 0; j < p + 1; ++j) {
@@ -137,5 +136,5 @@ TEST_F(GatheredFieldManagerFixture, update_solution)
 }
 
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

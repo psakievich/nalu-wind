@@ -14,7 +14,7 @@
 #include "PecletFunction.h"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class MomentumEdgeSolverAlg : public AssembleEdgeSolverAlgorithm
 {
@@ -32,12 +32,14 @@ private:
   unsigned dudx_{stk::mesh::InvalidOrdinal};
   unsigned edgeAreaVec_{stk::mesh::InvalidOrdinal};
   unsigned massFlowRate_{stk::mesh::InvalidOrdinal};
+  unsigned massVofBalancedFlowRate_{stk::mesh::InvalidOrdinal};
   unsigned viscosity_{stk::mesh::InvalidOrdinal};
+  unsigned density_{stk::mesh::InvalidOrdinal};
   unsigned pecletFactor_{stk::mesh::InvalidOrdinal};
   unsigned maskNodeField_{stk::mesh::InvalidOrdinal};
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif /* MOMENTUMEDGESOLVERALG_H */

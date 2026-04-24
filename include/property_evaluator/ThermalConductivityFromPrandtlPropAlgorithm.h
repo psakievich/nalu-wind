@@ -21,7 +21,7 @@ class Part;
 } // namespace stk
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class Realm;
 class PropertyEvaluator;
@@ -30,25 +30,15 @@ class ThermalConductivityFromPrandtlPropAlgorithm : public Algorithm
 {
 public:
   ThermalConductivityFromPrandtlPropAlgorithm(
-    Realm& realm,
-    stk::mesh::Part* part,
-    ScalarFieldType* thermalCond,
-    ScalarFieldType* specificHeat,
-    ScalarFieldType* viscosity,
-    const double Pr);
+    Realm& realm, const stk::mesh::PartVector& part_vec, const double Pr);
 
   virtual ~ThermalConductivityFromPrandtlPropAlgorithm() {}
 
   virtual void execute();
-
-  ScalarFieldType* thermalCond_;
-  ScalarFieldType* specHeat_;
-  ScalarFieldType* viscosity_;
-
   const double Pr_;
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

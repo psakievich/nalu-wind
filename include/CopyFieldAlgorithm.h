@@ -27,11 +27,20 @@ typedef std::vector<Part*> PartVector;
 } // namespace stk
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class CopyFieldAlgorithm : public Algorithm
 {
 public:
+  CopyFieldAlgorithm(
+    Realm& realm,
+    const stk::mesh::PartVector& part_vec,
+    stk::mesh::FieldBase* fromField,
+    stk::mesh::FieldBase* toField,
+    const unsigned beginPos,
+    const unsigned endPos,
+    const stk::mesh::EntityRank entityRank);
+
   CopyFieldAlgorithm(
     Realm& realm,
     stk::mesh::Part* part,
@@ -58,7 +67,7 @@ private:
   CopyFieldAlgorithm& operator=(const CopyFieldAlgorithm& other);
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

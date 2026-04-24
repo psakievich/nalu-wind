@@ -15,8 +15,8 @@
 #include <Simulation.h>
 #include <OutputInfo.h>
 #include <SolutionOptions.h>
-#include <NaluEnv.h>
-#include <NaluParsing.h>
+#include <KynemaUGFEnv.h>
+#include <KynemaUGFParsing.h>
 #include <mesh_motion/MeshMotionAlg.h>
 #include "overset/ExtOverset.h"
 
@@ -24,7 +24,7 @@
 #include <iomanip>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 TimeIntegrator::TimeIntegrator() {}
 
@@ -85,7 +85,7 @@ TimeIntegrator::load(const YAML::Node& node)
           maxTimeStepCount_ =
             standardTimeIntegrator_node["termination_step_count"].as<int>();
           if (terminateBasedOnTime_)
-            NaluEnv::self().naluOutputP0()
+            KynemaUGFEnv::self().kynema_ugfOutputP0()
               << "Both max time step and termination time provided, max step "
                  "will prevail"
               << std::endl;
@@ -119,23 +119,23 @@ TimeIntegrator::load(const YAML::Node& node)
           timeStepType);
         adaptiveTimeStep_ = (timeStepType == "fixed") ? false : true;
 
-        NaluEnv::self().naluOutputP0()
+        KynemaUGFEnv::self().kynema_ugfOutputP0()
           << "StandardTimeIntegrator " << std::endl
           << " name=              " << name_ << std::endl
           << " second order =     " << secondOrderTimeAccurate_ << std::endl;
         if (terminateBasedOnTime_)
-          NaluEnv::self().naluOutputP0()
+          KynemaUGFEnv::self().kynema_ugfOutputP0()
             << " totalSimTime =     " << totalSimTime_ << std::endl;
         else
-          NaluEnv::self().naluOutputP0()
+          KynemaUGFEnv::self().kynema_ugfOutputP0()
             << " maxTimeStepCount = " << maxTimeStepCount_ << std::endl;
 
         if (adaptiveTimeStep_)
-          NaluEnv::self().naluOutputP0()
+          KynemaUGFEnv::self().kynema_ugfOutputP0()
             << " adaptive time step is active (realm owns specifics) "
             << std::endl;
         else
-          NaluEnv::self().naluOutputP0()
+          KynemaUGFEnv::self().kynema_ugfOutputP0()
             << " fixed time step is active  "
             << " with time step: " << timeStepN_ << std::endl;
 
@@ -143,7 +143,7 @@ TimeIntegrator::load(const YAML::Node& node)
         int iRealm = 0;
         for (size_t irealm = 0; irealm < realms_node.size(); ++irealm) {
           std::string realm_name = realms_node[irealm].as<std::string>();
-          NaluEnv::self().naluOutputP0()
+          KynemaUGFEnv::self().kynema_ugfOutputP0()
             << "StandardTimeIntegrator realm_name[" << iRealm
             << "]= " << realm_name << std::endl;
           realmNamesVec_.push_back(realm_name);
@@ -160,6 +160,7 @@ TimeIntegrator::breadboard()
   for (size_t irealm = 0; irealm < realmNamesVec_.size(); ++irealm) {
     Realm* realm = sim_->realms_->find_realm(realmNamesVec_[irealm]);
     realm->timeIntegrator_ = this;
+    realm->setup_field_manager();
     realmVec_.push_back(realm);
   }
 
@@ -271,37 +272,53 @@ TimeIntegrator::prepare_for_time_integration()
 }
 
 void
-TimeIntegrator::pre_realm_advance_stage1()
+TimeIntegrator::prepare_time_step(size_t inonlin)
 {
   std::vector<Realm*>::iterator ii;
 
-  // negotiate time step
-  if (adaptiveTimeStep_) {
-    double theStep = 1.0e8;
-    for (ii = realmVec_.begin(); ii != realmVec_.end(); ++ii) {
-      theStep = std::min(theStep, (*ii)->compute_adaptive_time_step());
+  if (inonlin < 1) {
+    // negotiate time step
+    if (adaptiveTimeStep_) {
+      double theStep = 1.0e8;
+      for (ii = realmVec_.begin(); ii != realmVec_.end(); ++ii) {
+        theStep = std::min(theStep, (*ii)->compute_adaptive_time_step());
+      }
+      timeStepN_ = theStep;
+    } else if (overset_->is_external_overset()) {
+      // refresh value from file if externally coupled
+      timeStepN_ = timeStepFromFile_;
     }
-    timeStepN_ = theStep;
   }
+}
 
-  currentTime_ += timeStepN_;
-  timeStepCount_ += 1;
+void
+TimeIntegrator::pre_realm_advance_stage1(size_t inonlin)
+{
+  std::vector<Realm*>::iterator ii;
 
-  // compute gamma's
-  if (secondOrderTimeAccurate_)
-    compute_gamma();
+  if (inonlin < 1) {
 
-  NaluEnv::self().naluOutputP0()
-    << "*******************************************************" << std::endl
-    << "Time Step Count: " << timeStepCount_
-    << " Current Time: " << currentTime_ << std::endl
-    << " dtN: " << timeStepN_ << " dtNm1: " << timeStepNm1_
-    << " gammas: " << gamma1_ << " " << gamma2_ << " " << gamma3_ << std::endl;
+    // Advance time according to time step
+    currentTime_ += timeStepN_;
+    timeStepCount_ += 1;
 
-  // state management
-  for (ii = realmVec_.begin(); ii != realmVec_.end(); ++ii) {
-    (*ii)->swap_states();
-    (*ii)->predict_state();
+    // compute gamma's
+    if (secondOrderTimeAccurate_)
+      compute_gamma();
+
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
+      << "*******************************************************" << std::endl
+      << "Time Step Count: " << timeStepCount_
+      << " Current Time: " << currentTime_ << std::endl
+      << " dtN: " << timeStepN_ << " dtNm1: " << timeStepNm1_
+      << " gammas: " << gamma1_ << " " << gamma2_ << " " << gamma3_
+      << std::endl;
+
+    // state management
+    for (ii = realmVec_.begin(); ii != realmVec_.end(); ++ii) {
+      (*ii)->swap_states();
+      (*ii)->predict_state();
+    }
   }
 
   // read any fields from input file that will serve as external fields
@@ -315,27 +332,30 @@ TimeIntegrator::pre_realm_advance_stage1()
 }
 
 void
-TimeIntegrator::pre_realm_advance_stage2()
+TimeIntegrator::pre_realm_advance_stage2(size_t inonlin)
 {
-  std::vector<Realm*>::iterator ii;
 
   for (auto realm : realmVec_) {
     realm->update_graph_connectivity_and_coordinates_due_to_mesh_motion();
   }
 
-  // populate boundary data
-  for (ii = realmVec_.begin(); ii != realmVec_.end(); ++ii) {
-    (*ii)->populate_boundary_data();
-  }
+  if (inonlin < 1) {
+    std::vector<Realm*>::iterator ii;
 
-  // output banner
-  for (ii = realmVec_.begin(); ii != realmVec_.end(); ++ii) {
-    (*ii)->output_banner();
-  }
+    // populate boundary data
+    for (ii = realmVec_.begin(); ii != realmVec_.end(); ++ii) {
+      (*ii)->populate_boundary_data();
+    }
 
-  // for this time, extract all of the proper data
-  for (ii = realmVec_.begin(); ii != realmVec_.end(); ++ii) {
-    (*ii)->process_external_data_transfer();
+    // output banner
+    for (ii = realmVec_.begin(); ii != realmVec_.end(); ++ii) {
+      (*ii)->output_banner();
+    }
+
+    // for this time, extract all of the proper data
+    for (ii = realmVec_.begin(); ii != realmVec_.end(); ++ii) {
+      (*ii)->process_external_data_transfer();
+    }
   }
 }
 
@@ -359,17 +379,18 @@ TimeIntegrator::integrate_realm()
   //=====================================
 
   while (simulation_proceeds()) {
-    const double startTime = NaluEnv::self().nalu_time();
+    const double startTime = KynemaUGFEnv::self().kynema_ugf_time();
 
+    prepare_time_step();
     pre_realm_advance_stage1();
     if (update_overset)
       overset_->update_connectivity();
     pre_realm_advance_stage2();
 
-    const double endPreProc = NaluEnv::self().nalu_time();
+    const double endPreProc = KynemaUGFEnv::self().kynema_ugf_time();
     // nonlinear iteration loop; Picard-style
     for (int k = 0; k < nonlinearIterations_; ++k) {
-      NaluEnv::self().naluOutputP0()
+      KynemaUGFEnv::self().kynema_ugfOutputP0()
         << "   Realm Nonlinear Iteration: " << k + 1 << "/"
         << nonlinearIterations_ << std::endl
         << std::endl;
@@ -383,10 +404,10 @@ TimeIntegrator::integrate_realm()
       }
     }
 
-    const double endSolve = NaluEnv::self().nalu_time();
+    const double endSolve = KynemaUGFEnv::self().kynema_ugf_time();
     post_realm_advance();
-    const double endPostProc = NaluEnv::self().nalu_time();
-    NaluEnv::self().naluOutputP0()
+    const double endPostProc = KynemaUGFEnv::self().kynema_ugf_time();
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << "WallClockTime: " << timeStepCount_
       << " Pre: " << (endPreProc - startTime)
       << " NLI: " << (endSolve - endPreProc)
@@ -395,12 +416,12 @@ TimeIntegrator::integrate_realm()
   }
 
   // inform the user that the simulation is complete
-  NaluEnv::self().naluOutputP0()
+  KynemaUGFEnv::self().kynema_ugfOutputP0()
     << "*******************************************************" << std::endl;
-  NaluEnv::self().naluOutputP0()
+  KynemaUGFEnv::self().kynema_ugfOutputP0()
     << "Simulation Shall Complete: time/timestep: " << currentTime_ << "/"
     << timeStepCount_ << std::endl;
-  NaluEnv::self().naluOutputP0()
+  KynemaUGFEnv::self().kynema_ugfOutputP0()
     << "*******************************************************" << std::endl;
 
   // dump time
@@ -450,7 +471,7 @@ TimeIntegrator::provide_mean_norm()
       realmIncrement += 1.0;
     }
   }
-  NaluEnv::self().naluOutputP0()
+  KynemaUGFEnv::self().kynema_ugfOutputP0()
     << "Mean System Norm: " << std::setprecision(16) << sumNorm / realmIncrement
     << " " << std::setprecision(6) << timeStepCount_ << " " << currentTime_
     << std::endl;
@@ -510,20 +531,26 @@ TimeIntegrator::simulation_proceeds()
 
 //--------------------------------------------------------------------------
 double
-TimeIntegrator::get_time_step(const NaluState& theState) const
+TimeIntegrator::get_time_step(const KynemaUGFState& theState) const
 {
   double dt = timeStepN_;
   switch (theState) {
-  case NALU_STATE_N:
+  case KYNEMA_UGF_STATE_N:
     dt = timeStepN_;
     break;
-  case NALU_STATE_NM1:
+  case KYNEMA_UGF_STATE_NM1:
     dt = timeStepNm1_;
     break;
   default:
     throw std::runtime_error("unknown state");
   }
   return dt;
+}
+
+void
+TimeIntegrator::set_time_step(const double dt)
+{
+  timeStepN_ = dt;
 }
 
 //--------------------------------------------------------------------------
@@ -613,5 +640,5 @@ TimeIntegrator::get_max_time_step_count()
     return -1;
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

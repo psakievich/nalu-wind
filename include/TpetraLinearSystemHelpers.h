@@ -26,11 +26,11 @@ class CommNeighbors;
 }
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class LocalGraphArrays;
 
-#define GID_(gid, ndof, idof) ((ndof) * ((gid)-1) + (idof) + 1)
+#define GID_(gid, ndof, idof) ((ndof) * ((gid) - 1) + (idof) + 1)
 
 enum DOFStatus {
   DS_NotSet = 0,
@@ -60,7 +60,7 @@ void fill_owned_and_shared_then_nonowned_ordered_by_proc(
 stk::mesh::Entity get_entity_master(
   const stk::mesh::BulkData& bulk,
   stk::mesh::Entity entity,
-  stk::mesh::EntityId naluId,
+  stk::mesh::EntityId kynema_ugfId,
   bool throwIfMasterNotFound = true);
 
 size_t get_neighbor_index(const std::vector<int>& neighborProcs, int proc);
@@ -136,7 +136,7 @@ sync_dual_view_host_to_device(ViewType viewToSync)
   viewToSync.template sync<typename ViewType::execution_space>();
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

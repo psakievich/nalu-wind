@@ -23,7 +23,7 @@
 #include "stk_util/util/SortAndUnique.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 void
 populate_ghost_comm_procs(
@@ -61,14 +61,14 @@ get_elem_topo(const Realm& realm, const stk::mesh::Part& surfacePart)
   std::vector<const stk::mesh::Part*> blockParts =
     realm.meta_data().get_blocks_touching_surface(&surfacePart);
 
-  ThrowRequireMsg(
+  STK_ThrowRequireMsg(
     blockParts.size() >= 1,
     "Error, expected at least 1 block for surface " << surfacePart.name());
 
   stk::topology elemTopo = blockParts[0]->topology();
   if (blockParts.size() > 1) {
     for (size_t i = 1; i < blockParts.size(); ++i) {
-      ThrowRequireMsg(
+      STK_ThrowRequireMsg(
         blockParts[i]->topology() == elemTopo,
         "Error, found blocks of different topology connected to surface '"
           << surfacePart.name() << "', " << elemTopo << " and "
@@ -76,7 +76,7 @@ get_elem_topo(const Realm& realm, const stk::mesh::Part& surfacePart)
     }
   }
 
-  ThrowRequireMsg(
+  STK_ThrowRequireMsg(
     elemTopo != stk::topology::INVALID_TOPOLOGY,
     "Error, didn't find valid topology block for surface "
       << surfacePart.name());
@@ -215,32 +215,33 @@ compute_precise_ghosting_lists(
     bulk, sendGhostsToRemove, recvGhostsToRemove);
 }
 
-void
-register_scalar_nodal_field_on_part(
-  stk::mesh::MetaData& meta,
-  std::string name,
-  const stk::mesh::Part& part,
-  int num_states,
-  double ic)
+unsigned
+max_extent(const stk::mesh::FieldBase& field, unsigned dimension)
 {
-  auto& field = meta.declare_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, name, num_states);
-  stk::mesh::put_field_on_mesh(field, part, &ic);
+  if (dimension == 0) {
+    stk::mesh::FieldRestriction::size_type max = 0;
+    for (const stk::mesh::FieldRestriction& res : field.restrictions()) {
+      max = std::max(max, res.dimension());
+    }
+    return max;
+  } else if (dimension == 1) {
+    stk::mesh::FieldRestriction::size_type max = 0;
+    for (const stk::mesh::FieldRestriction& res : field.restrictions()) {
+      if (res.dimension() != 0) {
+        max = std::max(max, res.num_scalars_per_entity() / res.dimension());
+      }
+    }
+    return max;
+
+  } else {
+    for (const stk::mesh::FieldRestriction& res : field.restrictions()) {
+      if (res.num_scalars_per_entity() > 0) {
+        return 1;
+      }
+    }
+    return 0;
+  }
 }
 
-void
-register_vector_nodal_field_on_part(
-  stk::mesh::MetaData& meta,
-  std::string name,
-  const stk::mesh::Part& selector,
-  int num_states,
-  std::array<double, 3> x)
-{
-  const int dim = meta.spatial_dimension();
-  auto& field = meta.declare_field<VectorFieldType>(
-    stk::topology::NODE_RANK, name, num_states);
-  stk::mesh::put_field_on_mesh(field, selector, dim, x.data());
-}
-
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

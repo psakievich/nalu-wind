@@ -17,7 +17,7 @@
 
 #include <stk_mesh/base/BulkData.hpp>
 #include <stk_mesh/base/Field.hpp>
-#include <stk_mesh/base/GetBuckets.hpp>
+
 #include <stk_mesh/base/MetaData.hpp>
 #include <stk_mesh/base/Part.hpp>
 #include "stk_mesh/base/NgpMesh.hpp"
@@ -26,7 +26,7 @@
 #include <limits>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 FixPressureAtNodeAlgorithm::FixPressureAtNodeAlgorithm(
   Realm& realm, stk::mesh::Part* part, EquationSystem* eqSystem)
@@ -36,10 +36,9 @@ FixPressureAtNodeAlgorithm::FixPressureAtNodeAlgorithm(
 {
   auto& meta = realm_.meta_data();
 
-  coordinates_ = meta.get_field<VectorFieldType>(
+  coordinates_ = meta.get_field<double>(
     stk::topology::NODE_RANK, realm_.get_coordinates_name());
-  pressure_ =
-    meta.get_field<ScalarFieldType>(stk::topology::NODE_RANK, "pressure");
+  pressure_ = meta.get_field<double>(stk::topology::NODE_RANK, "pressure");
 }
 
 FixPressureAtNodeAlgorithm::~FixPressureAtNodeAlgorithm() {}
@@ -59,7 +58,7 @@ FixPressureAtNodeAlgorithm::execute()
 {
 
   int numNodes = refNodeList_.size();
-  ThrowAssertMsg(
+  STK_ThrowAssertMsg(
     numNodes <= 1,
     "Invalid number of nodes encountered in FixPressureAtNodeAlgorithm");
 
@@ -247,5 +246,5 @@ FixPressureAtNodeAlgorithm::process_pressure_fix_node(
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

@@ -21,7 +21,7 @@
 #include "stk_topology/topology.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 
 void
@@ -195,7 +195,7 @@ make_owned_and_shared_row_map(
     (meta.globally_shared_part() & active_linsys) - meta.locally_owned_part();
   const auto num_shared = count_local_nodes(mesh, shared_selector);
 
-  ThrowRequire(
+  STK_ThrowRequire(
     count_local_nodes(mesh, active_linsys) == num_owned + num_shared);
   Kokkos::View<global_ordinal_type*> row_ids(
     "oas_row_ids", count_local_nodes(mesh, active_linsys));
@@ -258,5 +258,5 @@ make_owned_shared_constrained_row_map(
 }
 
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

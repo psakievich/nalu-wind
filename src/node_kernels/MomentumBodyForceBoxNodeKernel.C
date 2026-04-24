@@ -11,8 +11,8 @@
 #include "Realm.h"
 #include "SolutionOptions.h"
 #include "LowMachEquationSystem.h"
-#include "NaluEnv.h"
-#include "master_element/MasterElementFactory.h"
+#include "KynemaUGFEnv.h"
+#include "master_element/MasterElementRepo.h"
 #include "TimeIntegrator.h"
 
 #include "stk_mesh/base/MetaData.hpp"
@@ -27,7 +27,7 @@
 #include <iomanip>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 MomentumBodyForceBoxNodeKernel::MomentumBodyForceBoxNodeKernel(
   Realm& realm,
@@ -62,10 +62,11 @@ MomentumBodyForceBoxNodeKernel::MomentumBodyForceBoxNodeKernel(
     const auto& subParts = mdotPart_->subsets();
     for (auto* part : subParts) {
       const auto topo = part->topology();
-      MasterElement* meFC = MasterElementRepo::get_surface_master_element(topo);
+      MasterElement* meFC =
+        MasterElementRepo::get_surface_master_element_on_host(topo);
       const int numScsIp = meFC->num_integration_points();
       GenericFieldType* exposedAreaVec_ =
-        &(realm.meta_data().declare_field<GenericFieldType>(
+        &(realm.meta_data().declare_field<double>(
           static_cast<stk::topology::rank_t>(realm.meta_data().side_rank()),
           "exposed_area_vector"));
       stk::mesh::put_field_on_mesh(
@@ -91,7 +92,7 @@ MomentumBodyForceBoxNodeKernel::MomentumBodyForceBoxNodeKernel(
       }
     }
 
-    if (NaluEnv::self().parallel_rank() == 0) {
+    if (KynemaUGFEnv::self().parallel_rank() == 0) {
       std::ofstream myfile;
       myfile.open(outputFileName_.c_str());
       myfile << std::setw(w_) << "Time" << std::setw(w_) << "mdot"
@@ -116,14 +117,16 @@ MomentumBodyForceBoxNodeKernel::setup(Realm& realm)
     const double mdot = -mdotAlgDriver_->mdot_inflow();
 
     // Compute area of the mdot sideset
-    using MeshIndex = nalu_ngp::NGPMeshTraits<stk::mesh::NgpMesh>::MeshIndex;
+    using MeshIndex =
+      kynema_ugf_ngp::NGPMeshTraits<stk::mesh::NgpMesh>::MeshIndex;
     const auto& ngpMesh = realm.ngp_mesh();
     auto areaVec = fieldMgr.get_field<double>(exposedAreaVecID_);
     const auto& subParts = mdotPart_->subsets();
     double l_mdotArea = 0.0;
     for (auto* part : subParts) {
       const auto topo = part->topology();
-      MasterElement* meFC = MasterElementRepo::get_surface_master_element(topo);
+      MasterElement* meFC =
+        MasterElementRepo::get_surface_master_element_on_host(topo);
       const int numScsIp = meFC->num_integration_points();
       const std::string algName = "compute_mdot_area_" + std::to_string(topo);
       const stk::mesh::Selector sel = realm.meta_data().locally_owned_part() &
@@ -131,7 +134,7 @@ MomentumBodyForceBoxNodeKernel::setup(Realm& realm)
       const auto ndim = nDim_;
 
       double ma = 0.0;
-      nalu_ngp::run_entity_par_reduce(
+      kynema_ugf_ngp::run_entity_par_reduce(
         algName, ngpMesh, realm.meta_data().side_rank(), sel,
         KOKKOS_LAMBDA(const MeshIndex& mi, double& sum) {
           for (int ip = 0; ip < numScsIp; ++ip) {
@@ -150,7 +153,7 @@ MomentumBodyForceBoxNodeKernel::setup(Realm& realm)
     }
     double mdotArea = 0.0;
     stk::all_reduce_sum(
-      NaluEnv::self().parallel_comm(), &l_mdotArea, &mdotArea, 1);
+      KynemaUGFEnv::self().parallel_comm(), &l_mdotArea, &mdotArea, 1);
 
     // Compute drag
     pressureForceID_ = get_field_ordinal(realm.meta_data(), "pressure_force");
@@ -169,14 +172,15 @@ MomentumBodyForceBoxNodeKernel::setup(Realm& realm)
     }
     const stk::mesh::Selector sel = realm.meta_data().locally_owned_part() &
                                     stk::mesh::selectUnion(dragPartVec);
-    nalu_ngp::run_entity_par_reduce(
+    kynema_ugf_ngp::run_entity_par_reduce(
       algName, ngpMesh, stk::topology::NODE_RANK, sel,
       KOKKOS_LAMBDA(const MeshIndex& mi, double& total_force_x) {
         total_force_x += pForce.get(mi, 0) + vForce.get(mi, 0);
       },
       l_drag);
     double drag = 0.0;
-    stk::all_reduce_sum(NaluEnv::self().parallel_comm(), &l_drag, &drag, 1);
+    stk::all_reduce_sum(
+      KynemaUGFEnv::self().parallel_comm(), &l_drag, &drag, 1);
 
     // Compute forcing
     const auto& uRef = realm.solutionOptions_->dynamicBodyForceVelReference_;
@@ -193,7 +197,7 @@ MomentumBodyForceBoxNodeKernel::setup(Realm& realm)
           : 0.0;
     }
 
-    if (NaluEnv::self().parallel_rank() == 0) {
+    if (KynemaUGFEnv::self().parallel_rank() == 0) {
       std::ofstream myfile;
       myfile.open(outputFileName_.c_str(), std::ios_base::app);
       myfile << std::setprecision(6) << std::setw(w_) << currentTime
@@ -229,5 +233,5 @@ MomentumBodyForceBoxNodeKernel::execute(
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

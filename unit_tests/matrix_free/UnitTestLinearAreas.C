@@ -10,7 +10,7 @@
 #include "matrix_free/KokkosViewTypes.h"
 #include "matrix_free/LinearAreas.h"
 #include "matrix_free/LobattoQuadratureRule.h"
-#include "matrix_free/LocalArray.h"
+#include "ArrayND.h"
 #include "matrix_free/TensorOperations.h"
 
 #include "StkSimdComparisons.h"
@@ -22,7 +22,7 @@
 #include <math.h>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 namespace {
 
@@ -32,7 +32,7 @@ area_single_cube_hex_p()
 {
   constexpr int poly = p;
 
-  LocalArray<double[3][3]> jac = {
+  ArrayND<double[3][3]> jac = {
     {{+1.1, -2.6, 0}, {-1.2, .7, -0.2}, {10, -std::sqrt(3.), 12}}};
 
   constexpr auto nodes = GLL<poly>::nodes;
@@ -86,5 +86,5 @@ TEST(linear_areas, single_cube_hex27) { area_single_cube_hex_p<2>(); }
 
 } // namespace
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

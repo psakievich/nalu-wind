@@ -30,18 +30,20 @@ struct TpetraHelperObjectsBase
   TpetraHelperObjectsBase(std::shared_ptr<stk::mesh::BulkData> bulk, int numDof)
     : yamlNode(unit_test_utils::get_default_inputs()),
       realmDefaultNode(unit_test_utils::get_realm_default_node()),
-      naluObj(new unit_test_utils::NaluTest(yamlNode)),
-      realm(naluObj->create_realm(realmDefaultNode, "multi_physics", false)),
+      kynema_ugfObj(new unit_test_utils::KynemaUGFTest(yamlNode)),
+      realm(
+        kynema -
+        ugfObj->create_realm(realmDefaultNode, "multi_physics", false)),
       eqSystems(realm),
       eqSystem(eqSystems),
-      linsys(
-        new sierra::nalu::TpetraLinearSystem(realm, numDof, &eqSystem, nullptr))
+      linsys(new sierra::kynema_ugf::TpetraLinearSystem(
+        realm, numDof, &eqSystem, nullptr))
   {
     realm.bulkData_ = bulk;
     eqSystem.linsys_ = linsys;
   }
 
-  virtual ~TpetraHelperObjectsBase() { delete naluObj; }
+  virtual ~TpetraHelperObjectsBase() { delete kynema_ugfObj; }
 
   virtual void execute() {}
 
@@ -50,10 +52,10 @@ struct TpetraHelperObjectsBase
     auto oldPrec = std::cerr.precision();
     std::cerr.precision(14);
 
-    using MatrixType = sierra::nalu::LinSys::LocalMatrix;
+    using MatrixType = sierra::kynema_ugf::LinSys::LocalMatrix;
     const MatrixType& localMatrix = linsys->getOwnedLocalMatrix();
 
-    using VectorType = sierra::nalu::LinSys::LocalVector;
+    using VectorType = sierra::kynema_ugf::LinSys::LocalVector;
     const VectorType& localRhs = linsys->getOwnedLocalRhs();
 
     int localProc = realm.bulkData_->parallel_rank();
@@ -107,7 +109,8 @@ struct TpetraHelperObjectsBase
     const std::vector<int>& rowOffsets,
     const std::vector<int>& cols,
     const std::vector<double>& vals,
-    const std::vector<double>& rhs)
+    const std::vector<double>& rhs,
+    const double tol = 1.e-14)
   {
     auto localMatrix = linsys->getOwnedMatrix()->getLocalMatrixHost();
     auto localRhs =
@@ -126,18 +129,18 @@ struct TpetraHelperObjectsBase
         for (int j = 0; j < constRowView.length; ++j) {
           if (constRowView.colidx(j) == goldCol) {
             foundGoldCol = true;
-            EXPECT_NEAR(vals[offset], constRowView.value(j), 1.e-14)
+            EXPECT_NEAR(vals[offset], constRowView.value(j), tol)
               << "i: " << i << ", j: " << j;
           } else if (!find_col(
                        constRowView.colidx(j), cols, rowOffsets[i],
                        rowOffsets[i + 1])) {
-            EXPECT_NEAR(0.0, constRowView.value(j), 1.e-14);
+            EXPECT_NEAR(0.0, constRowView.value(j), tol);
           }
         }
         EXPECT_TRUE(foundGoldCol);
       }
 
-      EXPECT_NEAR(rhs[i], localRhs(i, 0), 1.e-14) << "i: " << i;
+      EXPECT_NEAR(rhs[i], localRhs(i, 0), tol) << "i: " << i;
     }
   }
 
@@ -178,11 +181,11 @@ struct TpetraHelperObjectsBase
 
   YAML::Node yamlNode;
   YAML::Node realmDefaultNode;
-  unit_test_utils::NaluTest* naluObj;
-  sierra::nalu::Realm& realm;
-  sierra::nalu::EquationSystems eqSystems;
-  sierra::nalu::EquationSystem eqSystem;
-  sierra::nalu::TpetraLinearSystem* linsys;
+  unit_test_utils::KynemaUGFTest* kynema_ugfObj;
+  sierra::kynema_ugf::Realm& realm;
+  sierra::kynema_ugf::EquationSystems eqSystems;
+  sierra::kynema_ugf::EquationSystem eqSystem;
+  sierra::kynema_ugf::TpetraLinearSystem* linsys;
 };
 
 struct TpetraHelperObjectsElem : public TpetraHelperObjectsBase
@@ -193,7 +196,7 @@ struct TpetraHelperObjectsElem : public TpetraHelperObjectsBase
     int numDof,
     stk::mesh::Part* part)
     : TpetraHelperObjectsBase(bulk, numDof),
-      assembleElemSolverAlg(new sierra::nalu::AssembleElemSolverAlgorithm(
+      assembleElemSolverAlg(new sierra::kynema_ugf::AssembleElemSolverAlgorithm(
         realm, part, &eqSystem, topo.rank(), topo.num_nodes()))
   {
   }
@@ -210,7 +213,7 @@ struct TpetraHelperObjectsElem : public TpetraHelperObjectsBase
     assembleElemSolverAlg->activeKernels_.clear();
   }
 
-  sierra::nalu::AssembleElemSolverAlgorithm* assembleElemSolverAlg;
+  sierra::kynema_ugf::AssembleElemSolverAlgorithm* assembleElemSolverAlg;
 };
 
 struct TpetraHelperObjectsFaceElem : public TpetraHelperObjectsBase
@@ -223,7 +226,7 @@ struct TpetraHelperObjectsFaceElem : public TpetraHelperObjectsBase
     stk::mesh::Part* part)
     : TpetraHelperObjectsBase(bulk, numDof),
       assembleFaceElemSolverAlg(
-        new sierra::nalu::AssembleFaceElemSolverAlgorithm(
+        new sierra::kynema_ugf::AssembleFaceElemSolverAlgorithm(
           realm, part, &eqSystem, faceTopo.num_nodes(), elemTopo.num_nodes()))
   {
   }
@@ -239,7 +242,8 @@ struct TpetraHelperObjectsFaceElem : public TpetraHelperObjectsBase
       kern->free_on_device();
     assembleFaceElemSolverAlg->activeKernels_.clear();
   }
-  sierra::nalu::AssembleFaceElemSolverAlgorithm* assembleFaceElemSolverAlg;
+  sierra::kynema_ugf::AssembleFaceElemSolverAlgorithm*
+    assembleFaceElemSolverAlg;
 };
 
 struct TpetraHelperObjectsEdge : public TpetraHelperObjectsBase
@@ -254,13 +258,13 @@ struct TpetraHelperObjectsEdge : public TpetraHelperObjectsBase
   template <typename T, class... Args>
   void create(stk::mesh::Part* part, Args&&... args)
   {
-    ThrowRequire(edgeAlg == nullptr);
+    STK_ThrowRequire(edgeAlg == nullptr);
     edgeAlg = new T(realm, part, &eqSystem, std::forward<Args>(args)...);
   }
 
   virtual void execute() override
   {
-    ThrowRequire(edgeAlg != nullptr);
+    STK_ThrowRequire(edgeAlg != nullptr);
     linsys->buildEdgeToNodeGraph({&realm.meta_data().universal_part()});
     linsys->finalizeLinearSystem();
 
@@ -273,7 +277,7 @@ struct TpetraHelperObjectsEdge : public TpetraHelperObjectsBase
     edgeAlg->activeKernels_.clear();
   }
 
-  sierra::nalu::AssembleEdgeSolverAlgorithm* edgeAlg;
+  sierra::kynema_ugf::AssembleEdgeSolverAlgorithm* edgeAlg;
 };
 
 } // namespace unit_test_utils
