@@ -7,7 +7,7 @@
 // for more details.
 //
 
-// nalu
+// kynema_ugf
 #include <AssemblePNGElemSolverAlgorithm.h>
 #include <EquationSystem.h>
 #include <SolverAlgorithm.h>
@@ -16,17 +16,17 @@
 #include <LinearSystem.h>
 #include <Realm.h>
 #include <master_element/MasterElement.h>
-#include "master_element/MasterElementFactory.h"
+#include "master_element/MasterElementRepo.h"
 
 // stk_mesh/base/fem
 #include <stk_mesh/base/BulkData.hpp>
 #include <stk_mesh/base/Field.hpp>
-#include <stk_mesh/base/GetBuckets.hpp>
+
 #include <stk_mesh/base/MetaData.hpp>
 #include <stk_mesh/base/Part.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //==========================================================================
 // Class Definition
@@ -49,11 +49,10 @@ AssemblePNGElemSolverAlgorithm::AssemblePNGElemSolverAlgorithm(
 {
   // save off data
   stk::mesh::MetaData& meta_data = realm_.meta_data();
-  scalarQ_ = meta_data.get_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, independentDofName);
-  dqdx_ =
-    meta_data.get_field<VectorFieldType>(stk::topology::NODE_RANK, dofName);
-  coordinates_ = meta_data.get_field<VectorFieldType>(
+  scalarQ_ =
+    meta_data.get_field<double>(stk::topology::NODE_RANK, independentDofName);
+  dqdx_ = meta_data.get_field<double>(stk::topology::NODE_RANK, dofName);
+  coordinates_ = meta_data.get_field<double>(
     stk::topology::NODE_RANK, realm_.get_coordinates_name());
 }
 
@@ -113,9 +112,11 @@ AssemblePNGElemSolverAlgorithm::execute()
 
     // extract master element
     MasterElement* meSCS =
-      sierra::nalu::MasterElementRepo::get_surface_master_element(b.topology());
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
+        b.topology());
     MasterElement* meSCV =
-      sierra::nalu::MasterElementRepo::get_volume_master_element(b.topology());
+      sierra::kynema_ugf::MasterElementRepo::get_volume_master_element_on_host(
+        b.topology());
 
     // extract master element specifics
     const int nodesPerElement = meSCS->nodesPerElement_;
@@ -176,7 +177,7 @@ AssemblePNGElemSolverAlgorithm::execute()
       int num_nodes = b.num_nodes(k);
 
       // sanity check on num nodes
-      ThrowAssert(num_nodes == nodesPerElement);
+      STK_ThrowAssert(num_nodes == nodesPerElement);
 
       for (int ni = 0; ni < num_nodes; ++ni) {
         stk::mesh::Entity node = node_rels[ni];
@@ -202,10 +203,11 @@ AssemblePNGElemSolverAlgorithm::execute()
       }
 
       // compute geometry
-      sierra::nalu::SharedMemView<double**> elemCoords(
+      sierra::kynema_ugf::SharedMemView<double**> elemCoords(
         p_coordinates, nodesPerElement, nDim);
-      sierra::nalu::SharedMemView<double*> areav(p_scs_areav, numScsIp * nDim);
-      sierra::nalu::SharedMemView<double*> vol(p_scv_volume, numScvIp);
+      sierra::kynema_ugf::SharedMemView<double*> areav(
+        p_scs_areav, numScsIp * nDim);
+      sierra::kynema_ugf::SharedMemView<double*> vol(p_scv_volume, numScvIp);
       meSCS->determinant(elemCoords, areav);
       meSCV->determinant(elemCoords, vol);
 
@@ -293,5 +295,5 @@ AssemblePNGElemSolverAlgorithm::execute()
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

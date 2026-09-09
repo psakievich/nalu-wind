@@ -8,23 +8,24 @@
 //
 #include "FieldManager.h"
 #include "stk_mesh/base/MetaData.hpp"
+#include "stk_io/IossBridge.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
-FieldManager::FieldManager(stk::mesh::MetaData& meta, int numStates)
-  : meta_(meta), numStates_(numStates)
+FieldManager::FieldManager(stk::mesh::MetaData& meta, const int numStates)
+  : meta_(meta), numStates_(numStates), numDimensions_(meta.spatial_dimension())
 {
 }
 
 bool
-FieldManager::field_exists(std::string name)
+FieldManager::field_exists(const std::string& name) const
 {
-  auto definition = FieldRegistry::query(numStates_, name);
+  auto definition = FieldRegistry::query(numDimensions_, numStates_, name);
 
   return std::visit(
     [&](auto def) -> bool {
-      return meta_.get_field<typename decltype(def)::FieldType>(
+      return meta_.get_field<typename decltype(def)::DataType>(
                def.rank, name) != nullptr;
     },
     definition);
@@ -32,39 +33,47 @@ FieldManager::field_exists(std::string name)
 
 FieldPointerTypes
 FieldManager::register_field(
-  std::string name, const stk::mesh::PartVector& parts)
+  const std::string& name,
+  const stk::mesh::PartVector& parts,
+  const int numStates,
+  const int numComponents,
+  const void* init_val) const
 {
-  auto definition = FieldRegistry::query(numStates_, name);
+  auto definition = FieldRegistry::query(numDimensions_, numStates_, name);
 
   return std::visit(
     [&](auto def) -> FieldPointerTypes {
-      auto* id = &(meta_.declare_field<typename decltype(def)::FieldType>(
-        def.rank, name, def.num_states));
+      using val_type = typename decltype(def)::DataType;
+      const int num_states = numStates ? numStates : def.num_states;
+      const int num_components =
+        numComponents ? numComponents : def.num_components;
+      const FieldLayout layout = def.layout;
 
+      const val_type* init = static_cast<const val_type*>(init_val);
+      auto* id = &(meta_.declare_field<val_type>(def.rank, name, num_states));
       for (auto&& part : parts) {
-        stk::mesh::put_field_on_mesh(*id, *part, def.num_states, nullptr);
+        stk::mesh::put_field_on_mesh(*id, *part, num_components, init);
+
+        if (layout == FieldLayout::VECTOR) {
+          stk::io::set_field_output_type(
+            *id, stk::io::FieldOutputType::VECTOR_3D);
+        } else if (layout == FieldLayout::TENSOR) {
+          stk::io::set_field_output_type(
+            *id, stk::io::FieldOutputType::FULL_TENSOR_36);
+        }
       }
-
+#if 0
+      std::cout << "Registring field '" << name << "' on parts:";
+      for (const auto& part : parts)
+        std::cout << " '" << part->name() << "'";
+      std::cout << " with number of states " << num_states;
+      std::cout << " and spatial dimension " << numDimensions_;
+      std::cout << " with number of components " << num_components;
+      std::cout << std::endl;
+#endif
       return id;
     },
     definition);
 }
-
-FieldPointerTypes
-FieldManager::register_field(std::string name, const stk::mesh::Part& part)
-{
-  auto definition = FieldRegistry::query(numStates_, name);
-
-  return std::visit(
-    [&](auto def) -> FieldPointerTypes {
-      auto* id = &(meta_.declare_field<typename decltype(def)::FieldType>(
-        def.rank, name, def.num_states));
-
-      stk::mesh::put_field_on_mesh(*id, part, def.num_states, nullptr);
-
-      return id;
-    },
-    definition);
-}
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

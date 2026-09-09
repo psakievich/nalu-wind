@@ -13,8 +13,8 @@
 /** \file
  *  \brief STK SIMD Interface
  *
- *  Nalu wrapper to provide SIMD capability for vectorizing sierra::nalu::Kernel
- *  algorithms.
+ *  KynemaUGF wrapper to provide SIMD capability for vectorizing
+ * sierra::kynema_ugf::Kernel algorithms.
  */
 
 #include "stk_simd/Simd.hpp"
@@ -23,15 +23,14 @@
 #include <vector>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 typedef stk::simd::Double SimdDouble;
 
 typedef SimdDouble DoubleType;
 
 template <typename T>
-using AlignedVector =
-  std::vector<T, non_std::AlignedAllocator<T, KOKKOS_MEMORY_ALIGNMENT>>;
+using AlignedVector = std::vector<T>;
 
 using ScalarAlignedVector = AlignedVector<DoubleType>;
 
@@ -63,8 +62,8 @@ get_length_of_next_simd_group(int index, int length)
   return nextLength;
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
-typedef sierra::nalu::DoubleType DoubleType;
+typedef sierra::kynema_ugf::DoubleType DoubleType;
 #endif /* SIMDINTERFACE_H */

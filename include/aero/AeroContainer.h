@@ -17,7 +17,7 @@
 #include <yaml-cpp/yaml.h>
 #include "aero/actuator/ActuatorModel.h"
 
-namespace sierra::nalu {
+namespace sierra::kynema_ugf {
 class OpenfastFSI;
 
 /**
@@ -37,10 +37,14 @@ public:
   void setup(double timeStep, std::shared_ptr<stk::mesh::BulkData> stkBulk);
   void execute(double& timer);
   void init(double currentTime, double restartFrequency);
-  void register_nodal_fields(stk::mesh::MetaData& meta, stk::mesh::Part* part);
-  void update_displacements(const double currentTime);
+  void register_nodal_fields(
+    stk::mesh::MetaData& meta, const stk::mesh::PartVector& part_vec);
+  void update_displacements(
+    const double currentTime,
+    const bool updateCurCoords = true,
+    const bool predict = true);
   void predict_model_time_step(const double /*currentTime*/);
-  void advance_model_time_step(const double /*currentTime*/);
+  void advance_model_time_step(const double /*currentTime*/, const double);
   void compute_div_mesh_velocity();
   // hacky function to make sure openfast is cleaned up
   // eventually all openfast pointers should be combined and moved out of this
@@ -53,14 +57,17 @@ public:
   const stk::mesh::PartVector fsi_parts();
   const stk::mesh::PartVector fsi_bndry_parts();
   const std::vector<std::string> fsi_bndry_part_names();
+  double openfast_accumulated_time();
+  double kynema_ugf_fsi_accumulated_time();
 
 private:
   bool has_actuators() { return actuatorModel_.is_active(); }
+
   ActuatorModel actuatorModel_;
   // TODO make this a unique_ptr
   OpenfastFSI* fsiContainer_;
   std::shared_ptr<stk::mesh::BulkData> bulk_;
 };
 
-} // namespace sierra::nalu
+} // namespace sierra::kynema_ugf
 #endif

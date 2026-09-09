@@ -1,7 +1,7 @@
 /*------------------------------------------------------------------------*/
 /*  Copyright 2019 National Renewable Energy Laboratory.                  */
 /*  This software is released under the license detailed                  */
-/*  in the file, LICENSE, which is located in the top-level Nalu          */
+/*  in the file, LICENSE, which is located in the top-level KynemaUGF */
 /*  directory structure                                                   */
 /*------------------------------------------------------------------------*/
 
@@ -16,7 +16,7 @@
 #include "stk_mesh/base/Types.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 /*------------------------------------------------------------------------*/
 /* BLTGammaM2015NodeKernel is a correlation-based transition model        */
@@ -57,6 +57,8 @@ private:
   stk::mesh::NgpField<double> visc_;
   stk::mesh::NgpField<double> dudx_;
   stk::mesh::NgpField<double> minD_;
+  stk::mesh::NgpField<double> dwalldistdx_;
+  stk::mesh::NgpField<double> dnDotVdx_;
   stk::mesh::NgpField<double> dualNodalVolume_;
   stk::mesh::NgpField<double> coordinates_;
   stk::mesh::NgpField<double> velocityNp1_;
@@ -68,21 +70,17 @@ private:
   unsigned viscID_{stk::mesh::InvalidOrdinal};
   unsigned dudxID_{stk::mesh::InvalidOrdinal};
   unsigned minDID_{stk::mesh::InvalidOrdinal};
+  unsigned dwalldistdxID_{stk::mesh::InvalidOrdinal};
+  unsigned dnDotVdxID_{stk::mesh::InvalidOrdinal};
   unsigned dualNodalVolumeID_{stk::mesh::InvalidOrdinal};
   unsigned gamintID_{stk::mesh::InvalidOrdinal};
 
-  NodeKernelTraits::DblType caOne_;
-  NodeKernelTraits::DblType caTwo_;
-  NodeKernelTraits::DblType ceOne_;
-  NodeKernelTraits::DblType ceTwo_;
-
-  int timeStepCount;
-  int maxStepCount;
+  NodeKernelTraits::DblType fsti_;
 
   const int nDim_;
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

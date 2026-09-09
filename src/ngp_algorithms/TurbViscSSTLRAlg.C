@@ -17,7 +17,7 @@
 #include "stk_mesh/base/NgpMesh.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 TurbViscSSTLRAlg::TurbViscSSTLRAlg(
   Realm& realm,
@@ -44,7 +44,7 @@ TurbViscSSTLRAlg::TurbViscSSTLRAlg(
 void
 TurbViscSSTLRAlg::execute()
 {
-  using Traits = nalu_ngp::NGPMeshTraits<stk::mesh::NgpMesh>;
+  using Traits = kynema_ugf_ngp::NGPMeshTraits<stk::mesh::NgpMesh>;
 
   const auto& meta = realm_.meta_data();
 
@@ -70,7 +70,7 @@ TurbViscSSTLRAlg::execute()
   const DblType betaStar = betaStar_;
   const int nDim = meta.spatial_dimension();
 
-  nalu_ngp::run_entity_algorithm(
+  kynema_ugf_ngp::run_entity_algorithm(
     "TurbViscSSTLRAlg", ngpMesh, stk::topology::NODE_RANK, sel,
     KOKKOS_LAMBDA(const Traits::MeshIndex& meshIdx) {
       DblType sijMag = 0.0;
@@ -84,17 +84,20 @@ TurbViscSSTLRAlg::execute()
       }
       sijMag = stk::math::sqrt(2.0 * sijMag);
 
-      const DblType minDSq = minD.get(meshIdx, 0) * minD.get(meshIdx, 0);
-      const DblType trbDiss = stk::math::sqrt(tke.get(meshIdx, 0)) / betaStar /
-                              sdr.get(meshIdx, 0) / minD.get(meshIdx, 0);
+      // Guard against zero wall distance (e.g. at wall nodes) and zero sdr
+      const DblType minDist = stk::math::max(minD.get(meshIdx, 0), 1.0e-16);
+      const DblType sdrSafe = stk::math::max(sdr.get(meshIdx, 0), 1.0e-16);
+      const DblType tkeSafe = stk::math::max(tke.get(meshIdx, 0), 0.0);
+      const DblType minDSq = minDist * minDist;
+      const DblType trbDiss =
+        stk::math::sqrt(tkeSafe) / betaStar / sdrSafe / minDist;
       const DblType lamDiss = 500.0 * visc.get(meshIdx, 0) /
-                              density.get(meshIdx, 0) / sdr.get(meshIdx, 0) /
-                              minDSq;
+                              density.get(meshIdx, 0) / sdrSafe / minDSq;
       const DblType fArgTwo = stk::math::max(2.0 * trbDiss, lamDiss);
       const DblType fTwo = stk::math::tanh(fArgTwo * fArgTwo);
 
-      const DblType ReTurb = density.get(meshIdx, 0) * tke.get(meshIdx, 0) /
-                             sdr.get(meshIdx, 0) / visc.get(meshIdx, 0);
+      const DblType ReTurb =
+        density.get(meshIdx, 0) * tkeSafe / sdrSafe / visc.get(meshIdx, 0);
 
       const DblType rK = 6.0;
       const DblType a0Star = 0.072 / 3.0;
@@ -106,15 +109,14 @@ TurbViscSSTLRAlg::execute()
 
       const DblType fOne = fOneBlend.get(meshIdx, 0);
       const DblType tviscSST =
-        aOne * density.get(meshIdx, 0) * tke.get(meshIdx, 0) /
+        aOne * density.get(meshIdx, 0) * tkeSafe /
         stk::math::max(aOne * sdr.get(meshIdx, 0), sijMag * fTwo);
-      const DblType tviscKW = aStar * density.get(meshIdx, 0) *
-                              tke.get(meshIdx, 0) /
+      const DblType tviscKW = aStar * density.get(meshIdx, 0) * tkeSafe /
                               stk::math::max(omegaHat, 1.e-8);
       tvisc.get(meshIdx, 0) = fOne * tviscKW + (1 - fOne) * tviscSST;
     });
   tvisc.modify_on_device();
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

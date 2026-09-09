@@ -11,10 +11,11 @@
 #include <master_element/MasterElementFunctions.h>
 #include <master_element/Tet4CVFEM.h>
 #include <master_element/Hex8GeometryFunctions.h>
+#include "master_element/CompileTimeElements.h"
 
 #include <AlgTraits.h>
 
-#include <NaluEnv.h>
+#include <KynemaUGFEnv.h>
 
 #include <stk_util/util/ReportHandler.hpp>
 #include <stk_topology/topology.hpp>
@@ -28,7 +29,7 @@
 #include <memory>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //-------- tet_deriv -------------------------------------------------------
 template <typename DerivType>
@@ -89,34 +90,34 @@ tet_gradient_operator(
   //
   const unsigned nint = deriv.extent(0);
   const unsigned npe = deriv.extent(1);
-  ThrowRequireMsg(
+  STK_ThrowRequireMsg(
     3 == deriv.extent(2), "tet_gradient_operator: Error in derivative array");
 
   const unsigned nelem = cordel.extent(0);
-  ThrowRequireMsg(
+  STK_ThrowRequireMsg(
     npe == cordel.extent(1),
     "tet_gradient_operator: Error in coorindate array");
-  ThrowRequireMsg(
+  STK_ThrowRequireMsg(
     3 == cordel.extent(2), "tet_gradient_operator: Error in coorindate array");
 
-  ThrowRequireMsg(
+  STK_ThrowRequireMsg(
     nint == gradop.extent(0), "tet_gradient_operator: Error in gradient array");
-  ThrowRequireMsg(
+  STK_ThrowRequireMsg(
     nelem == gradop.extent(1),
     "tet_gradient_operator: Error in gradient array");
-  ThrowRequireMsg(
+  STK_ThrowRequireMsg(
     npe == gradop.extent(2), "tet_gradient_operator: Error in gradient array");
-  ThrowRequireMsg(
+  STK_ThrowRequireMsg(
     3 == gradop.extent(3), "tet_gradient_operator: Error in gradient array");
 
-  ThrowRequireMsg(
+  STK_ThrowRequireMsg(
     nint == det_j.extent(0),
     "tet_gradient_operator: Error in determinent array");
-  ThrowRequireMsg(
+  STK_ThrowRequireMsg(
     nelem == det_j.extent(1),
     "tet_gradient_operator: Error in determinent array");
 
-  ThrowRequireMsg(
+  STK_ThrowRequireMsg(
     nelem == err.extent(0), "tet_gradient_operator: Error in error array");
 
   const double realmin = std::numeric_limits<double>::min();
@@ -336,7 +337,7 @@ TetSCV::determinant_scv(
     // compute volume using an equivalent polyhedron
     volume(icv) = hex_volume_grandy(ehexcoords);
     // check for negative volume
-    // ThrowAssertMsg( volume(icv) < 0.0, "ERROR in TetSCV::determinant,
+    // STK_ThrowAssertMsg( volume(icv) < 0.0, "ERROR in TetSCV::determinant,
     // negative volume.");
   }
 }
@@ -363,10 +364,9 @@ void
 TetSCV::grad_op(
   const SharedMemView<DoubleType**, DeviceShmem>& coords,
   SharedMemView<DoubleType***, DeviceShmem>& gradop,
-  SharedMemView<DoubleType***, DeviceShmem>& deriv)
+  SharedMemView<DoubleType***, DeviceShmem>&)
 {
-  tet_deriv(deriv);
-  generic_grad_op<AlgTraitsTet4>(deriv, coords, gradop);
+  impl::grad_op<AlgTraitsTet4, QuadRank::SCV, QuadType::MID>(coords, gradop);
 }
 
 //--------------------------------------------------------------------------
@@ -377,10 +377,10 @@ void
 TetSCV::shifted_grad_op(
   SharedMemView<DoubleType**, DeviceShmem>& coords,
   SharedMemView<DoubleType***, DeviceShmem>& gradop,
-  SharedMemView<DoubleType***, DeviceShmem>& deriv)
+  SharedMemView<DoubleType***, DeviceShmem>&)
 {
-  tet_deriv(deriv);
-  generic_grad_op<AlgTraitsTet4>(deriv, coords, gradop);
+  impl::grad_op<AlgTraitsTet4, QuadRank::SCV, QuadType::SHIFTED>(
+    coords, gradop);
 }
 
 //--------------------------------------------------------------------------
@@ -638,20 +638,18 @@ void
 TetSCS::grad_op(
   const SharedMemView<DoubleType**, DeviceShmem>& coords,
   SharedMemView<DoubleType***, DeviceShmem>& gradop,
-  SharedMemView<DoubleType***, DeviceShmem>& deriv)
+  SharedMemView<DoubleType***, DeviceShmem>&)
 {
-  tet_deriv(deriv);
-  generic_grad_op<AlgTraitsTet4>(deriv, coords, gradop);
+  impl::grad_op<AlgTraitsTet4, QuadRank::SCS, QuadType::MID>(coords, gradop);
 }
 
 void
 TetSCS::grad_op(
   const SharedMemView<double**>& coords,
   SharedMemView<double***>& gradop,
-  SharedMemView<double***>& deriv)
+  SharedMemView<double***>&)
 {
-  tet_deriv(deriv);
-  generic_grad_op<AlgTraitsTet4>(deriv, coords, gradop);
+  impl::grad_op<AlgTraitsTet4, QuadRank::SCS, QuadType::MID>(coords, gradop);
 }
 
 //--------------------------------------------------------------------------
@@ -662,11 +660,10 @@ void
 TetSCS::shifted_grad_op(
   SharedMemView<DoubleType**, DeviceShmem>& coords,
   SharedMemView<DoubleType***, DeviceShmem>& gradop,
-  SharedMemView<DoubleType***, DeviceShmem>& deriv)
+  SharedMemView<DoubleType***, DeviceShmem>&)
 {
-  tet_deriv(deriv);
-
-  generic_grad_op<AlgTraitsTet4>(deriv, coords, gradop);
+  impl::grad_op<AlgTraitsTet4, QuadRank::SCS, QuadType::SHIFTED>(
+    coords, gradop);
 }
 
 //--------------------------------------------------------------------------
@@ -708,8 +705,9 @@ TetSCS::gij(
   const SharedMemView<DoubleType**, DeviceShmem>& coords,
   SharedMemView<DoubleType***, DeviceShmem>& gupper,
   SharedMemView<DoubleType***, DeviceShmem>& glower,
-  SharedMemView<DoubleType***, DeviceShmem>& deriv)
+  SharedMemView<DoubleType***, DeviceShmem>& /*deriv*/)
 {
+  constexpr auto deriv = elem_data_t<AlgTraitsTet4, QuadType::MID>::scs_deriv;
   generic_gij_3d<AlgTraitsTet4>(deriv, coords, gupper, glower);
 }
 
@@ -717,9 +715,10 @@ TetSCS::gij(
 //-------- Mij ------------------------------------------------------------
 //--------------------------------------------------------------------------
 void
-TetSCS::Mij(const double* coords, double* metric, double* deriv)
+TetSCS::Mij(const double* coords, double* metric, double* /*deriv*/)
 {
-  generic_Mij_3d<AlgTraitsTet4>(numIntPoints_, deriv, coords, metric);
+  constexpr auto deriv = elem_data_t<AlgTraitsTet4, QuadType::MID>::scs_deriv;
+  generic_Mij_3d<AlgTraitsTet4>(numIntPoints_, deriv.data(), coords, metric);
 }
 //-------------------------------------------------------------------------
 KOKKOS_FUNCTION
@@ -727,9 +726,9 @@ void
 TetSCS::Mij(
   SharedMemView<DoubleType**, DeviceShmem>& coords,
   SharedMemView<DoubleType***, DeviceShmem>& metric,
-  SharedMemView<DoubleType***, DeviceShmem>& deriv)
+  SharedMemView<DoubleType***, DeviceShmem>& /*deriv*/)
 {
-  tet_deriv(deriv);
+  constexpr auto deriv = elem_data_t<AlgTraitsTet4, QuadType::MID>::scs_deriv;
   generic_Mij_3d<AlgTraitsTet4>(deriv, coords, metric);
 }
 
@@ -1053,5 +1052,5 @@ TetSCS::parametric_distance(const double* x)
   return dist;
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

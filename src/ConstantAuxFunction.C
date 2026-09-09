@@ -12,7 +12,7 @@
 #include <stk_util/util/ReportHandler.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 ConstantAuxFunction::ConstantAuxFunction(
   const unsigned beginPos,
@@ -20,7 +20,7 @@ ConstantAuxFunction::ConstantAuxFunction(
   const std::vector<double>& values)
   : AuxFunction(beginPos, endPos), values_(values)
 {
-  ThrowRequire(endPos_ <= values_.size());
+  STK_ThrowRequire(endPos_ <= values_.size());
 }
 
 void
@@ -43,5 +43,5 @@ ConstantAuxFunction::do_evaluate(
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

@@ -11,8 +11,7 @@
 
 #include "BuildTemplates.h"
 #include "master_element/MasterElement.h"
-#include "master_element/MasterElementFactory.h"
-#include "ngp_algorithms/ViewHelper.h"
+#include "master_element/MasterElementRepo.h"
 #include "ngp_utils/NgpLoopUtils.h"
 #include "ngp_utils/NgpFieldOps.h"
 #include "ngp_utils/NgpFieldManager.h"
@@ -23,7 +22,7 @@
 #include "stk_mesh/base/NgpMesh.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 template <typename AlgTraits>
 MetricTensorElemAlg<AlgTraits>::MetricTensorElemAlg(
@@ -32,7 +31,8 @@ MetricTensorElemAlg<AlgTraits>::MetricTensorElemAlg(
     dataNeeded_(realm.meta_data()),
     nodalMij_(get_field_ordinal(realm.meta_data(), "metric_tensor")),
     dualNodalVol_(get_field_ordinal(realm.meta_data(), "dual_nodal_volume")),
-    meSCV_(MasterElementRepo::get_volume_master_element<AlgTraits>())
+    meSCV_(
+      MasterElementRepo::get_volume_master_element_on_dev(AlgTraits::topo_))
 {
   dataNeeded_.add_cvfem_volume_me(meSCV_);
 
@@ -54,14 +54,15 @@ void
 MetricTensorElemAlg<AlgTraits>::execute()
 {
   using ElemSimdDataType =
-    sierra::nalu::nalu_ngp::ElemSimdData<stk::mesh::NgpMesh>;
+    sierra::kynema_ugf::kynema_ugf_ngp::ElemSimdData<stk::mesh::NgpMesh>;
 
   const auto& meshInfo = realm_.mesh_info();
   const auto& meta = meshInfo.meta();
   const auto ngpMesh = meshInfo.ngp_mesh();
   const auto& fieldMgr = meshInfo.ngp_field_manager();
   auto Mij = fieldMgr.template get_field<double>(nodalMij_);
-  const auto MijOps = nalu_ngp::simd_elem_nodal_field_updater(ngpMesh, Mij);
+  const auto MijOps =
+    kynema_ugf_ngp::simd_elem_nodal_field_updater(ngpMesh, Mij);
 
   // Bring class members into local scope for device capture
   const auto dnvID = dualNodalVol_;
@@ -71,7 +72,7 @@ MetricTensorElemAlg<AlgTraits>::execute()
                                   stk::mesh::selectUnion(partVec_) &
                                   !(realm_.get_inactive_selector());
 
-  nalu_ngp::run_elem_algorithm(
+  kynema_ugf_ngp::run_elem_algorithm(
     "computeMetricTensorAlg", meshInfo, stk::topology::ELEM_RANK, dataNeeded_,
     sel, KOKKOS_LAMBDA(ElemSimdDataType & edata) {
       auto& scrView = edata.simdScrView;
@@ -95,5 +96,5 @@ MetricTensorElemAlg<AlgTraits>::execute()
 
 INSTANTIATE_KERNEL(MetricTensorElemAlg)
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

@@ -34,7 +34,7 @@
 #include <type_traits>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 
 class GradientBoundaryFixture : public GradientFixture
@@ -58,10 +58,12 @@ protected:
         meta.universal_part(),
         gid_field_ngp,
         owned_and_shared_map.getLocalMap())),
-      grad_bc_faces(face_node_map<order>(
-        mesh(), meta.get_topology_root_part(stk::topology::QUAD_4))),
-      grad_bc_offsets(face_offsets<order>(
-        mesh(), meta.get_topology_root_part(stk::topology::QUAD_4), elid))
+      grad_bc_faces(
+        face_node_map<order>(
+          mesh(), meta.get_topology_root_part(stk::topology::QUAD_4))),
+      grad_bc_offsets(
+        face_offsets<order>(
+          mesh(), meta.get_topology_root_part(stk::topology::QUAD_4), elid))
   {
     owned_lhs.putScalar(0.);
     owned_rhs.putScalar(0.);
@@ -114,5 +116,5 @@ TEST_F(GradientBoundaryFixture, bc_residual)
 }
 
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

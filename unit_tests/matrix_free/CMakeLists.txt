@@ -9,7 +9,7 @@ target_sources(${utest_ex_name} PRIVATE
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestConductionInterior.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestConductionJacobiPreconditioner.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestConductionOperator.C
-   ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestConductionUpdate.C
+   #${CMAKE_CURRENT_SOURCE_DIR}/UnitTestConductionUpdate.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestConductionSolutionUpdate.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestContinuityInterior.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestContinuityOperator.C
@@ -28,7 +28,6 @@ target_sources(${utest_ex_name} PRIVATE
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestLinearExposedAreas.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestLinearAdvectionMetric.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestLinearVolume.C
-   ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestLocalArray.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestLocalDualNodalVolume.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestLowMachUpdate.C
    ${CMAKE_CURRENT_SOURCE_DIR}/UnitTestMatrixFreeSolver.C

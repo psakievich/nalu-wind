@@ -22,7 +22,7 @@
 #include "stk_mesh/base/MetaData.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 namespace impl {
 
@@ -33,8 +33,8 @@ get_and_sync_ngp_field(
   std::string name,
   stk::mesh::FieldState state = stk::mesh::StateNP1)
 {
-  ThrowAssert(meta.get_field(stk::topology::NODE_RANK, name));
-  ThrowAssert(
+  STK_ThrowAssert(meta.get_field(stk::topology::NODE_RANK, name));
+  STK_ThrowAssert(
     meta.get_field(stk::topology::NODE_RANK, name)->field_state(state));
 
   auto field = stk::mesh::get_updated_ngp_field<T>(
@@ -117,5 +117,5 @@ gather_required_lowmach_fields_t<p>::invoke(
 INSTANTIATE_POLYSTRUCT(gather_required_lowmach_fields_t);
 } // namespace impl
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

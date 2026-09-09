@@ -10,7 +10,7 @@
 #include <SolutionNormPostProcessing.h>
 #include <AuxFunctionAlgorithm.h>
 #include <FieldTypeDef.h>
-#include <NaluParsing.h>
+#include <KynemaUGFParsing.h>
 #include <Realm.h>
 
 // the factory of aux functions
@@ -36,7 +36,7 @@
 // stk_mesh/base/fem
 #include <stk_mesh/base/BulkData.hpp>
 #include <stk_mesh/base/Field.hpp>
-#include <stk_mesh/base/GetBuckets.hpp>
+
 #include <stk_mesh/base/MetaData.hpp>
 #include <stk_mesh/base/Part.hpp>
 
@@ -47,7 +47,7 @@
 #include <iomanip>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //==========================================================================
 // Class Definition
@@ -126,10 +126,10 @@ SolutionNormPostProcessing::load(const YAML::Node& y_node)
   }
 
   // deal with file name and banner
-  if (NaluEnv::self().parallel_rank() == 0) {
+  if (KynemaUGFEnv::self().parallel_rank() == 0) {
     std::ofstream myfile;
     myfile.open(outputFileName_.c_str());
-    myfile << "Nalu Norm Post Processing......." << std::endl;
+    myfile << "KynemaUGF Norm Post Processing......." << std::endl;
     myfile << "Field" << std::setw(w_) << "Step" << std::setw(w_) << "Time"
            << std::setw(w_) << "Node Count" << std::setw(w_) << "Loo"
            << std::setw(w_) << "L1" << std::setw(w_) << "L2" << std::setw(w_)
@@ -154,7 +154,7 @@ SolutionNormPostProcessing::setup()
   for (size_t itarget = 0; itarget < targetNames.size(); ++itarget) {
     stk::mesh::Part* targetPart = metaData.get_part(targetNames[itarget]);
     if (NULL == targetPart) {
-      NaluEnv::self().naluOutputP0()
+      KynemaUGFEnv::self().kynema_ugfOutputP0()
         << "Trouble with part " << targetNames[itarget] << std::endl;
       throw std::runtime_error(
         "Sorry, no part name found by the name " + targetNames[itarget]);
@@ -181,7 +181,7 @@ SolutionNormPostProcessing::setup()
 
     // find the size; is there a better wat to determine a field size on a given
     // part?
-    const int dofSize = dofField->max_size(stk::topology::NODE_RANK);
+    const int dofSize = dofField->max_size();
 
     // increment total dof component size
     totalDofCompSize_ += dofSize;
@@ -193,9 +193,7 @@ SolutionNormPostProcessing::setup()
     const std::string dofNameExact = dofName + "_exact";
 
     stk::mesh::FieldBase* exactDofField =
-      &(metaData
-          .declare_field<stk::mesh::Field<double, stk::mesh::SimpleArrayTag>>(
-            stk::topology::NODE_RANK, dofNameExact));
+      &(metaData.declare_field<double>(stk::topology::NODE_RANK, dofNameExact));
 
     // push back to vector of pairs; unique list
     fieldPairVec_.push_back(std::make_pair(dofField, exactDofField));
@@ -384,14 +382,14 @@ SolutionNormPostProcessing::execute()
     g_L12Norm[totalDofCompSize_ + j] = 0.0;
   }
 
-  stk::ParallelMachine comm = NaluEnv::self().parallel_comm();
+  stk::ParallelMachine comm = KynemaUGFEnv::self().parallel_comm();
   stk::all_reduce_sum(comm, &l_nodeCount, &g_nodeCount, 1);
   stk::all_reduce_max(comm, &l_LooNorm[0], &g_LooNorm[0], totalDofCompSize_);
   stk::all_reduce_sum(
     comm, &l_L12Norm[0], &g_L12Norm[0], totalDofCompSize_ * 2);
 
   // output to a file
-  if (NaluEnv::self().parallel_rank() == 0) {
+  if (KynemaUGFEnv::self().parallel_rank() == 0) {
     const double currentTime = realm_.get_current_time();
     std::ofstream myfile;
     myfile.open(outputFileName_.c_str(), std::ios_base::app);
@@ -417,5 +415,5 @@ SolutionNormPostProcessing::execute()
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

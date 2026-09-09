@@ -14,18 +14,19 @@
 #include "FieldTypeDef.h"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 template <typename GradPhiType>
 class NodalGradAlgDriver : public NgpAlgDriver
 {
   static_assert(
     std::is_same<GradPhiType, VectorFieldType>::value ||
-      std::is_same<GradPhiType, GenericFieldType>::value,
+      std::is_same<GradPhiType, GenericFieldType>::value ||
+      std::is_same<GradPhiType, TensorFieldType>::value,
     "Invalid field type provided to NodalGradAlgDriver");
 
 public:
-  NodalGradAlgDriver(Realm&, const std::string&);
+  NodalGradAlgDriver(Realm&, const std::string&, const std::string&);
 
   virtual ~NodalGradAlgDriver() = default;
 
@@ -37,13 +38,15 @@ public:
 
 private:
   //! Field that is synchronized pre/post updates
+  const std::string phiName_;
   const std::string gradPhiName_;
 };
 
 using ScalarNodalGradAlgDriver = NodalGradAlgDriver<VectorFieldType>;
 using VectorNodalGradAlgDriver = NodalGradAlgDriver<GenericFieldType>;
+using TensorNodalGradAlgDriver = NodalGradAlgDriver<TensorFieldType>;
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif /* NODALGRADALGDRIVER_H */

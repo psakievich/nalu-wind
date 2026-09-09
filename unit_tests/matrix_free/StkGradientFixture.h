@@ -16,7 +16,6 @@
 
 #include "stk_io/StkMeshIoBroker.hpp"
 #include "stk_mesh/base/BulkData.hpp"
-#include "stk_mesh/base/CoordinateSystems.hpp"
 #include "stk_mesh/base/FEMHelpers.hpp"
 #include "stk_mesh/base/Field.hpp"
 #include "stk_mesh/base/FieldBase.hpp"
@@ -35,7 +34,7 @@
 #include "stk_unit_test_utils/stk_mesh_fixtures/HexFixture.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 
 class GradientFixture : public ::testing::Test
@@ -44,10 +43,9 @@ protected:
   using gid_type = typename Tpetra::Map<>::global_ordinal_type;
   static constexpr int order = 1;
   GradientFixture(int nx, double scale);
-  stk::mesh::Field<double, stk::mesh::Cartesian3d>& coordinate_field()
+  stk::mesh::Field<double>& coordinate_field()
   {
-    return *meta.get_field<stk::mesh::Field<double, stk::mesh::Cartesian3d>>(
-      stk::topology::NODE_RANK, "coordinates");
+    return *meta.get_field<double>(stk::topology::NODE_RANK, "coordinates");
   }
   stk::mesh::NgpMesh& mesh() { return stk::mesh::get_updated_ngp_mesh(bulk); }
 
@@ -69,6 +67,6 @@ protected:
   stk::mesh::NgpField<gid_type> gid_field_ngp;
 };
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 #endif

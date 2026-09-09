@@ -14,7 +14,7 @@
 #include "stk_mesh/base/MetaData.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 TKESSTIDDESNodeKernel::TKESSTIDDESNodeKernel(const stk::mesh::MetaData& meta)
   : NGPNodeKernel<TKESSTIDDESNodeKernel>(),
@@ -142,7 +142,8 @@ TKESSTIDDESNodeKernel::execute(
   DblType Dk = density * tke * sqrtTke / lIDDES;
 
   // Clip production term
-  Pk = stk::math::min(tkeProdLimitRatio_ * Dk, Pk);
+  DblType Pklim = tkeProdLimitRatio_ * betaStar_ * density * sdr * tke;
+  Pk = stk::math::min(Pklim, stk::math::max(Pk, 0.0));
 
   // SUST source term
   const DblType sqrtTkeAmb = stk::math::sqrt(tkeAmb_);
@@ -156,5 +157,5 @@ TKESSTIDDESNodeKernel::execute(
   lhs(0, 0) += 1.5 * density / lIDDES * sqrtTke * dVol;
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

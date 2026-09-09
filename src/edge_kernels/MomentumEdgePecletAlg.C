@@ -21,7 +21,7 @@
 #include <stk_mesh/base/FieldBLAS.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 MomentumEdgePecletAlg::MomentumEdgePecletAlg(
   Realm& realm, stk::mesh::Part* part, EquationSystem* eqSystem)
@@ -49,7 +49,7 @@ MomentumEdgePecletAlg::MomentumEdgePecletAlg(
 void
 MomentumEdgePecletAlg::execute()
 {
-  using EntityInfoType = nalu_ngp::EntityInfo<stk::mesh::NgpMesh>;
+  using EntityInfoType = kynema_ugf_ngp::EntityInfo<stk::mesh::NgpMesh>;
   const auto& meta = realm_.meta_data();
   const auto ngpMesh = realm_.ngp_mesh();
   const auto& fieldMgr = realm_.ngp_field_manager();
@@ -71,7 +71,7 @@ MomentumEdgePecletAlg::execute()
   const int ndim = nDim_;
   const auto eps = eps_;
 
-  nalu_ngp::run_edge_algorithm(
+  kynema_ugf_ngp::run_edge_algorithm(
     "compute_peclet_factor", ngpMesh, sel,
     KOKKOS_LAMBDA(const EntityInfoType& eInfo) {
       DblType udotx{0.0};
@@ -105,10 +105,10 @@ void
 determine_max_peclet_factor(
   stk::mesh::BulkData& bulk, const stk::mesh::MetaData& meta)
 {
-  ScalarFieldType* maxPecFac = meta.get_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, "max_peclet_factor");
+  ScalarFieldType* maxPecFac =
+    meta.get_field<double>(stk::topology::NODE_RANK, "max_peclet_factor");
   ScalarFieldType* pecletFactor =
-    meta.get_field<ScalarFieldType>(stk::topology::EDGE_RANK, "peclet_factor");
+    meta.get_field<double>(stk::topology::EDGE_RANK, "peclet_factor");
 
   stk::mesh::field_fill(0.0, *maxPecFac);
 
@@ -135,10 +135,10 @@ void
 determine_max_peclet_number(
   stk::mesh::BulkData& bulk, const stk::mesh::MetaData& meta)
 {
-  ScalarFieldType* maxPecNum = meta.get_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, "max_peclet_number");
+  ScalarFieldType* maxPecNum =
+    meta.get_field<double>(stk::topology::NODE_RANK, "max_peclet_number");
   ScalarFieldType* pecletNumber =
-    meta.get_field<ScalarFieldType>(stk::topology::EDGE_RANK, "peclet_number");
+    meta.get_field<double>(stk::topology::EDGE_RANK, "peclet_number");
 
   stk::mesh::field_fill(0.0, *maxPecNum);
 
@@ -161,5 +161,5 @@ determine_max_peclet_number(
   stk::mesh::copy_owned_to_shared(bulk, {maxPecNum});
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

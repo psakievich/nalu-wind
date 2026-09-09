@@ -10,8 +10,7 @@
 #include "ngp_algorithms/GeometryInteriorAlg.h"
 #include "BuildTemplates.h"
 #include "master_element/MasterElement.h"
-#include "master_element/MasterElementFactory.h"
-#include "ngp_algorithms/ViewHelper.h"
+#include "master_element/MasterElementRepo.h"
 #include "ngp_utils/NgpLoopUtils.h"
 #include "ngp_utils/NgpFieldOps.h"
 #include "ngp_utils/NgpFieldManager.h"
@@ -20,9 +19,10 @@
 #include "SolutionOptions.h"
 #include "utils/StkHelpers.h"
 #include "stk_mesh/base/NgpMesh.hpp"
+#include <stk_util/parallel/ParallelReduce.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 template <typename AlgTraits>
 GeometryInteriorAlg<AlgTraits>::GeometryInteriorAlg(
@@ -32,8 +32,10 @@ GeometryInteriorAlg<AlgTraits>::GeometryInteriorAlg(
     dualNodalVol_(get_field_ordinal(realm_.meta_data(), "dual_nodal_volume")),
     elemVol_(get_field_ordinal(
       realm_.meta_data(), "element_volume", stk::topology::ELEM_RANK)),
-    meSCV_(MasterElementRepo::get_volume_master_element<AlgTraits>()),
-    meSCS_(MasterElementRepo::get_surface_master_element<AlgTraits>())
+    meSCV_(
+      MasterElementRepo::get_volume_master_element_on_dev(AlgTraits::topo_)),
+    meSCS_(
+      MasterElementRepo::get_surface_master_element_on_dev(AlgTraits::topo_))
 {
   dataNeeded_.add_cvfem_volume_me(meSCV_);
   dataNeeded_.add_cvfem_surface_me(meSCS_);
@@ -55,8 +57,9 @@ template <typename AlgTraits>
 void
 GeometryInteriorAlg<AlgTraits>::execute()
 {
-  if (realm_.checkJacobians_)
+  if (realm_.checkJacobians_) {
     impl_negative_jacobian_check();
+  }
 
   impl_compute_dual_nodal_volume();
 
@@ -69,7 +72,7 @@ void
 GeometryInteriorAlg<AlgTraits>::impl_compute_dual_nodal_volume()
 {
   using ElemSimdDataType =
-    sierra::nalu::nalu_ngp::ElemSimdData<stk::mesh::NgpMesh>;
+    sierra::kynema_ugf::kynema_ugf_ngp::ElemSimdData<stk::mesh::NgpMesh>;
 
   const auto& meshInfo = realm_.mesh_info();
   const auto& meta = meshInfo.meta();
@@ -77,8 +80,10 @@ GeometryInteriorAlg<AlgTraits>::impl_compute_dual_nodal_volume()
   const auto& fieldMgr = meshInfo.ngp_field_manager();
   auto dualVol = fieldMgr.template get_field<double>(dualNodalVol_);
   auto elemVol = fieldMgr.template get_field<double>(elemVol_);
-  const auto dnvOps = nalu_ngp::simd_elem_nodal_field_updater(ngpMesh, dualVol);
-  const auto elemVolOps = nalu_ngp::simd_elem_field_updater(ngpMesh, elemVol);
+  const auto dnvOps =
+    kynema_ugf_ngp::simd_elem_nodal_field_updater(ngpMesh, dualVol);
+  const auto elemVolOps =
+    kynema_ugf_ngp::simd_elem_field_updater(ngpMesh, elemVol);
   MasterElement* meSCV = meSCV_;
   dualVol.sync_to_device();
   elemVol.sync_to_device();
@@ -88,7 +93,7 @@ GeometryInteriorAlg<AlgTraits>::impl_compute_dual_nodal_volume()
                                   !(realm_.get_inactive_selector());
 
   const std::string algName = "compute_dnv_" + std::to_string(AlgTraits::topo_);
-  nalu_ngp::run_elem_algorithm(
+  kynema_ugf_ngp::run_elem_algorithm(
     algName, meshInfo, stk::topology::ELEM_RANK, dataNeeded_, sel,
     KOKKOS_LAMBDA(ElemSimdDataType & edata) {
       const int* ipNodeMap = meSCV->ipNodeMap();
@@ -113,7 +118,7 @@ void
 GeometryInteriorAlg<AlgTraits>::impl_negative_jacobian_check()
 {
   using ElemSimdDataType =
-    sierra::nalu::nalu_ngp::ElemSimdData<stk::mesh::NgpMesh>;
+    sierra::kynema_ugf::kynema_ugf_ngp::ElemSimdData<stk::mesh::NgpMesh>;
 
   const auto& meshInfo = realm_.mesh_info();
   const auto& meta = meshInfo.meta();
@@ -127,9 +132,9 @@ GeometryInteriorAlg<AlgTraits>::impl_negative_jacobian_check()
   Kokkos::Sum<size_t> reducer(numNegVol);
   const std::string algName =
     "negative_volume_check_" + std::to_string(AlgTraits::topo_);
-  nalu_ngp::run_elem_par_reduce(
+  kynema_ugf_ngp::run_elem_par_reduce(
     algName, meshInfo, stk::topology::ELEM_RANK, dataNeeded_, sel,
-    KOKKOS_LAMBDA(ElemSimdDataType & edata, size_t & threadVal) {
+    KOKKOS_LAMBDA(ElemSimdDataType & edata, size_t& threadVal) {
       auto& scrView = edata.simdScrView;
       const auto& meViews = scrView.get_me_views(CURRENT_COORDINATES);
       const auto& v_scv_vol = meViews.scv_volume;
@@ -143,7 +148,12 @@ GeometryInteriorAlg<AlgTraits>::impl_negative_jacobian_check()
     },
     reducer);
 
-  if (numNegVol > 0) {
+  size_t globalNegVol = 0;
+  stk::all_reduce_sum(
+    KynemaUGFEnv::self().parallel_comm(), &numNegVol, &globalNegVol, 1);
+
+  if (globalNegVol > 0) {
+    realm_.provide_output(realm_.outputFailedJacobians_);
     const stk::topology topology(AlgTraits::topo_);
     throw std::runtime_error(
       "GeometryInteriorAlg encountered " + std::to_string(numNegVol) +
@@ -157,7 +167,7 @@ void
 GeometryInteriorAlg<AlgTraits>::impl_compute_edge_area_vector()
 {
   using ElemSimdDataType =
-    sierra::nalu::nalu_ngp::ElemSimdData<stk::mesh::NgpMesh>;
+    sierra::kynema_ugf::kynema_ugf_ngp::ElemSimdData<stk::mesh::NgpMesh>;
 
   const auto& meshInfo = realm_.mesh_info();
   const auto& meta = meshInfo.meta();
@@ -172,7 +182,7 @@ GeometryInteriorAlg<AlgTraits>::impl_compute_edge_area_vector()
 
   const std::string algName =
     "compute_edge_areav_" + std::to_string(AlgTraits::topo_);
-  nalu_ngp::run_elem_algorithm(
+  kynema_ugf_ngp::run_elem_algorithm(
     algName, meshInfo, stk::topology::ELEM_RANK, dataNeeded_, sel,
     KOKKOS_LAMBDA(ElemSimdDataType & edata) {
       const int* lrscv = meSCS->adjacentNodes();
@@ -218,5 +228,5 @@ GeometryInteriorAlg<AlgTraits>::impl_compute_edge_area_vector()
 
 INSTANTIATE_KERNEL(GeometryInteriorAlg)
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

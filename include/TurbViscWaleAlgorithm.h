@@ -15,7 +15,7 @@
 #include <FieldTypeDef.h>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class Realm;
 
@@ -26,7 +26,7 @@ public:
   virtual ~TurbViscWaleAlgorithm() {}
   virtual void execute();
 
-  GenericFieldType* dudx_;
+  TensorFieldType* dudx_;
   ScalarFieldType* density_;
   ScalarFieldType* tvisc_;
   ScalarFieldType* dualNodalVolume_;
@@ -35,7 +35,7 @@ public:
   const double kappa_;
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

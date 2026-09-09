@@ -1,0 +1,123 @@
+#ifndef KYNEMAFMBSIXDOF_H
+#define KYNEMAFMBSIXDOF_H
+
+#include <array>
+#include <memory>
+
+#include "yaml-cpp/yaml.h"
+
+#include <stk_mesh/base/BulkData.hpp>
+
+#include <interfaces/cfd/interface.hpp>
+#include <interfaces/cfd/interface_builder.hpp>
+#include <interfaces/cfd/interface_input.hpp>
+
+#include "FieldTypeDef.h"
+#include "aero/fsi/CalcLoads.h"
+#include "aero/fsi/MapLoad.h"
+#include "aero/fmb/KynemaFMBBase.h"
+
+namespace sierra {
+
+namespace kynema_ugf {
+
+struct Tether
+{
+  std::array<double, 3> fairlead_position = {0.0, 0.0, 0.0};
+  std::array<double, 3> anchor_position = {0.0, 0.0, 0.0};
+  double stiffness{0.0};
+  double initial_length{0.0};
+};
+struct PointMassInterface
+{
+  bool use_restart_data = false;
+  std::shared_ptr<kynema_fmb::interfaces::cfd::Interface> kynema_interface =
+    nullptr;
+  std::array<double, 9> moments_of_inertia = {0.0, 0.0, 0.0, 0.0, 0.0,
+                                              0.0, 0.0, 0.0, 0.0};
+  std::array<double, 3> center_of_mass = {0.0, 0.0, 0.0};
+  std::array<double, 3> disp_init = {0.0, 0.0, 0.0};
+  std::array<double, 4> q_init = {1.0, 0.0, 0.0, 0.0};
+  std::array<double, 3> v_init = {0.0, 0.0, 0.0};
+  std::array<double, 3> omega_init = {0.0, 0.0, 0.0};
+  std::array<double, 3> a_init = {0.0, 0.0, 0.0};
+  std::array<double, 3> alpha_init = {0.0, 0.0, 0.0};
+  double mass{0.0};
+  std::vector<Tether> tethers;
+  std::string restart_file_name = "point.restart";
+  std::string output_file_name = "";
+  int number_of_nonlinear_iterations = 5;
+  double rho_inf{0.0};
+};
+
+class KynemaFMBSixDof : public KynemaFMBBase
+{
+public:
+  KynemaFMBSixDof(const YAML::Node&);
+  virtual ~KynemaFMBSixDof() override = default;
+
+  void
+  setup(double dtKynemaUGF, std::shared_ptr<stk::mesh::BulkData> bulk) override;
+
+  void initialize(int restartFreqKynemaUGF, double curTime) override;
+
+  void map_displacements(double, bool) override;
+
+  void advance_struct_timestep(const double, const double) override;
+
+  void map_loads(const double) override;
+
+  stk::mesh::PartVector get_mesh_blocks() const override
+  {
+    stk::mesh::PartVector all_mesh_blocks;
+    for (auto&& point : point_bodies_) {
+      for (auto&& block : point.moving_mesh_blocks) {
+        all_mesh_blocks.push_back(block);
+      }
+    }
+    return all_mesh_blocks;
+  }
+
+private:
+  KynemaFMBSixDof() = delete;
+  KynemaFMBSixDof(const KynemaFMBSixDof&) = delete;
+
+  void setup_point(
+    PointMass& point,
+    PointMassInterface& iface,
+    const double dtKynemaUGF,
+    std::shared_ptr<stk::mesh::BulkData> bulk);
+
+  void load_point(const YAML::Node&);
+
+  void load(const YAML::Node&);
+
+  void send_loads(const double curTime);
+  void timer_start(std::pair<double, double>& timer);
+  void timer_stop(std::pair<double, double>& timer);
+
+  std::shared_ptr<stk::mesh::BulkData> bulk_;
+
+  bool enable_calc_loads_;
+
+  int tStep_{0}; // Time step count
+
+  double dt_{-1.0}; // Store kynema-ugf step
+
+  std::array<double, 3> gravity_ = {0.0, 0.0, 0.0};
+
+  // Frequency to write line loads and deflections to netcdf file
+  int writeFreq_{30};
+
+  int number_of_bodies_{0};
+
+  int restart_frequency_{0};
+
+  std::vector<PointMassInterface> point_interfaces_;
+};
+
+} // namespace kynema_ugf
+
+} // namespace sierra
+
+#endif

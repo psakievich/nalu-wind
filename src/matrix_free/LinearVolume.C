@@ -13,7 +13,7 @@
 #include "matrix_free/GeometricFunctions.h"
 #include "matrix_free/KokkosFramework.h"
 #include "matrix_free/KokkosViewTypes.h"
-#include "matrix_free/LocalArray.h"
+#include "ArrayND.h"
 #include "matrix_free/PolynomialOrders.h"
 #include "matrix_free/TensorOperations.h"
 
@@ -21,7 +21,7 @@
 #include "Kokkos_Macros.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 namespace geom {
 namespace impl {
@@ -74,5 +74,5 @@ INSTANTIATE_POLYSTRUCT(volume_metric_t);
 } // namespace impl
 } // namespace geom
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

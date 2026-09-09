@@ -13,7 +13,7 @@
 #include "matrix_free/PolynomialOrders.h"
 #include "matrix_free/ValidSimdLength.h"
 #include "matrix_free/KokkosViewTypes.h"
-#include "matrix_free/LocalArray.h"
+#include "ArrayND.h"
 #include "matrix_free/LinSysInfo.h"
 #include <KokkosInterface.h>
 
@@ -22,7 +22,7 @@
 #include "stk_mesh/base/NgpProfilingBlock.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 
 namespace impl {
@@ -40,7 +40,7 @@ filter_diagonal_t<p>::invoke(
   auto yout_scatter = Kokkos::Experimental::create_scatter_view(yout);
   Kokkos::parallel_for(
     DeviceRangePolicy(0, offsets.extent_int(0)), KOKKOS_LAMBDA(int index) {
-      LocalArray<ftype[p + 1][p + 1][p + 1]> lhs;
+      ArrayND<ftype[p + 1][p + 1][p + 1]> lhs;
       if (lumped) {
         for (int k = 0; k < p + 1; ++k) {
           static constexpr auto Wl = Coeffs<p>::Wl;
@@ -83,5 +83,5 @@ filter_diagonal_t<p>::invoke(
 INSTANTIATE_POLYSTRUCT(filter_diagonal_t);
 } // namespace impl
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

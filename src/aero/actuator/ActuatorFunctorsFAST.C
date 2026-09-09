@@ -11,11 +11,11 @@
 #include <aero/actuator/UtilitiesActuator.h>
 #include <stk_mesh/base/BulkData.hpp>
 #include <stk_mesh/base/MetaData.hpp>
-#include <NaluEnv.h>
+#include <KynemaUGFEnv.h>
 #include <FieldTypeDef.h>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 void
 ActFastCacheRelativeVelocities(ActuatorBulkFAST& actBulk)
@@ -31,12 +31,11 @@ ActFastCacheRelativeVelocities(ActuatorBulkFAST& actBulk)
   auto offset = helper.get_local_view(actBulk.turbIdOffset_);
   const int turbId = actBulk.localTurbineId_;
 
-  Kokkos::parallel_for(
-    "cache rel vel", range_policy, ACTUATOR_LAMBDA(int i) {
-      int index = i - offset(turbId);
-      auto rV = Kokkos::subview(relVel, i, Kokkos::ALL);
-      fast->getRelativeVelForceNode(rV.data(), index, turbId);
-    });
+  Kokkos::parallel_for("cache rel vel", range_policy, [=](int i) {
+    int index = i - offset(turbId);
+    auto rV = Kokkos::subview(relVel, i, Kokkos::ALL);
+    fast->getRelativeVelForceNode(rV.data(), index, turbId);
+  });
 
   actuator_utils::reduce_view_on_host(relVel);
 }
@@ -54,7 +53,7 @@ void
 ActFastUpdatePoints::operator()(int index) const
 {
 
-  ThrowAssert(turbId_ >= 0);
+  STK_ThrowAssert(turbId_ >= 0);
   const int pointId = index - offsets_(turbId_);
   auto point = Kokkos::subview(points_, index, Kokkos::ALL);
 
@@ -268,5 +267,5 @@ ActFastSpreadForceWhProjInnerLoop::operator()(
   }
 }
 
-} /* namespace nalu */
+} /* namespace kynema_ugf */
 } /* namespace sierra */

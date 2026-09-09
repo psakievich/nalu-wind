@@ -13,7 +13,6 @@
 
 #include "edge_kernels/MomentumSSTAMSDiffEdgeKernel.h"
 
-#if !defined(KOKKOS_ENABLE_GPU)
 namespace {
 namespace hex8_golds {
 namespace ams_diff {
@@ -520,7 +519,6 @@ static constexpr double lhs[24][24] = {
 } // namespace ams_diff
 } // namespace hex8_golds
 } // anonymous namespace
-#endif
 
 TEST_F(AMSKernelHex8Mesh, NGP_ams_diff)
 {
@@ -541,12 +539,12 @@ TEST_F(AMSKernelHex8Mesh, NGP_ams_diff)
   unit_test_utils::EdgeKernelHelperObjects helperObjs(
     bulk_, stk::topology::HEX_8, 3, partVec_[0]);
 
-  helperObjs.edgeAlg->add_kernel<sierra::nalu::MomentumSSTAMSDiffEdgeKernel>(
-    *bulk_, solnOpts_);
+  helperObjs.edgeAlg
+    ->add_kernel<sierra::kynema_ugf::MomentumSSTAMSDiffEdgeKernel>(
+      *bulk_, solnOpts_);
 
   helperObjs.execute();
 
-#if !defined(KOKKOS_ENABLE_GPU)
   EXPECT_EQ(helperObjs.linsys->lhs_.extent(0), 24u);
   EXPECT_EQ(helperObjs.linsys->lhs_.extent(1), 24u);
   EXPECT_EQ(helperObjs.linsys->rhs_.extent(0), 24u);
@@ -556,5 +554,4 @@ TEST_F(AMSKernelHex8Mesh, NGP_ams_diff)
     helperObjs.linsys->rhs_, gold_values::rhs, 1.0e-12);
   unit_test_kernel_utils::expect_all_near<24>(
     helperObjs.linsys->lhs_, gold_values::lhs, 1.0e-12);
-#endif
 }

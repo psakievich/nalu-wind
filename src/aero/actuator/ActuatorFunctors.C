@@ -13,15 +13,15 @@
 #include <FieldTypeDef.h>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 InterpActuatorVel::InterpActuatorVel(
   ActuatorBulk& actBulk, stk::mesh::BulkData& stkBulk)
   : actBulk_(actBulk),
     stkBulk_(stkBulk),
-    coordinates_(stkBulk_.mesh_meta_data().get_field<VectorFieldType>(
+    coordinates_(stkBulk_.mesh_meta_data().get_field<double>(
       stk::topology::NODE_RANK, "coordinates")),
-    velocity_(stkBulk_.mesh_meta_data().get_field<VectorFieldType>(
+    velocity_(stkBulk_.mesh_meta_data().get_field<double>(
       stk::topology::NODE_RANK, "velocity"))
 {
   velocity_->sync_to_host();
@@ -103,5 +103,5 @@ SpreadForceInnerLoop::operator()(
   }
 }
 
-} /* namespace nalu */
+} /* namespace kynema_ugf */
 } /* namespace sierra */

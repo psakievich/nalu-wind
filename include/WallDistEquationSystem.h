@@ -17,7 +17,7 @@
 #include <memory>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class Realm;
 class EquationSystems;
@@ -33,11 +33,10 @@ public:
 
   void initial_work();
 
-  void register_nodal_fields(stk::mesh::Part*);
-
-  void register_edge_fields(stk::mesh::Part*);
-
-  void register_element_fields(stk::mesh::Part*, const stk::topology&);
+  virtual void register_nodal_fields(const stk::mesh::PartVector& part_vec);
+  virtual void register_edge_fields(const stk::mesh::PartVector& part_vec);
+  virtual void register_element_fields(
+    const stk::mesh::PartVector& part_vec, const stk::topology& theTopo);
 
   void register_interior_algorithm(stk::mesh::Part*);
 
@@ -97,7 +96,7 @@ private:
   bool forceInitOnRestart_{false};
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif /* WALLDISTEQUATIONSYSTEM_H */

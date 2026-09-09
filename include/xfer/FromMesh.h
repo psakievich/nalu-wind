@@ -39,7 +39,7 @@ class BulkData;
 } // namespace stk
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class FromMesh
 {
@@ -73,7 +73,7 @@ public:
         stk::mesh::get_field_by_name(fieldName, fromMetaData);
       if (NULL == fromfield) {
         allFieldsAreFine = false;
-        NaluEnv::self().naluOutputP0()
+        KynemaUGFEnv::self().kynema_ugfOutputP0()
           << "Xfer::FromMesh:Error field: " << fieldName
           << " has not been registered anywhere within the FromRealm: "
           << fromRealm_.name() << std::endl;
@@ -99,7 +99,7 @@ public:
           // local check to make sure that the field is somewhere (delay the
           // throw)
           if (!fieldIsFine) {
-            NaluEnv::self().naluOutputP0()
+            KynemaUGFEnv::self().kynema_ugfOutputP0()
               << "Xfer::FromMesh:Error field: " << fromfield->name()
               << " is not registered on part: " << fromPartVec_[k]->name()
               << std::endl;
@@ -113,8 +113,9 @@ public:
     if (allFieldsAreFine) {
       return fromFieldVec;
     } else {
-      throw std::runtime_error("Xfer::FromMesh:Error field registration on "
-                               "desired parts of the mesh is not complete");
+      throw std::runtime_error(
+        "Xfer::FromMesh:Error field registration on "
+        "desired parts of the mesh is not complete");
     }
   }
 
@@ -129,7 +130,7 @@ public:
     : fromMetaData_(fromMetaData),
       fromBulkData_(fromBulkData),
       fromRealm_(fromRealm),
-      fromcoordinates_(fromMetaData.get_field<VectorFieldType>(
+      fromcoordinates_(fromMetaData.get_field<double>(
         stk::topology::NODE_RANK, coordinates_name)),
       fromPartVec_(fromPartVec),
       fromFieldVec_(get_fields(fromMetaData, VarPairName)),
@@ -141,7 +142,7 @@ public:
     // nothing to do
   }
 
-  ~FromMesh(){};
+  ~FromMesh() {};
 
   struct BoundingBoxCompare
   {
@@ -232,7 +233,7 @@ public:
         std::unique(ghosting_map_.begin(), ghosting_map_.end());
       ghosting_map_.resize(std::distance(ghosting_map_.begin(), del));
 
-      std::string theGhostName = "nalu_transfer_ghosting";
+      std::string theGhostName = "kynema-ugf_transfer_ghosting";
       for (unsigned i = 0; i != fromFieldVec_.size(); ++i)
         theGhostName += "_" + fromFieldVec_[i]->name();
       ghosting_ = &fromBulkData_.create_ghosting(theGhostName);
@@ -271,7 +272,7 @@ public:
   stk::mesh::EntityProcVec ghosting_map_;
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

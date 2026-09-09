@@ -30,7 +30,7 @@
 #include <map>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class Realm;
 
@@ -181,7 +181,7 @@ private:
   // vector of masterEntity:slaveEntity
   std::vector<EntityPair> masterSlaveCommunicator_;
   KokkosEntityPairView deviceMasterSlaves_;
-  KokkosEntityPairView::HostMirror hostMasterSlaves_;
+  KokkosEntityPairView::host_mirror_type hostMasterSlaves_;
 
   // culmination of all searches
   SearchKeyVector searchKeyVector_;
@@ -197,7 +197,7 @@ private:
     const bool& bypassFieldCheck);
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

@@ -31,8 +31,8 @@
 #include <LinearSolvers.h>
 #include <LinearSolver.h>
 #include <LinearSystem.h>
-#include <NaluEnv.h>
-#include <NaluParsing.h>
+#include <KynemaUGFEnv.h>
+#include <KynemaUGFParsing.h>
 #include <ProjectedNodalGradientEquationSystem.h>
 #include <Realm.h>
 #include <Realms.h>
@@ -83,7 +83,8 @@
 #include <user_functions/BoussinesqNonIsoTemperatureAuxFunction.h>
 #include <user_functions/BoussinesqNonIsoEnthalpySrcNodeSuppAlg.h>
 
-#include <user_functions/CappingInversionTemperatureAuxFunction.h>
+#include <user_functions/TabulatedTemperatureAuxFunction.h>
+#include <user_functions/StringTimeCoordTemperatureAuxFunction.h>
 
 // overset
 #include <overset/UpdateOversetFringeAlgorithmDriver.h>
@@ -95,9 +96,8 @@
 #include <stk_mesh/base/BulkData.hpp>
 #include <stk_mesh/base/Field.hpp>
 #include <stk_mesh/base/FieldParallel.hpp>
-#include <stk_mesh/base/GetBuckets.hpp>
+
 #include <stk_mesh/base/GetEntities.hpp>
-#include <stk_mesh/base/CoordinateSystems.hpp>
 #include <stk_mesh/base/MetaData.hpp>
 
 // stk_io
@@ -109,11 +109,11 @@
 // stk_util
 #include <stk_util/parallel/ParallelReduce.hpp>
 
-// nalu utility
+// kynema_ugf utility
 #include <utils/StkHelpers.h>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //==========================================================================
 // Class Definition
@@ -144,7 +144,7 @@ EnthalpyEquationSystem::EnthalpyEquationSystem(
     specHeat_(NULL),
     divQ_(NULL),
     pOld_(NULL),
-    nodalGradAlgDriver_(realm_, "dhdx"),
+    nodalGradAlgDriver_(realm_, "enthalpy", "dhdx"),
     assembleWallHeatTransferAlgDriver_(NULL),
     pmrCouplingActive_(false),
     lowSpeedCompressActive_(false),
@@ -162,7 +162,7 @@ EnthalpyEquationSystem::EnthalpyEquationSystem(
 
   // determine nodal gradient form
   set_nodal_gradient("enthalpy");
-  NaluEnv::self().naluOutputP0()
+  KynemaUGFEnv::self().kynema_ugfOutputP0()
     << "Edge projected nodal gradient for enthalpy: " << edgeNodalGradient_
     << std::endl;
 
@@ -246,59 +246,61 @@ EnthalpyEquationSystem::initial_work()
 //-------- register_nodal_fields -------------------------------------------
 //--------------------------------------------------------------------------
 void
-EnthalpyEquationSystem::register_nodal_fields(stk::mesh::Part* part)
+EnthalpyEquationSystem::register_nodal_fields(
+  const stk::mesh::PartVector& part_vec)
 {
 
   stk::mesh::MetaData& meta_data = realm_.meta_data();
 
   const int nDim = meta_data.spatial_dimension();
   const int numStates = realm_.number_of_states();
+  stk::mesh::Selector selector = stk::mesh::selectUnion(part_vec);
 
   // register dof; set it as a restart variable
-  enthalpy_ = &(meta_data.declare_field<ScalarFieldType>(
+  enthalpy_ = &(meta_data.declare_field<double>(
     stk::topology::NODE_RANK, "enthalpy", numStates));
-  stk::mesh::put_field_on_mesh(*enthalpy_, *part, nullptr);
+  stk::mesh::put_field_on_mesh(*enthalpy_, selector, nullptr);
   realm_.augment_restart_variable_list("enthalpy");
 
   // temperature required in restart
-  temperature_ = &(meta_data.declare_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, "temperature"));
-  stk::mesh::put_field_on_mesh(*temperature_, *part, nullptr);
+  temperature_ =
+    &(meta_data.declare_field<double>(stk::topology::NODE_RANK, "temperature"));
+  stk::mesh::put_field_on_mesh(*temperature_, selector, nullptr);
   realm_.augment_restart_variable_list("temperature");
 
-  dhdx_ = &(
-    meta_data.declare_field<VectorFieldType>(stk::topology::NODE_RANK, "dhdx"));
-  stk::mesh::put_field_on_mesh(*dhdx_, *part, nDim, nullptr);
+  dhdx_ = &(meta_data.declare_field<double>(stk::topology::NODE_RANK, "dhdx"));
+  stk::mesh::put_field_on_mesh(*dhdx_, selector, nDim, nullptr);
+  stk::io::set_field_output_type(*dhdx_, stk::io::FieldOutputType::VECTOR_3D);
 
   // props
-  specHeat_ = &(meta_data.declare_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, "specific_heat"));
-  stk::mesh::put_field_on_mesh(*specHeat_, *part, nullptr);
+  specHeat_ = &(
+    meta_data.declare_field<double>(stk::topology::NODE_RANK, "specific_heat"));
+  stk::mesh::put_field_on_mesh(*specHeat_, selector, nullptr);
 
-  visc_ = &(meta_data.declare_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, "viscosity"));
-  stk::mesh::put_field_on_mesh(*visc_, *part, nullptr);
+  visc_ =
+    &(meta_data.declare_field<double>(stk::topology::NODE_RANK, "viscosity"));
+  stk::mesh::put_field_on_mesh(*visc_, selector, nullptr);
 
   // push standard props to property list; enthalpy managed along with Cp
   realm_.augment_property_map(SPEC_HEAT_ID, specHeat_);
   realm_.augment_property_map(VISCOSITY_ID, visc_);
 
   // special thermal conductivity
-  thermalCond_ = &(meta_data.declare_field<ScalarFieldType>(
+  thermalCond_ = &(meta_data.declare_field<double>(
     stk::topology::NODE_RANK, "thermal_conductivity"));
-  stk::mesh::put_field_on_mesh(*thermalCond_, *part, nullptr);
+  stk::mesh::put_field_on_mesh(*thermalCond_, selector, nullptr);
 
   // check to see if Prandtl number was provided
   bool prProvided = false;
   const double providedPr = realm_.get_lam_prandtl("enthalpy", prProvided);
   if (prProvided) {
     // compute thermal conductivity using Pr; create and push back the algorithm
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << "Laminar Prandtl provided; will compute Thermal conductivity based on "
          "this constant value"
       << std::endl;
     Algorithm* propAlg = new ThermalConductivityFromPrandtlPropAlgorithm(
-      realm_, part, thermalCond_, specHeat_, visc_, providedPr);
+      realm_, part_vec, providedPr);
     propertyAlg_.push_back(propAlg);
   } else {
     // no Pr provided, simply augment property map and expect lambda to be
@@ -307,35 +309,34 @@ EnthalpyEquationSystem::register_nodal_fields(stk::mesh::Part* part)
   }
 
   // delta solution for linear solver; share delta since this is a split system
-  hTmp_ = &(
-    meta_data.declare_field<ScalarFieldType>(stk::topology::NODE_RANK, "pTmp"));
-  stk::mesh::put_field_on_mesh(*hTmp_, *part, nullptr);
+  hTmp_ = &(meta_data.declare_field<double>(stk::topology::NODE_RANK, "pTmp"));
+  stk::mesh::put_field_on_mesh(*hTmp_, selector, nullptr);
 
   // turbulent viscosity and effective viscosity
   if (realm_.is_turbulent()) {
-    tvisc_ = &(meta_data.declare_field<ScalarFieldType>(
+    tvisc_ = &(meta_data.declare_field<double>(
       stk::topology::NODE_RANK, "turbulent_viscosity"));
-    stk::mesh::put_field_on_mesh(*tvisc_, *part, nullptr);
+    stk::mesh::put_field_on_mesh(*tvisc_, selector, nullptr);
   }
 
-  evisc_ = &(meta_data.declare_field<ScalarFieldType>(
+  evisc_ = &(meta_data.declare_field<double>(
     stk::topology::NODE_RANK, "effective_viscosity_h"));
-  stk::mesh::put_field_on_mesh(*evisc_, *part, nullptr);
+  stk::mesh::put_field_on_mesh(*evisc_, selector, nullptr);
 
   // register divergence of radiative heat flux; for now this is an explicit
   // coupling
   if (pmrCouplingActive_) {
-    divQ_ = &(meta_data.declare_field<ScalarFieldType>(
+    divQ_ = &(meta_data.declare_field<double>(
       stk::topology::NODE_RANK, "div_radiative_heat_flux"));
-    stk::mesh::put_field_on_mesh(*divQ_, *part, nullptr);
+    stk::mesh::put_field_on_mesh(*divQ_, selector, nullptr);
   }
 
   // need to save off old pressure for pressure time derivative (avoid state for
   // now)
   if (lowSpeedCompressActive_) {
-    pOld_ = &(meta_data.declare_field<ScalarFieldType>(
+    pOld_ = &(meta_data.declare_field<double>(
       stk::topology::NODE_RANK, "pressure_old"));
-    stk::mesh::put_field_on_mesh(*pOld_, *part, nullptr);
+    stk::mesh::put_field_on_mesh(*pOld_, selector, nullptr);
   }
 
   // make sure all states are properly populated (restart can handle this)
@@ -347,7 +348,8 @@ EnthalpyEquationSystem::register_nodal_fields(stk::mesh::Part* part)
       enthalpy_->field_of_state(stk::mesh::StateNP1);
 
     CopyFieldAlgorithm* theCopyAlg = new CopyFieldAlgorithm(
-      realm_, part, &enthalpyNp1, &enthalpyN, 0, 1, stk::topology::NODE_RANK);
+      realm_, part_vec, &enthalpyNp1, &enthalpyN, 0, 1,
+      stk::topology::NODE_RANK);
     // personally manage enthalpy
     bdf2CopyStateAlg_.push_back(theCopyAlg);
   }
@@ -440,7 +442,7 @@ EnthalpyEquationSystem::register_interior_algorithm(stk::mesh::Part* part)
       [&](AssembleNGPNodeSolverAlgorithm& nodeAlg, std::string& srcName) {
         bool added = true;
         if (srcName == "abl_forcing") {
-          ThrowRequireMsg(
+          STK_ThrowRequireMsg(
             ((NULL != realm_.ablForcingAlg_) &&
              (realm_.ablForcingAlg_->temperatureForcingOn())),
             "ERROR! ABL Forcing parameters not "
@@ -456,7 +458,8 @@ EnthalpyEquationSystem::register_interior_algorithm(stk::mesh::Part* part)
         }
 
         if (added)
-          NaluEnv::self().naluOutputP0() << "  - " << srcName << std::endl;
+          KynemaUGFEnv::self().kynema_ugfOutputP0()
+            << "  - " << srcName << std::endl;
       });
 
     std::map<AlgorithmType, SolverAlgorithm*>::iterator itsm =
@@ -493,7 +496,7 @@ EnthalpyEquationSystem::register_interior_algorithm(stk::mesh::Part* part)
             ++nonNgpSrcSkipped;
           }
           if (suppAlg != NULL) {
-            NaluEnv::self().naluOutputP0()
+            KynemaUGFEnv::self().kynema_ugfOutputP0()
               << "EnthalpyNodalSrcTerms::added() " << sourceName << std::endl;
             theAlg->supplementalAlg_.push_back(suppAlg);
           }
@@ -548,11 +551,11 @@ EnthalpyEquationSystem::register_inflow_bc(
   InflowUserData userData = inflowBCData.userData_;
 
   // bc data work (copy, enthalpy evaluation, etc.)
-  ScalarFieldType* temperatureBc = &(meta_data.declare_field<ScalarFieldType>(
+  ScalarFieldType* temperatureBc = &(meta_data.declare_field<double>(
     stk::topology::NODE_RANK, "temperature_bc"));
   stk::mesh::put_field_on_mesh(*temperatureBc, *part, nullptr);
-  ScalarFieldType* enthalpyBc = &(meta_data.declare_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, "enthalpy_bc"));
+  ScalarFieldType* enthalpyBc =
+    &(meta_data.declare_field<double>(stk::topology::NODE_RANK, "enthalpy_bc"));
   stk::mesh::put_field_on_mesh(*enthalpyBc, *part, nullptr);
   temperature_bc_setup(userData, part, temperatureBc, enthalpyBc);
 
@@ -603,10 +606,10 @@ EnthalpyEquationSystem::register_open_bc(
   // bc data work (copy, enthalpy evaluation, etc.)
   const bool copyBcVal = false;
   const bool isInterface = false;
-  ScalarFieldType* temperatureBc = &(meta_data.declare_field<ScalarFieldType>(
+  ScalarFieldType* temperatureBc = &(meta_data.declare_field<double>(
     stk::topology::NODE_RANK, "open_temperature_bc"));
   stk::mesh::put_field_on_mesh(*temperatureBc, *part, nullptr);
-  ScalarFieldType* enthalpyBc = &(meta_data.declare_field<ScalarFieldType>(
+  ScalarFieldType* enthalpyBc = &(meta_data.declare_field<double>(
     stk::topology::NODE_RANK, "open_enthalpy_bc"));
   stk::mesh::put_field_on_mesh(*enthalpyBc, *part, nullptr);
   temperature_bc_setup(
@@ -632,7 +635,7 @@ EnthalpyEquationSystem::register_open_bc(
     auto& activeKernels = elemSolverAlg->activeKernels_;
 
     build_face_topo_kernel_automatic<ScalarOpenEdgeKernel>(
-      partTopo, *this, activeKernels, "turbulent_ke_open", realm_.meta_data(),
+      partTopo, *this, activeKernels, "temperature_open", realm_.meta_data(),
       *realm_.solutionOptions_, enthalpy_, enthalpyBc, dataPreReqs);
   } else {
     throw std::runtime_error(
@@ -673,7 +676,7 @@ EnthalpyEquationSystem::register_wall_bc(
   // check for engineering wall function; warn user that this is not yet
   // supported
   if (wallFunctionApproach && !ablWallFunctionApproach)
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << "Sorry, engineering wall function not yet supported for "
          "temperature/enthalpy; will use Dirichlet"
       << std::endl;
@@ -682,11 +685,11 @@ EnthalpyEquationSystem::register_wall_bc(
   if (bc_data_specified(userData, temperatureName)) {
 
     // bc data work (copy, enthalpy evaluation, etc.)
-    ScalarFieldType* temperatureBc = &(meta_data.declare_field<ScalarFieldType>(
+    ScalarFieldType* temperatureBc = &(meta_data.declare_field<double>(
       stk::topology::NODE_RANK, "temperature_bc"));
     stk::mesh::put_field_on_mesh(*temperatureBc, *part, nullptr);
-    ScalarFieldType* enthalpyBc = &(meta_data.declare_field<ScalarFieldType>(
-      stk::topology::NODE_RANK, "enthalpy_bc"));
+    ScalarFieldType* enthalpyBc = &(
+      meta_data.declare_field<double>(stk::topology::NODE_RANK, "enthalpy_bc"));
     stk::mesh::put_field_on_mesh(*enthalpyBc, *part, nullptr);
     temperature_bc_setup(
       userData, part, temperatureBc, enthalpyBc, isInterface);
@@ -705,25 +708,20 @@ EnthalpyEquationSystem::register_wall_bc(
     // interface bc fields
 
     // register the fields
-    ScalarFieldType* assembledWallArea =
-      &(meta_data.declare_field<ScalarFieldType>(
-        stk::topology::NODE_RANK, "assembled_wall_area_ht"));
+    ScalarFieldType* assembledWallArea = &(meta_data.declare_field<double>(
+      stk::topology::NODE_RANK, "assembled_wall_area_ht"));
     stk::mesh::put_field_on_mesh(*assembledWallArea, *part, nullptr);
-    ScalarFieldType* referenceTemperature =
-      &(meta_data.declare_field<ScalarFieldType>(
-        stk::topology::NODE_RANK, "reference_temperature"));
+    ScalarFieldType* referenceTemperature = &(meta_data.declare_field<double>(
+      stk::topology::NODE_RANK, "reference_temperature"));
     stk::mesh::put_field_on_mesh(*referenceTemperature, *part, nullptr);
-    ScalarFieldType* heatTransferCoeff =
-      &(meta_data.declare_field<ScalarFieldType>(
-        stk::topology::NODE_RANK, "heat_transfer_coefficient"));
+    ScalarFieldType* heatTransferCoeff = &(meta_data.declare_field<double>(
+      stk::topology::NODE_RANK, "heat_transfer_coefficient"));
     stk::mesh::put_field_on_mesh(*heatTransferCoeff, *part, nullptr);
-    ScalarFieldType* normalHeatFlux =
-      &(meta_data.declare_field<ScalarFieldType>(
-        stk::topology::NODE_RANK, "normal_heat_flux"));
+    ScalarFieldType* normalHeatFlux = &(meta_data.declare_field<double>(
+      stk::topology::NODE_RANK, "normal_heat_flux"));
     stk::mesh::put_field_on_mesh(*normalHeatFlux, *part, nullptr);
-    ScalarFieldType* robinCouplingParameter =
-      &(meta_data.declare_field<ScalarFieldType>(
-        stk::topology::NODE_RANK, "robin_coupling_parameter"));
+    ScalarFieldType* robinCouplingParameter = &(meta_data.declare_field<double>(
+      stk::topology::NODE_RANK, "robin_coupling_parameter"));
     stk::mesh::put_field_on_mesh(*robinCouplingParameter, *part, nullptr);
 
     // create the driver
@@ -755,7 +753,7 @@ EnthalpyEquationSystem::register_wall_bc(
   // because it has its own):
   else if (userData.heatFluxSpec_ && !ablWallFunctionApproach) {
 
-    ScalarFieldType* theBcField = &(meta_data.declare_field<ScalarFieldType>(
+    ScalarFieldType* theBcField = &(meta_data.declare_field<double>(
       stk::topology::NODE_RANK, "heat_flux_bc"));
     stk::mesh::put_field_on_mesh(*theBcField, *part, nullptr);
 
@@ -798,7 +796,7 @@ EnthalpyEquationSystem::register_wall_bc(
   else if (ablWallFunctionApproach) {
 
     GenericFieldType* theBcField =
-      meta_data.get_field<GenericFieldType>(sideRank, "wall_heat_flux_bip");
+      meta_data.get_field<double>(sideRank, "wall_heat_flux_bip");
 
     {
       auto& solverAlgMap = solverAlgDriver_->solverAlgorithmMap_;
@@ -883,7 +881,7 @@ EnthalpyEquationSystem::register_abltop_bc(
 
   // If specifying the normal temperature gradient.
   if (userData.normalTemperatureGradientSpec_) {
-    ScalarFieldType* theBcField = &(meta_data.declare_field<ScalarFieldType>(
+    ScalarFieldType* theBcField = &(meta_data.declare_field<double>(
       stk::topology::NODE_RANK, "temperature_gradient_bc"));
     stk::mesh::put_field_on_mesh(*theBcField, *part, nullptr);
 
@@ -1039,10 +1037,12 @@ EnthalpyEquationSystem::register_initial_condition_fcn(
     } else if (fcnName == "BoussinesqNonIso") {
       theAuxFunc = new BoussinesqNonIsoTemperatureAuxFunction();
     } else if (fcnName == "capping_inversion") {
-      theAuxFunc = new CappingInversionTemperatureAuxFunction();
+      theAuxFunc = new TabulatedTemperatureAuxFunction(
+        {0, 650.0, 750.0, 1000.0}, {300.0, 300.0, 308.0, 308.75});
     } else {
       throw std::runtime_error(
-        "EnthalpyEquationSystem::register_initial_condition_fcn: limited user "
+        "EnthalpyEquationSystem::register_initial_"
+        "condition_fcn: limited user "
         "functions supported");
     }
 
@@ -1053,6 +1053,17 @@ EnthalpyEquationSystem::register_initial_condition_fcn(
     // push to ic
     realm_.initCondAlg_.push_back(auxAlg);
   }
+}
+
+void
+EnthalpyEquationSystem::register_initial_condition_string_function(
+  stk::mesh::Part* part, const std::map<std::string, std::string>& fcns)
+{
+  auto func = std::make_unique<StringTimeCoordTemperatureAuxFunction>(
+    fcns.at("temperature"));
+  auto auxAlg = std::make_unique<AuxFunctionAlgorithm>(
+    realm_, part, temperature_, func.release(), stk::topology::NODE_RANK);
+  realm_.initCondAlg_.push_back(auxAlg.release());
 }
 
 //--------------------------------------------------------------------------
@@ -1074,7 +1085,7 @@ EnthalpyEquationSystem::solve_and_update()
 
   {
     // Enthalpy BC field might not exist depending on boundary conditions
-    auto* enthalpyBC = realm_.meta_data().get_field<ScalarFieldType>(
+    auto* enthalpyBC = realm_.meta_data().get_field<double>(
       stk::topology::NODE_RANK, "enthalpy_bc");
     if (enthalpyBC != nullptr) {
       enthalpyBC->modify_on_host();
@@ -1097,7 +1108,7 @@ EnthalpyEquationSystem::solve_and_update()
 
   for (int k = 0; k < maxIterations_; ++k) {
 
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << " " << k + 1 << "/" << maxIterations_ << std::setw(15) << std::right
       << userSuppliedName_ << std::endl;
 
@@ -1106,10 +1117,10 @@ EnthalpyEquationSystem::solve_and_update()
       assemble_and_solve(hTmp_);
 
       // update
-      double timeA = NaluEnv::self().nalu_time();
+      double timeA = KynemaUGFEnv::self().kynema_ugf_time();
       solution_update(
         1.0, *hTmp_, 1.0, enthalpy_->field_of_state(stk::mesh::StateNP1));
-      double timeB = NaluEnv::self().nalu_time();
+      double timeB = KynemaUGFEnv::self().kynema_ugf_time();
       timerAssemble_ += (timeB - timeA);
 
       if (decoupledOverset_ && realm_.hasOverset_)
@@ -1144,7 +1155,7 @@ EnthalpyEquationSystem::post_iter_work_dep()
 
   {
     // enthalpy BC field might not exist depending on boundary conditions
-    auto* enthalpyBC = realm_.meta_data().get_field<ScalarFieldType>(
+    auto* enthalpyBC = realm_.meta_data().get_field<double>(
       stk::topology::NODE_RANK, "enthalpy_bc");
     if (enthalpyBC != nullptr) {
       enthalpyBC->modify_on_host();
@@ -1303,23 +1314,23 @@ EnthalpyEquationSystem::extract_temperature()
   // parallel assemble not converged
   if (outputClippingDiag_) {
     size_t g_troubleCount[3] = {};
-    stk::ParallelMachine comm = NaluEnv::self().parallel_comm();
+    stk::ParallelMachine comm = KynemaUGFEnv::self().parallel_comm();
     stk::all_reduce_sum(comm, &troubleCount[0], &g_troubleCount[0], 3);
 
     if (g_troubleCount[0] > 0) {
-      NaluEnv::self().naluOutputP0()
+      KynemaUGFEnv::self().kynema_ugfOutputP0()
         << "Temperature extraction failed to converge " << g_troubleCount[0]
         << " times" << std::endl;
     }
 
     if (g_troubleCount[1] > 0) {
-      NaluEnv::self().naluOutputP0()
+      KynemaUGFEnv::self().kynema_ugfOutputP0()
         << "Temperature clipped to min " << g_troubleCount[1] << " times"
         << std::endl;
     }
 
     if (g_troubleCount[2] > 0) {
-      NaluEnv::self().naluOutputP0()
+      KynemaUGFEnv::self().kynema_ugfOutputP0()
         << "Temperature clipped to max " << g_troubleCount[2] << " times"
         << std::endl;
     }
@@ -1335,8 +1346,8 @@ EnthalpyEquationSystem::post_converged_work()
   if (lowSpeedCompressActive_) {
     stk::mesh::MetaData& meta_data = realm_.meta_data();
     // copy pressure to pOld
-    ScalarFieldType* pressure = meta_data.get_field<ScalarFieldType>(
-      stk::topology::NODE_RANK, "pressure");
+    ScalarFieldType* pressure =
+      meta_data.get_field<double>(stk::topology::NODE_RANK, "pressure");
     field_copy(
       meta_data, realm_.bulk_data(), *pressure, *pOld_,
       realm_.get_activate_aura());
@@ -1361,7 +1372,7 @@ EnthalpyEquationSystem::predict_state()
     (meta.locally_owned_part() | meta.globally_shared_part() |
      meta.aura_part()) &
     stk::mesh::selectField(*enthalpy_);
-  nalu_ngp::field_copy(ngpMesh, sel, hNp1, hN);
+  kynema_ugf_ngp::field_copy(ngpMesh, sel, hNp1, hN);
 }
 
 //--------------------------------------------------------------------------
@@ -1403,15 +1414,20 @@ EnthalpyEquationSystem::temperature_bc_setup(
     } else if (fcnName == "BoussinesqNonIso") {
       theAuxFunc = new BoussinesqNonIsoTemperatureAuxFunction();
     } else if (fcnName == "capping_inversion") {
-      theAuxFunc = new CappingInversionTemperatureAuxFunction();
+      theAuxFunc = new TabulatedTemperatureAuxFunction(
+        {0, 650.0, 750.0, 1000.0}, {300.0, 300.0, 308.0, 308.75});
     } else {
-      throw std::runtime_error("EnthalpyEquationSystem::temperature_bc_setup; "
-                               "limited user functions supported");
+      throw std::runtime_error(
+        "EnthalpyEquationSystem::temperature_bc_setup; "
+        "limited user functions supported");
     }
+  } else if (STRING_FUNCTION_UD == theDataType) {
+    theAuxFunc = new StringTimeCoordTemperatureAuxFunction(
+      userData.functions.at("temperature"));
   } else {
     throw std::runtime_error(
-      "EnthalpyEquationSystem::temperature_bc_setup: only function and "
-      "constants supported (and none specified)");
+      "EnthalpyEquationSystem::temperature_bc_setup: only function, "
+      "constants, and string functions supported (and none specified)");
   }
 
   AuxFunctionAlgorithm* auxTempAlg = new AuxFunctionAlgorithm(
@@ -1484,13 +1500,13 @@ void
 EnthalpyEquationSystem::compute_projected_nodal_gradient()
 {
   if (!managePNG_) {
-    const double timeA = -NaluEnv::self().nalu_time();
+    const double timeA = -KynemaUGFEnv::self().kynema_ugf_time();
     nodalGradAlgDriver_.execute();
-    timerMisc_ += (NaluEnv::self().nalu_time() + timeA);
+    timerMisc_ += (KynemaUGFEnv::self().kynema_ugf_time() + timeA);
   } else {
     projectedNodalGradEqs_->solve_and_update_external();
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

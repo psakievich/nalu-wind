@@ -12,10 +12,10 @@
 
 #include <FieldTypeDef.h>
 #include <SimdInterface.h>
-#include <NaluEnv.h>
+#include <KynemaUGFEnv.h>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class Realm;
 namespace EigenDecomposition {
@@ -203,14 +203,17 @@ sym_diagonalize(const T (&A)[3][3], T (&Q)[3][3], T (&D)[3][3])
     // if oLarge == 0.0, then we are already diagonal
     // we need to be able to divide by thet, so set to 1.0 temporarily and
     // catch c at the end and correct it to 1 to handle the diagonal case
+    const T oLargeSafe =
+      stk::math::if_then_else(oLarge == T(0.0), T(1.0), oLarge);
     thet =
-      stk::math::if_then_else(oLarge == 0.0, 1.0, (dDiff) / (2.0 * oLarge));
+      stk::math::if_then_else(oLarge == 0.0, 1.0, (dDiff) / (2.0 * oLargeSafe));
     sgn = stk::math::if_then_else(thet > 0.0, 1.0, -1.0);
     thet = thet * sgn;
     // sign(T)/(|T|+sqrt(T^2+1))
+    const T thetSafe = stk::math::if_then_else(thet == T(0.0), T(1.0), thet);
     t = stk::math::if_then_else(
       thet < 1.E6, sgn / (thet + stk::math::sqrt(thet * thet + 1.0)),
-      0.5 * sgn / thet);
+      0.5 * sgn / thetSafe);
     c = stk::math::if_then_else(
       oLarge == 0.0, 1.0, 1.0 / stk::math::sqrt(t * t + 1.0));
 
@@ -345,7 +348,7 @@ general_eigenvalues(T (&A)[3][3], T (&Q)[3][3], T (&D)[3][3])
   const bool exit_now = stk::simd::are_all(check_one);
   if (exit_now) {
 #if !defined(KOKKOS_ENABLE_GPU)
-    NaluEnv::self().naluOutput()
+    KynemaUGFEnv::self().kynema_ugfOutput()
       << "Error, complex eigenvalues in EigenDecomposition::general_eigenvalues"
       << disc << "([[" << A[0][0] << "," << A[0][1] << "," << A[0][2] << "],["
       << A[1][0] << "," << A[1][1] << "," << A[1][2] << "],[" << A[2][0] << ","
@@ -400,7 +403,7 @@ general_eigenvalues(T (&A)[3][3], T (&Q)[3][3], T (&D)[3][3])
 
 } // namespace EigenDecomposition
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

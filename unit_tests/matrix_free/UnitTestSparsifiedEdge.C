@@ -39,7 +39,7 @@
 #include <MatrixMarket_Tpetra.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 
 namespace test_solution_update {
@@ -55,8 +55,9 @@ protected:
         stk::mesh::get_updated_ngp_mesh(bulk),
         meta.universal_part(),
         gid_field_ngp),
-      offsets(create_offset_map<order>(
-        mesh, meta.universal_part(), linsys.stk_lid_to_tpetra_lid))
+      offsets(
+        create_offset_map<order>(
+          mesh, meta.universal_part(), linsys.stk_lid_to_tpetra_lid))
   {
   }
   StkToTpetraMaps linsys;
@@ -81,8 +82,9 @@ TEST_F(SparsifiedEdgeFixture, fill_works)
   auto mat =
     create_matrix<order>(linsys.owned, linsys.owned_and_shared, offsets);
 
-  ASSERT_NO_THROW(assemble_sparsified_edge_laplacian<order>(
-    offsets, xc, mat->getLocalMatrix()));
+  ASSERT_NO_THROW(
+    assemble_sparsified_edge_laplacian<order>(
+      offsets, xc, mat->getLocalMatrix()));
   ASSERT_NO_THROW(mat->fillComplete());
 }
 
@@ -103,5 +105,5 @@ TEST_F(SparsifiedEdgeFixture, dump)
 }
 
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

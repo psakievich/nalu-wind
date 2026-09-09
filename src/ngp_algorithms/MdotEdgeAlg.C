@@ -12,12 +12,13 @@
 #include "ngp_utils/NgpFieldOps.h"
 #include "ngp_utils/NgpFieldManager.h"
 #include "Realm.h"
+#include "SolutionOptions.h"
 #include "utils/StkHelpers.h"
 #include "stk_mesh/base/NgpMesh.hpp"
 #include "stk_mesh/base/NgpField.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 MdotEdgeAlg::MdotEdgeAlg(Realm& realm, stk::mesh::Part* part)
   : Algorithm(realm, part),
@@ -25,8 +26,8 @@ MdotEdgeAlg::MdotEdgeAlg(Realm& realm, stk::mesh::Part* part)
       get_field_ordinal(realm.meta_data(), realm.get_coordinates_name())),
     velocity_(get_field_ordinal(
       realm.meta_data(),
-      realm.has_mesh_motion() && !realm.has_mesh_deformation() ? "velocity_rtm"
-                                                               : "velocity")),
+      realm.does_mesh_move() && !realm.has_mesh_deformation() ? "velocity_rtm"
+                                                              : "velocity")),
     pressure_(get_field_ordinal(realm.meta_data(), "pressure")),
     densityNp1_(
       get_field_ordinal(realm.meta_data(), "density", stk::mesh::StateNP1)),
@@ -42,7 +43,7 @@ MdotEdgeAlg::MdotEdgeAlg(Realm& realm, stk::mesh::Part* part)
 void
 MdotEdgeAlg::execute()
 {
-  using EntityInfoType = nalu_ngp::EntityInfo<stk::mesh::NgpMesh>;
+  using EntityInfoType = kynema_ugf_ngp::EntityInfo<stk::mesh::NgpMesh>;
   constexpr int NDimMax = 3;
   const auto& meta = realm_.meta_data();
   const int ndim = meta.spatial_dimension();
@@ -55,15 +56,15 @@ MdotEdgeAlg::execute()
   const DblType om_interpTogether = (1.0 - interpTogether);
 
   // STK stk::mesh::NgpField instances for capture by lambda
-  const auto ngpMesh = realm_.ngp_mesh();
-  const auto& fieldMgr = realm_.ngp_field_manager();
-  const auto coordinates = fieldMgr.get_field<double>(coordinates_);
-  const auto velocity = fieldMgr.get_field<double>(velocity_);
-  const auto Gpdx = fieldMgr.get_field<double>(Gpdx_);
-  const auto density = fieldMgr.get_field<double>(densityNp1_);
-  const auto pressure = fieldMgr.get_field<double>(pressure_);
-  const auto udiag = fieldMgr.get_field<double>(Udiag_);
-  const auto edgeAreaVec = fieldMgr.get_field<double>(edgeAreaVec_);
+  auto ngpMesh = realm_.ngp_mesh();
+  auto& fieldMgr = realm_.ngp_field_manager();
+  auto coordinates = fieldMgr.get_field<double>(coordinates_);
+  auto velocity = fieldMgr.get_field<double>(velocity_);
+  auto Gpdx = fieldMgr.get_field<double>(Gpdx_);
+  auto density = fieldMgr.get_field<double>(densityNp1_);
+  auto pressure = fieldMgr.get_field<double>(pressure_);
+  auto udiag = fieldMgr.get_field<double>(Udiag_);
+  auto edgeAreaVec = fieldMgr.get_field<double>(edgeAreaVec_);
 
   stk::mesh::NgpField<double> edgeFaceVelMag;
 
@@ -73,17 +74,50 @@ MdotEdgeAlg::execute()
     edgeFaceVelMag_ = get_field_ordinal(
       realm_.meta_data(), "edge_face_velocity_mag", stk::topology::EDGE_RANK);
     edgeFaceVelMag = fieldMgr.get_field<double>(edgeFaceVelMag_);
+    edgeFaceVelMag.sync_to_device();
   }
   auto mdot = fieldMgr.get_field<double>(massFlowRate_);
+
+  const bool add_balanced_forcing =
+    realm_.solutionOptions_->use_balanced_buoyancy_force_;
+
+  DblType gravity[3] = {};
+  if (add_balanced_forcing) {
+    const auto& solnOptsGravity =
+      realm_.solutionOptions_->get_gravity_vector(ndim);
+    for (int idim = 0; idim < ndim; ++idim) {
+      gravity[idim] = solnOptsGravity[idim];
+    }
+  }
+
+  auto source = !add_balanced_forcing
+                  ? fieldMgr.get_field<double>(Gpdx_)
+                  : fieldMgr.get_field<double>(
+                      get_field_ordinal(realm_.meta_data(), "buoyancy_source"));
+  auto source_mask = !add_balanced_forcing
+                       ? fieldMgr.get_field<double>(densityNp1_)
+                       : fieldMgr.get_field<double>(get_field_ordinal(
+                           realm_.meta_data(), "buoyancy_source_mask"));
+
+  mdot.clear_sync_state();
+  coordinates.sync_to_device();
+  velocity.sync_to_device();
+  Gpdx.sync_to_device();
+  density.sync_to_device();
+  pressure.sync_to_device();
+  udiag.sync_to_device();
+  edgeAreaVec.sync_to_device();
+  source.sync_to_device();
+  source_mask.sync_to_device();
 
   const stk::mesh::Selector sel = meta.locally_owned_part() &
                                   stk::mesh::selectUnion(partVec_) &
                                   !(realm_.get_inactive_selector());
 
-  nalu_ngp::run_edge_algorithm(
+  kynema_ugf_ngp::run_edge_algorithm(
     "compute_mdot_edge_interior", ngpMesh, sel,
     KOKKOS_LAMBDA(const EntityInfoType& einfo) {
-      NALU_ALIGNED DblType av[NDimMax];
+      DblType av[NDimMax];
 
       for (int d = 0; d < ndim; ++d)
         av[d] = edgeAreaVec.get(einfo.meshIdx, d);
@@ -115,6 +149,15 @@ MdotEdgeAlg::execute()
       const DblType inv_axdx = 1.0 / axdx;
 
       DblType tmdot = -projTimeScale * (pressureR - pressureL) * asq * inv_axdx;
+
+      if (add_balanced_forcing) {
+        const DblType masked_weights =
+          0.5 * (source_mask.get(nodeL, 0) + source_mask.get(nodeR, 0));
+        for (int d = 0; d < ndim; ++d) {
+          tmdot += projTimeScale * av[d] * gravity[d] * rhoIp * masked_weights;
+        }
+      }
+
       if (needs_gcl) {
         tmdot -= rhoIp * edgeFaceVelMag.get(einfo.meshIdx, 0);
       }
@@ -127,8 +170,15 @@ MdotEdgeAlg::execute()
                                        densityL * velocity.get(nodeL, d));
         const DblType ujIp =
           0.5 * (velocity.get(nodeR, d) + velocity.get(nodeL, d));
-        const DblType GjIp =
+        DblType GjIp =
           0.5 * (Gpdx.get(nodeR, d) / udiagR + Gpdx.get(nodeL, d) / udiagL);
+        if (add_balanced_forcing) {
+          GjIp -=
+            0.5 *
+            ((source_mask.get(nodeR, 0) * source.get(nodeR, d)) / (udiagR) +
+             (source_mask.get(nodeL, 0) * source.get(nodeL, d)) / (udiagL));
+        }
+
         tmdot +=
           (interpTogether * rhoUjIp + om_interpTogether * rhoIp * ujIp + GjIp) *
             av[d] -
@@ -143,5 +193,5 @@ MdotEdgeAlg::execute()
   mdot.modify_on_device();
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

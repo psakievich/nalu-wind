@@ -13,7 +13,7 @@
 #include <master_element/MasterElement.h>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 // Tet 4 subcontrol volume
 class TetSCV : public MasterElement
@@ -326,13 +326,16 @@ private:
 
   // boundary integration point ip node mapping (ip on an ordinal to local node
   // number)
-  const int ipNodeMap_[4][3] = {            // 3 ips * 4 faces
-                                {0, 1, 3},  // face 0
-                                {1, 2, 3},  // face 1
-                                {0, 3, 2},  // face 2
-                                {0, 2, 1}}; // face 3
+  const int ipNodeMap_[4][3] = {
+    // 3 ips * 4 faces
+    {0, 1, 3},  // face 0
+    {1, 2, 3},  // face 1
+    {0, 3, 2},  // face 2
+    {0, 2, 1}}; // face 3
 
+#if !defined(KOKKOS_ENABLE_GPU)
   int intgExpFaceShift_[4][3][3];
+#endif
 
   template <typename DBLTYPE, typename SHMEM>
   KOKKOS_INLINE_FUNCTION void determinant_scs(
@@ -340,7 +343,7 @@ private:
     SharedMemView<DBLTYPE**, SHMEM>& areav) const;
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

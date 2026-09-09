@@ -1,10 +1,9 @@
-target_sources(nalu PRIVATE
+target_sources(${kynema_ugf_lib_name} PRIVATE
    ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryLayerPerturbationAuxFunction.C
    ${CMAKE_CURRENT_SOURCE_DIR}/BoussinesqNonIsoEnthalpySrcNodeSuppAlg.C
    ${CMAKE_CURRENT_SOURCE_DIR}/BoussinesqNonIsoMomentumSrcNodeSuppAlg.C
    ${CMAKE_CURRENT_SOURCE_DIR}/BoussinesqNonIsoTemperatureAuxFunction.C
    ${CMAKE_CURRENT_SOURCE_DIR}/BoussinesqNonIsoVelocityAuxFunction.C
-   ${CMAKE_CURRENT_SOURCE_DIR}/CappingInversionTemperatureAuxFunction.C
    ${CMAKE_CURRENT_SOURCE_DIR}/ConvectingTaylorVortexPressureAuxFunction.C
    ${CMAKE_CURRENT_SOURCE_DIR}/ConvectingTaylorVortexVelocityAuxFunction.C
    ${CMAKE_CURRENT_SOURCE_DIR}/FlowPastCylinderTempAuxFunction.C
@@ -19,6 +18,9 @@ target_sources(nalu PRIVATE
    ${CMAKE_CURRENT_SOURCE_DIR}/SteadyTaylorVortexMomentumSrcNodeSuppAlg.C
    ${CMAKE_CURRENT_SOURCE_DIR}/SteadyTaylorVortexPressureAuxFunction.C
    ${CMAKE_CURRENT_SOURCE_DIR}/SteadyTaylorVortexVelocityAuxFunction.C
+   ${CMAKE_CURRENT_SOURCE_DIR}/StringTimeCoordFunction.C
+   ${CMAKE_CURRENT_SOURCE_DIR}/StringTimeCoordTemperatureAuxFunction.C
+   ${CMAKE_CURRENT_SOURCE_DIR}/TabulatedTemperatureAuxFunction.C
    ${CMAKE_CURRENT_SOURCE_DIR}/TaylorGreenPressureAuxFunction.C
    ${CMAKE_CURRENT_SOURCE_DIR}/TaylorGreenVelocityAuxFunction.C
    ${CMAKE_CURRENT_SOURCE_DIR}/TornadoAuxFunction.C
@@ -35,4 +37,12 @@ target_sources(nalu PRIVATE
    ${CMAKE_CURRENT_SOURCE_DIR}/WindEnergyPowerLawAuxFunction.C
    ${CMAKE_CURRENT_SOURCE_DIR}/WindEnergyTaylorVortexAuxFunction.C
    ${CMAKE_CURRENT_SOURCE_DIR}/WindEnergyTaylorVortexPressureAuxFunction.C
+   ${CMAKE_CURRENT_SOURCE_DIR}/ZalesakDiskVOFAuxFunction.C
+   ${CMAKE_CURRENT_SOURCE_DIR}/ZalesakDiskMassFlowRateKernel.C
+   ${CMAKE_CURRENT_SOURCE_DIR}/ZalesakSphereVOFAuxFunction.C
+   ${CMAKE_CURRENT_SOURCE_DIR}/ZalesakSphereMassFlowRateKernel.C
+   ${CMAKE_CURRENT_SOURCE_DIR}/DropletVOFAuxFunction.C
+   ${CMAKE_CURRENT_SOURCE_DIR}/DropletVelocityAuxFunction.C
+   ${CMAKE_CURRENT_SOURCE_DIR}/SloshingTankVOFAuxFunction.C
+   ${CMAKE_CURRENT_SOURCE_DIR}/SloshingTankPressureAuxFunction.C
 )

@@ -7,7 +7,7 @@
 // for more details.
 //
 // Original implementation of this code by Shreyas Ananthan for AMR-Wind
-// - (https://github.com/Exawind/amr-wind)
+// - (https://github.com/Kynema/amr-wind)
 //
 // Adapted to use Kokkos
 
@@ -147,7 +147,8 @@ KOKKOS_FORCEINLINE_FUNCTION double
 angle(const VectorT<T>& v1, const VectorT<T>& v2)
 {
   const double denom = stk::math::max(mag(v1) * mag(v2), vs::DTraits<T>::eps());
-  return stk::math::acos((v1 & v2) / denom);
+  const double val = (v1 & v2) / denom;
+  return stk::math::acos(stk::math::max(-1.0, stk::math::min(1.0, val)));
 }
 
 template <typename T>

@@ -14,13 +14,13 @@
 #include "matrix_free/ValidSimdLength.h"
 #include "matrix_free/ElementVolumeIntegral.h"
 #include "matrix_free/ElementSCSInterpolate.h"
-#include "matrix_free/LocalArray.h"
+#include "ArrayND.h"
 #include <KokkosInterface.h>
 #include <Kokkos_NumericTraits.hpp>
 #include <stk_simd/Simd.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 namespace impl {
 
@@ -174,5 +174,5 @@ max_local_courant_reynolds_t<p>::invoke(
 INSTANTIATE_POLYSTRUCT(max_local_courant_reynolds_t);
 } // namespace impl
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

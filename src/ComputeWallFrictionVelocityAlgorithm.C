@@ -7,22 +7,22 @@
 // for more details.
 //
 
-// nalu
+// kynema_ugf
 #include <ComputeWallFrictionVelocityAlgorithm.h>
 #include <Algorithm.h>
 
 #include <FieldTypeDef.h>
 #include <Realm.h>
 #include <master_element/MasterElement.h>
-#include <master_element/MasterElementFactory.h>
-#include <NaluEnv.h>
-#include <NaluParsing.h>
+#include <master_element/MasterElementRepo.h>
+#include <KynemaUGFEnv.h>
+#include <KynemaUGFParsing.h>
 
 // stk_mesh/base/fem
 #include <stk_mesh/base/BulkData.hpp>
 #include <stk_mesh/base/Field.hpp>
 #include <stk_mesh/base/FieldParallel.hpp>
-#include <stk_mesh/base/GetBuckets.hpp>
+
 #include <stk_mesh/base/GetEntities.hpp>
 #include <stk_mesh/base/MetaData.hpp>
 #include <stk_mesh/base/Part.hpp>
@@ -31,7 +31,7 @@
 #include <cmath>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //==========================================================================
 // Class Definition
@@ -66,30 +66,28 @@ ComputeWallFrictionVelocityAlgorithm::ComputeWallFrictionVelocityAlgorithm(
 
   // save off fields
   stk::mesh::MetaData& meta_data = realm_.meta_data();
-  velocity_ =
-    meta_data.get_field<VectorFieldType>(stk::topology::NODE_RANK, "velocity");
+  velocity_ = meta_data.get_field<double>(stk::topology::NODE_RANK, "velocity");
   if (RANSAblBcApproach_) {
-    bcVelocity_ = meta_data.get_field<VectorFieldType>(
-      stk::topology::NODE_RANK, "velocity_bc");
+    bcVelocity_ =
+      meta_data.get_field<double>(stk::topology::NODE_RANK, "velocity_bc");
   } else {
-    bcVelocity_ = meta_data.get_field<VectorFieldType>(
-      stk::topology::NODE_RANK, "wall_velocity_bc");
+    bcVelocity_ =
+      meta_data.get_field<double>(stk::topology::NODE_RANK, "wall_velocity_bc");
   }
-  coordinates_ = meta_data.get_field<VectorFieldType>(
+  coordinates_ = meta_data.get_field<double>(
     stk::topology::NODE_RANK, realm_.get_coordinates_name());
-  density_ =
-    meta_data.get_field<ScalarFieldType>(stk::topology::NODE_RANK, "density");
+  density_ = meta_data.get_field<double>(stk::topology::NODE_RANK, "density");
   viscosity_ =
-    meta_data.get_field<ScalarFieldType>(stk::topology::NODE_RANK, "viscosity");
-  exposedAreaVec_ = meta_data.get_field<GenericFieldType>(
-    meta_data.side_rank(), "exposed_area_vector");
-  wallFrictionVelocityBip_ = meta_data.get_field<GenericFieldType>(
+    meta_data.get_field<double>(stk::topology::NODE_RANK, "viscosity");
+  exposedAreaVec_ =
+    meta_data.get_field<double>(meta_data.side_rank(), "exposed_area_vector");
+  wallFrictionVelocityBip_ = meta_data.get_field<double>(
     meta_data.side_rank(), "wall_friction_velocity_bip");
-  wallNormalDistanceBip_ = meta_data.get_field<GenericFieldType>(
+  wallNormalDistanceBip_ = meta_data.get_field<double>(
     meta_data.side_rank(), "wall_normal_distance_bip");
-  assembledWallArea_ = meta_data.get_field<ScalarFieldType>(
+  assembledWallArea_ = meta_data.get_field<double>(
     stk::topology::NODE_RANK, "assembled_wall_area_wf");
-  assembledWallNormalDistance_ = meta_data.get_field<ScalarFieldType>(
+  assembledWallNormalDistance_ = meta_data.get_field<double>(
     stk::topology::NODE_RANK, "assembled_wall_normal_distance");
 }
 
@@ -155,16 +153,18 @@ ComputeWallFrictionVelocityAlgorithm::execute()
 
     // extract connected element topology
     b.parent_topology(stk::topology::ELEMENT_RANK, parentTopo);
-    ThrowAssert(parentTopo.size() == 1);
+    STK_ThrowAssert(parentTopo.size() == 1);
     stk::topology theElemTopo = parentTopo[0];
 
     // extract master element
     MasterElement* meSCS =
-      sierra::nalu::MasterElementRepo::get_surface_master_element(theElemTopo);
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
+        theElemTopo);
 
     // face master element
     MasterElement* meFC =
-      sierra::nalu::MasterElementRepo::get_surface_master_element(b.topology());
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
+        b.topology());
     const int nodesPerFace = b.topology().num_nodes();
     const int numScsBip = meFC->num_integration_points();
 
@@ -204,7 +204,7 @@ ComputeWallFrictionVelocityAlgorithm::execute()
       stk::mesh::Entity const* face_node_rels = bulk_data.begin_nodes(face);
       int num_face_nodes = bulk_data.num_nodes(face);
       // sanity check on num nodes
-      ThrowAssert(num_face_nodes == nodesPerFace);
+      STK_ThrowAssert(num_face_nodes == nodesPerFace);
       for (int ni = 0; ni < num_face_nodes; ++ni) {
         stk::mesh::Entity node = face_node_rels[ni];
 
@@ -232,7 +232,7 @@ ComputeWallFrictionVelocityAlgorithm::execute()
       // extract the connected element to this exposed face; should be single in
       // size!
       const stk::mesh::Entity* face_elem_rels = bulk_data.begin_elements(face);
-      ThrowAssert(bulk_data.num_elements(face) == 1);
+      STK_ThrowAssert(bulk_data.num_elements(face) == 1);
 
       // get element; its face ordinal number
       stk::mesh::Entity element = face_elem_rels[0];
@@ -416,9 +416,9 @@ ComputeWallFrictionVelocityAlgorithm::compute_utau(
 
   // report trouble
   if (!converged) {
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << "Issue with utau; not converged " << std::endl;
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << up << " " << yp << " " << utau << std::endl;
   }
 }
@@ -469,5 +469,5 @@ ComputeWallFrictionVelocityAlgorithm::normalize_nodal_fields()
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

@@ -12,13 +12,13 @@
 
 #include <aero/actuator/ActuatorBulk.h>
 #include <aero/actuator/ActuatorBulkSimple.h>
-#ifdef NALU_USES_OPENFAST
+#ifdef KYNEMA_UGF_USES_OPENFAST
 #include <aero/actuator/ActuatorBulkFAST.h>
 #endif
 #include <stdexcept>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace FLLC {
 
 template <typename range_type, typename helper_type>
@@ -43,49 +43,47 @@ scale_lift_force(
     auto rho = helper.get_local_view(actBulkSimple.density_);
 
     const int turbId = actBulkSimple.localTurbineId_;
-    double dR = actMetaSimple.dR_.h_view(turbId);
+    double dR = actMetaSimple.dR_.view_host()(turbId);
 
-    Kokkos::parallel_for(
-      "scale G", rangePolicy, ACTUATOR_LAMBDA(int i) {
-        const double denom = rho(i) * dR;
-        for (int j = 0; j < 3; ++j) {
-          G(i, j) /= denom;
-        }
-      });
+    Kokkos::parallel_for("scale G", rangePolicy, [=](int i) {
+      const double denom = rho(i) * dR;
+      for (int j = 0; j < 3; ++j) {
+        G(i, j) /= denom;
+      }
+    });
     break;
   }
   case (ActuatorType::ActLineFASTNGP):
   case (ActuatorType::ActDiskFASTNGP): {
-#ifndef NALU_USES_OPENFAST
-    ThrowErrorMsg("Actuator methods require OpenFAST");
+#ifndef KYNEMA_UGF_USES_OPENFAST
+    STK_ThrowErrorMsg("Actuator methods require OpenFAST");
 #if !defined(KOKKOS_ENABLE_GPU)
     break;
 #endif
 #else
     auto G = helper.get_local_view(actBulk.liftForceDistribution_);
     auto point = helper.get_local_view(actBulk.pointCentroid_);
-    Kokkos::parallel_for(
-      "scale G FAST outputs", rangePolicy, ACTUATOR_LAMBDA(int i) {
-        double dr = 0;
-        if (i == offset) {
-          for (int j = 0; j < 3; ++j) {
-            dr += std::pow(point(i, j) - point(i + 1, j), 2.0);
-          }
-        } else if (i == offset + nPoints - 1) {
-          for (int j = 0; j < 3; ++j) {
-            dr += std::pow(point(i, j) - point(i - 1, j), 2.0);
-          }
-        } else {
-          for (int j = 0; j < 3; ++j) {
-            dr += std::pow(point(i - 1, j) - point(i + 1, j), 2.0);
-          }
-        }
-        // dr is computed using central difference
-        dr = 0.5 * std::sqrt(dr);
+    Kokkos::parallel_for("scale G FAST outputs", rangePolicy, [=](int i) {
+      double dr = 0;
+      if (i == offset) {
         for (int j = 0; j < 3; ++j) {
-          G(i, j) /= dr;
+          dr += std::pow(point(i, j) - point(i + 1, j), 2.0);
         }
-      });
+      } else if (i == offset + nPoints - 1) {
+        for (int j = 0; j < 3; ++j) {
+          dr += std::pow(point(i, j) - point(i - 1, j), 2.0);
+        }
+      } else {
+        for (int j = 0; j < 3; ++j) {
+          dr += std::pow(point(i - 1, j) - point(i + 1, j), 2.0);
+        }
+      }
+      // dr is computed using central difference
+      dr = 0.5 * std::sqrt(dr);
+      for (int j = 0; j < 3; ++j) {
+        G(i, j) /= dr;
+      }
+    });
     break;
 #endif
   }
@@ -95,6 +93,6 @@ scale_lift_force(
   }
 }
 } // namespace FLLC
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 #endif /* ACTUATORSCALINGFLLC_H_ */

@@ -4,7 +4,6 @@
 #include "NgpMotion.h"
 
 // stk base header files
-#include "stk_mesh/base/CoordinateSystems.hpp"
 #include "stk_mesh/base/BulkData.hpp"
 #include "stk_mesh/base/Field.hpp"
 #include "stk_mesh/base/MetaData.hpp"
@@ -14,7 +13,7 @@ class Node;
 }
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class FrameBase
 {
@@ -78,7 +77,7 @@ private:
   void populate_part_vec(const YAML::Node&);
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif /* FRAMEBASE_H */

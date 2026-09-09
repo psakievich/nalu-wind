@@ -13,13 +13,14 @@
 #include <Simulation.h>
 #include <LinearSolver.h>
 #include <master_element/MasterElement.h>
+#include <KynemaUGFEnv.h>
 
-#ifdef NALU_USES_HYPRE
+#ifdef KYNEMA_UGF_USES_HYPRE
 #include "HypreLinearSystem.h"
 #include "HypreUVWLinearSystem.h"
 #endif
 
-#ifdef NALU_USES_TRILINOS_SOLVERS
+#ifdef KYNEMA_UGF_USES_TRILINOS_SOLVERS
 #include <TpetraLinearSystem.h>
 #include <TpetraSegregatedLinearSystem.h>
 #endif
@@ -31,7 +32,7 @@
 #include <stk_mesh/base/Bucket.hpp>
 #include <stk_mesh/base/MetaData.hpp>
 #include <stk_mesh/base/Selector.hpp>
-#include <stk_mesh/base/GetBuckets.hpp>
+
 #include <stk_mesh/base/Part.hpp>
 #include "stk_mesh/base/NgpMesh.hpp"
 #include <stk_topology/topology.hpp>
@@ -45,7 +46,7 @@
 #include <sstream>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //==========================================================================
 // Class Definition
@@ -93,7 +94,7 @@ LinearSystem::get_timer_precond()
 bool
 LinearSystem::debug()
 {
-  if (linearSolver_ && linearSolver_->root() && linearSolver_->root()->debug())
+  if (KynemaUGFEnv::self().debug())
     return true;
   return false;
 }
@@ -108,7 +109,7 @@ LinearSystem::useSegregatedSolver() const
 const LinearSolverConfig&
 LinearSystem::config() const
 {
-  ThrowAssert(linearSolver_ != nullptr);
+  STK_ThrowAssert(linearSolver_ != nullptr);
   return *(linearSolver_->getConfig());
 }
 
@@ -121,7 +122,7 @@ LinearSystem::create(
   LinearSolver* solver)
 {
   switch (solver->getType()) {
-#ifdef NALU_USES_TRILINOS_SOLVERS
+#ifdef KYNEMA_UGF_USES_TRILINOS_SOLVERS
   case PT_TPETRA:
     return new TpetraLinearSystem(realm, numDof, eqSys, solver);
 // Avoid nvcc unreachable statement warnings
@@ -135,9 +136,9 @@ LinearSystem::create(
 #ifndef __CUDACC__
     break;
 #endif
-#endif // NALU_USES_TRILINOS_SOLVERS
+#endif // KYNEMA_UGF_USES_TRILINOS_SOLVERS
 
-#ifdef NALU_USES_HYPRE
+#ifdef KYNEMA_UGF_USES_HYPRE
   case PT_HYPRE:
     realm.hypreIsActive_ = true;
     return new HypreLinearSystem(realm, numDof, eqSys, solver);
@@ -167,5 +168,5 @@ LinearSystem::sync_field(const stk::mesh::FieldBase* field)
   stk::mesh::copy_owned_to_shared(realm_.bulk_data(), ngpFields);
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

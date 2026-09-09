@@ -199,8 +199,9 @@ TEST_F(WallDistKernelHex8Mesh, NGP_wall_dist)
     bulk_, stk::topology::HEX_8, 1, partVec_[0]);
 
   // Initialize the kernel
-  std::unique_ptr<sierra::nalu::Kernel> wallKernel(
-    new sierra::nalu::WallDistElemKernel<sierra::nalu::AlgTraitsHex8>(
+  std::unique_ptr<sierra::kynema_ugf::Kernel> wallKernel(
+    new sierra::kynema_ugf::WallDistElemKernel<
+      sierra::kynema_ugf::AlgTraitsHex8>(
       *bulk_, solnOpts_,
       helperObjs.assembleElemSolverAlg->dataNeededByKernels_));
 
@@ -216,7 +217,7 @@ TEST_F(WallDistKernelHex8Mesh, NGP_wall_dist)
 
   namespace gold_values = hex8_golds::wall_dist_default;
   unit_test_kernel_utils::expect_all_near(helperObjs.linsys->rhs_, 0.125);
-  unit_test_kernel_utils::expect_all_near(
+  unit_test_kernel_utils::expect_all_near<8>(
     helperObjs.linsys->lhs_, gold_values::lhs);
 }
 
@@ -233,8 +234,9 @@ TEST_F(WallDistKernelHex8Mesh, NGP_wall_dist_shifted)
     bulk_, stk::topology::HEX_8, 1, partVec_[0]);
 
   // Initialize the kernel
-  std::unique_ptr<sierra::nalu::Kernel> wallKernel(
-    new sierra::nalu::WallDistElemKernel<sierra::nalu::AlgTraitsHex8>(
+  std::unique_ptr<sierra::kynema_ugf::Kernel> wallKernel(
+    new sierra::kynema_ugf::WallDistElemKernel<
+      sierra::kynema_ugf::AlgTraitsHex8>(
       *bulk_, solnOpts_,
       helperObjs.assembleElemSolverAlg->dataNeededByKernels_));
 
@@ -250,6 +252,6 @@ TEST_F(WallDistKernelHex8Mesh, NGP_wall_dist_shifted)
 
   namespace gold_values = hex8_golds::wall_dist_lumped;
   unit_test_kernel_utils::expect_all_near(helperObjs.linsys->rhs_, 0.125);
-  unit_test_kernel_utils::expect_all_near(
+  unit_test_kernel_utils::expect_all_near<8>(
     helperObjs.linsys->lhs_, gold_values::lhs);
 }

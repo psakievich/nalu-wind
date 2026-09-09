@@ -14,14 +14,14 @@
 #include "matrix_free/ValidSimdLength.h"
 #include "matrix_free/ShuffledAccess.h"
 #include "matrix_free/KokkosViewTypes.h"
-#include "matrix_free/LocalArray.h"
+#include "ArrayND.h"
 
 #include <KokkosInterface.h>
 #include <Kokkos_ScatterView.hpp>
 #include <stk_simd/Simd.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 namespace impl {
 namespace {
@@ -82,7 +82,7 @@ conduction_diagonal_t<p>::invoke(
       constexpr auto vandermonde = Coeffs<p>::W;
       constexpr auto Wl = Coeffs<p>::Wl;
 
-      LocalArray<ftype[p + 1][p + 1][p + 1]> lhs;
+      ArrayND<ftype[p + 1][p + 1][p + 1]> lhs;
       for (int k = 0; k < p + 1; ++k) {
         const auto gammaWk = gamma * Wl(k);
         for (int j = 0; j < p + 1; ++j) {
@@ -122,5 +122,5 @@ INSTANTIATE_POLYSTRUCT(conduction_diagonal_t);
 } // namespace impl
 
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

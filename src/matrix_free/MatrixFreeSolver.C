@@ -9,7 +9,7 @@
 
 #include "matrix_free/MatrixFreeSolver.h"
 
-#ifdef NALU_USES_TRILINOS_SOLVERS
+#ifdef KYNEMA_UGF_USES_TRILINOS_SOLVERS
 #include <BelosConfigDefs.hpp>
 #include <BelosLinearProblem.hpp>
 #include <BelosMultiVecTraits.hpp>
@@ -30,7 +30,7 @@
 #include "stk_mesh/base/NgpProfilingBlock.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 
 template <typename T>
@@ -77,11 +77,12 @@ MatrixFreeSolver::MatrixFreeSolver(
       Teuchos::rcpFromRef(op_in),
       Teuchos::rcpFromRef(lhs_vector_),
       Teuchos::rcpFromRef(rhs_vector_)),
-    solv_(Belos::TpetraSolverFactory<double, mv_type, base_op_type>().create(
-      add_default_parameters_to_parameter_list(params, num_vectors_in)
-        .get<std::string>("Solver Name"),
-      Teuchos::rcpFromRef(
-        add_default_parameters_to_parameter_list(params, num_vectors_in))))
+    solv_(
+      Belos::TpetraSolverFactory<double, mv_type, base_op_type>().create(
+        add_default_parameters_to_parameter_list(params, num_vectors_in)
+          .get<std::string>("Solver Name"),
+        Teuchos::rcpFromRef(
+          add_default_parameters_to_parameter_list(params, num_vectors_in))))
 {
   solv_->setProblem(Teuchos::rcpFromRef(problem_));
 }
@@ -175,7 +176,7 @@ MatrixFreeSolver::rhs() const
 }
 
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
-#endif // NALU_USES_TRILINOS_SOLVERS
+#endif // KYNEMA_UGF_USES_TRILINOS_SOLVERS

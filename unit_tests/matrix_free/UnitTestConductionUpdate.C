@@ -26,7 +26,6 @@
 #include "stk_mesh/base/Field.hpp"
 #include "stk_mesh/base/FieldBase.hpp"
 #include "stk_mesh/base/FieldState.hpp"
-#include "stk_mesh/base/FieldTraits.hpp"
 #include "stk_mesh/base/MetaData.hpp"
 #include "stk_mesh/base/Ngp.hpp"
 #include "stk_mesh/base/NgpField.hpp"
@@ -41,7 +40,7 @@
 #include <memory>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 namespace test_simulation {
 
@@ -78,8 +77,8 @@ get_ngp_field(
   std::string name,
   stk::mesh::FieldState state = stk::mesh::StateNP1)
 {
-  ThrowAssert(meta.get_field(stk::topology::NODE_RANK, name));
-  ThrowAssert(
+  STK_ThrowAssert(meta.get_field(stk::topology::NODE_RANK, name));
+  STK_ThrowAssert(
     meta.get_field(stk::topology::NODE_RANK, name)->field_state(state));
   return stk::mesh::get_updated_ngp_field<double>(
     *meta.get_field(stk::topology::NODE_RANK, name)->field_state(state));
@@ -107,13 +106,14 @@ class ConductionSimulationFixture : public ::ConductionFixture
 protected:
   ConductionSimulationFixture()
     : ConductionFixture(nx, scale),
-      update(make_updater<ConductionUpdate>(
-        order,
-        bulk,
-        Teuchos::ParameterList{},
-        meta.universal_part(),
-        stk::mesh::Selector{},
-        stk::mesh::Selector{}))
+      update(
+        make_updater<ConductionUpdate>(
+          order,
+          bulk,
+          Teuchos::ParameterList{},
+          meta.universal_part(),
+          stk::mesh::Selector{},
+          stk::mesh::Selector{}))
   {
     auto& coordField = coordinate_field();
     for (auto ib :
@@ -228,13 +228,14 @@ class QuadraticElementConductionSimulationFixture : public ::ConductionFixtureP2
 protected:
   QuadraticElementConductionSimulationFixture()
     : ConductionFixtureP2(nx / order, scale),
-      update(make_updater<ConductionUpdate>(
-        order,
-        bulk,
-        Teuchos::ParameterList{},
-        meta.universal_part(),
-        stk::mesh::Selector{},
-        stk::mesh::Selector{}))
+      update(
+        make_updater<ConductionUpdate>(
+          order,
+          bulk,
+          Teuchos::ParameterList{},
+          meta.universal_part(),
+          stk::mesh::Selector{},
+          stk::mesh::Selector{}))
   {
     auto& coordField = coordinate_field();
     for (auto ib :
@@ -348,5 +349,5 @@ TEST_F(
 
 } // namespace test_simulation
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

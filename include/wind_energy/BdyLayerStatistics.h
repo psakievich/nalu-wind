@@ -22,7 +22,7 @@ class Node;
 }
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class Realm;
 class TurbulenceAveragingPostProcessing;
@@ -37,13 +37,13 @@ class BdyHeightAlgorithm;
  *  can also be used for channel flows.
  *
  *  The temporal averaging is perfomed via
- *  sierra::nalu::TurbulenceAveragingPostProcessing class.
+ *  sierra::kynema_ugf::TurbulenceAveragingPostProcessing class.
  */
 class BdyLayerStatistics
 {
 public:
   using ArrayType = Kokkos::View<double*, Kokkos::LayoutRight, MemSpace>;
-  using HostArrayType = typename ArrayType::HostMirror;
+  using HostArrayType = typename ArrayType::host_mirror_type;
 
   BdyLayerStatistics(Realm&, const YAML::Node&);
 
@@ -126,7 +126,7 @@ private:
   void load(const YAML::Node&);
 
   //! Initialize necessary parameters in
-  //! sierra::nalu::TurbulenceAveragingPostProcessing
+  //! sierra::kynema_ugf::TurbulenceAveragingPostProcessing
   void setup_turbulence_averaging(const double);
 
   //! Output averaged velocity and stress profiles as a function of height
@@ -316,7 +316,7 @@ private:
   bool doInit_{true};
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif /* BDYLAYERSTATISTICS_H */

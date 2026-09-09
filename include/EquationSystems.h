@@ -11,7 +11,7 @@
 #define EquationSystems_h
 
 #include <Enums.h>
-#include "NaluParsedTypes.h"
+#include "KynemaUGFParsedTypes.h"
 
 // stk
 namespace stk {
@@ -34,7 +34,7 @@ class Node;
 #include <string>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class Realm;
 class EquationSystem;
@@ -72,11 +72,9 @@ public:
   size_t size() { return equationSystemVector_.size(); }
   EquationSystem* operator[](int i) { return equationSystemVector_[i]; }
 
-  void register_nodal_fields(const std::vector<std::string> targetNames);
-
-  void register_edge_fields(const std::vector<std::string> targetNames);
-
-  void register_element_fields(const std::vector<std::string> targetNames);
+  void register_nodal_fields(const std::vector<std::string>& targetNames);
+  void register_edge_fields(const std::vector<std::string>& targetNames);
+  void register_element_fields(const std::vector<std::string>& targetNames);
 
   void register_interior_algorithm(const std::vector<std::string> targetNames);
 
@@ -112,6 +110,9 @@ public:
 
   void register_initial_condition_fcn(
     stk::mesh::Part* part, const UserFunctionInitialConditionData& fcnIC);
+
+  void register_initial_condition_string_function(
+    stk::mesh::Part* part, const std::map<std::string, std::string>& func);
 
   void initialize();
   void reinitialize_linear_system();
@@ -215,7 +216,7 @@ public:
   bool decoupledOversetGlobalFlag_{false};
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

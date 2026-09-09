@@ -19,14 +19,12 @@
 
 TEST_F(MomentumKernelHex8Mesh, NGP_courant_reynolds)
 {
-  auto& elemCourant = meta_->declare_field<GenericFieldType>(
-    stk::topology::ELEM_RANK, "element_courant");
-  auto& elemReynolds = meta_->declare_field<GenericFieldType>(
-    stk::topology::ELEM_RANK, "element_reynolds");
-  stk::mesh::put_field_on_mesh(
-    elemCourant, meta_->universal_part(), 1, nullptr);
-  stk::mesh::put_field_on_mesh(
-    elemReynolds, meta_->universal_part(), 1, nullptr);
+  auto& elemCourant =
+    meta_->declare_field<double>(stk::topology::ELEM_RANK, "element_courant");
+  auto& elemReynolds =
+    meta_->declare_field<double>(stk::topology::ELEM_RANK, "element_reynolds");
+  stk::mesh::put_field_on_mesh(elemCourant, meta_->universal_part(), nullptr);
+  stk::mesh::put_field_on_mesh(elemReynolds, meta_->universal_part(), nullptr);
   fill_mesh_and_init_fields();
 
   std::mt19937 rng;
@@ -53,7 +51,7 @@ TEST_F(MomentumKernelHex8Mesh, NGP_courant_reynolds)
   viscosity_->modify_on_host();
   viscosity_->sync_to_device();
 
-  sierra::nalu::TimeIntegrator timeIntegrator;
+  sierra::kynema_ugf::TimeIntegrator timeIntegrator;
   timeIntegrator.timeStepN_ = dt;
   timeIntegrator.timeStepNm1_ = dt;
   timeIntegrator.gamma1_ = 1.0;
@@ -64,12 +62,19 @@ TEST_F(MomentumKernelHex8Mesh, NGP_courant_reynolds)
     bulk_, stk::topology::HEX_8, 1, partVec_[0]);
   helperObjs.realm.timeIntegrator_ = &timeIntegrator;
 
-  sierra::nalu::CourantReAlgDriver algDriver(helperObjs.realm);
-  algDriver.register_elem_algorithm<sierra::nalu::CourantReAlg>(
-    sierra::nalu::INTERIOR, partVec_[0], "courant_reynolds", algDriver);
+  sierra::kynema_ugf::CourantReAlgDriver algDriver(helperObjs.realm);
+  algDriver.register_elem_algorithm<sierra::kynema_ugf::CourantReAlg>(
+    sierra::kynema_ugf::INTERIOR, partVec_[0], "courant_reynolds", algDriver);
 
   algDriver.execute();
 
   EXPECT_NEAR(helperObjs.realm.maxCourant_, cfl, 1.0e-14);
   EXPECT_NEAR(helperObjs.realm.maxReynolds_, reyNum, 1.0e-14);
+
+  // Check changing of dt
+  const auto dt_get = timeIntegrator.get_time_step();
+  EXPECT_NEAR(dt_get, dt, 1.0e-14);
+  timeIntegrator.set_time_step(dt + 1.);
+  const auto dt_get_again = timeIntegrator.get_time_step();
+  EXPECT_NEAR(dt_get_again, dt + 1.0, 1.0e-14);
 }

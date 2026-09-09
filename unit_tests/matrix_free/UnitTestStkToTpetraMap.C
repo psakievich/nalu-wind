@@ -29,26 +29,27 @@ class Part;
 } // namespace stk
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 
 class StkMeshFixture : public ::testing::Test
 {
 protected:
   StkMeshFixture()
-    : bulkPtr(stk::mesh::MeshBuilder(MPI_COMM_WORLD)
-                .set_spatial_dimension(3u)
-                .set_aura_option(stk::mesh::BulkData::NO_AUTO_AURA)
-                .create()),
+    : bulkPtr(
+        stk::mesh::MeshBuilder(MPI_COMM_WORLD)
+          .set_spatial_dimension(3u)
+          .set_aura_option(stk::mesh::BulkData::NO_AUTO_AURA)
+          .create()),
       bulk(*bulkPtr),
       meta(bulk.mesh_meta_data()),
       gid_field_h(
-        meta.declare_field<
-          stk::mesh::Field<typename Tpetra::Map<>::global_ordinal_type>>(
+        meta.declare_field<typename Tpetra::Map<>::global_ordinal_type>(
           stk::topology::NODE_RANK, "global_ids"))
   {
+    meta.use_simple_fields();
     active = meta.locally_owned_part() | meta.globally_shared_part();
-    stk::mesh::put_field_on_mesh(gid_field_h, active, 1, nullptr);
+    stk::mesh::put_field_on_mesh(gid_field_h, active, nullptr);
     stk::io::StkMeshIoBroker io(bulk.parallel());
     const auto num_procs = std::to_string(bulk.parallel_size());
     const auto name = "generated:1x1x" + num_procs;
@@ -231,5 +232,5 @@ TEST_F(EntityLidFixture, all_active_stk_entities_have_a_unique_tpetra_lid)
 }
 
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

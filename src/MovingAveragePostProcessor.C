@@ -7,7 +7,7 @@
 // for more details.
 //
 
-// nalu
+// kynema_ugf
 #include <MovingAveragePostProcessor.h>
 #include <Algorithm.h>
 
@@ -20,7 +20,7 @@
 #include <stk_mesh/base/BulkData.hpp>
 #include <stk_mesh/base/Field.hpp>
 #include <stk_mesh/base/FieldParallel.hpp>
-#include <stk_mesh/base/GetBuckets.hpp>
+
 #include <stk_mesh/base/MetaData.hpp>
 #include <stk_mesh/base/Part.hpp>
 
@@ -30,7 +30,7 @@
 #include <limits>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //--------------------------------------------------------------------------
 ExponentialMovingAverager::ExponentialMovingAverager(
@@ -42,7 +42,7 @@ ExponentialMovingAverager::ExponentialMovingAverager(
 void
 ExponentialMovingAverager::compute_and_set_alpha(double delta_t)
 {
-  ThrowAssert(delta_t > 1.0e6 * std::numeric_limits<double>::min());
+  STK_ThrowAssert(delta_t > 1.0e6 * std::numeric_limits<double>::min());
   alpha_ = (isInit_) ? 1.0 : std::min(1.0, delta_t / timeScale_);
 }
 //--------------------------------------------------------------------------
@@ -71,15 +71,15 @@ MovingAveragePostProcessor::add_fields(std::vector<std::string> fieldNames)
   for (const auto& fieldName : fieldNames) {
     auto& meta = bulk_.mesh_meta_data();
     auto* field = meta.get_field(stk::topology::NODE_RANK, fieldName);
-    ThrowRequireMsg(
+    STK_ThrowRequireMsg(
       field != nullptr,
       "Requested field `" + fieldName + "' not available for averaging");
-    ThrowRequireMsg(
+    STK_ThrowRequireMsg(
       field->type_is<double>(), "Only double precision-typed fields allowed");
 
     stk::mesh::FieldBase* avgField = meta.get_field(
       stk::topology::NODE_RANK, filtered_field_name(field->name()));
-    ThrowRequireMsg(
+    STK_ThrowRequireMsg(
       avgField != nullptr,
       filtered_field_name(field->name()) + " field not registered");
     fieldMap_.insert({field, avgField});
@@ -121,7 +121,7 @@ MovingAveragePostProcessor::execute()
       double* avgFieldVals =
         static_cast<double*>(stk::mesh::field_data(avgField, b));
       const unsigned fieldSize = stk::mesh::field_scalars_per_entity(field, b);
-      ThrowAssert(
+      STK_ThrowAssert(
         fieldSize == stk::mesh::field_scalars_per_entity(avgField, b));
       for (size_t k = 0u; k < b.size(); ++k) {
         const size_t offset = k * fieldSize;
@@ -135,5 +135,5 @@ MovingAveragePostProcessor::execute()
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

@@ -8,7 +8,7 @@
 //
 
 #include "AMSAlgDriver.h"
-#include "master_element/MasterElementFactory.h"
+#include "master_element/MasterElementRepo.h"
 #include "Realm.h"
 #include "SolutionOptions.h"
 #include "utils/StkHelpers.h"
@@ -21,6 +21,7 @@
 #include <stk_mesh/base/Field.hpp>
 #include <stk_mesh/base/FieldParallel.hpp>
 #include <stk_mesh/base/MetaData.hpp>
+#include <stk_io/IossBridge.hpp>
 
 // stk_mesh/base/fem
 #include <stk_mesh/base/BulkData.hpp>
@@ -28,7 +29,7 @@
 #include <stk_mesh/base/FieldParallel.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class Realm;
 
@@ -61,78 +62,85 @@ AMSAlgDriver::AMSAlgDriver(Realm& realm)
 }
 
 void
-AMSAlgDriver::register_nodal_fields(stk::mesh::Part* part)
+AMSAlgDriver::register_nodal_fields(const stk::mesh::PartVector& part_vec)
 {
   stk::mesh::MetaData& meta = realm_.meta_data();
   const int nDim = meta.spatial_dimension();
+  stk::mesh::Selector selector = stk::mesh::selectUnion(part_vec);
 
   // Set numStates as 2, so avg quantities can be updated through Picard iters
   const int numStates = 2;
 
   // Nodal fields
-  beta_ =
-    &(meta.declare_field<ScalarFieldType>(stk::topology::NODE_RANK, "k_ratio"));
-  stk::mesh::put_field_on_mesh(*beta_, *part, nullptr);
+  beta_ = &(meta.declare_field<double>(stk::topology::NODE_RANK, "k_ratio"));
+  stk::mesh::put_field_on_mesh(*beta_, selector, nullptr);
 
-  avgVelocity_ = &(meta.declare_field<VectorFieldType>(
+  avgVelocity_ = &(meta.declare_field<double>(
     stk::topology::NODE_RANK, "average_velocity", numStates));
-  stk::mesh::put_field_on_mesh(*avgVelocity_, *part, nDim, nullptr);
+  stk::mesh::put_field_on_mesh(*avgVelocity_, selector, nDim, nullptr);
+  stk::io::set_field_output_type(
+    *avgVelocity_, stk::io::FieldOutputType::VECTOR_3D);
   realm_.augment_restart_variable_list("average_velocity");
 
   if (
     realm_.solutionOptions_->meshMotion_ ||
     realm_.solutionOptions_->externalMeshDeformation_) {
-    avgVelocityRTM_ = &(meta.declare_field<VectorFieldType>(
+    avgVelocityRTM_ = &(meta.declare_field<double>(
       stk::topology::NODE_RANK, "average_velocity_rtm"));
-    stk::mesh::put_field_on_mesh(*avgVelocityRTM_, *part, nDim, nullptr);
+    stk::mesh::put_field_on_mesh(*avgVelocityRTM_, selector, nDim, nullptr);
+    stk::io::set_field_output_type(
+      *avgVelocityRTM_, stk::io::FieldOutputType::VECTOR_3D);
   }
 
-  avgProduction_ = &(meta.declare_field<ScalarFieldType>(
+  avgProduction_ = &(meta.declare_field<double>(
     stk::topology::NODE_RANK, "average_production", numStates));
-  stk::mesh::put_field_on_mesh(*avgProduction_, *part, nullptr);
+  stk::mesh::put_field_on_mesh(*avgProduction_, selector, nullptr);
   realm_.augment_restart_variable_list("average_production");
 
-  avgDudx_ = &(meta.declare_field<GenericFieldType>(
+  avgDudx_ = &(meta.declare_field<double>(
     stk::topology::NODE_RANK, "average_dudx", numStates));
-  stk::mesh::put_field_on_mesh(*avgDudx_, *part, nDim * nDim, nullptr);
+  stk::mesh::put_field_on_mesh(*avgDudx_, selector, nDim * nDim, nullptr);
   realm_.augment_restart_variable_list("average_dudx");
 
-  avgTkeResolved_ = &(meta.declare_field<ScalarFieldType>(
+  avgTkeResolved_ = &(meta.declare_field<double>(
     stk::topology::NODE_RANK, "average_tke_resolved", numStates));
-  stk::mesh::put_field_on_mesh(*avgTkeResolved_, *part, nullptr);
+  stk::mesh::put_field_on_mesh(*avgTkeResolved_, selector, nullptr);
   realm_.augment_restart_variable_list("average_tke_resolved");
 
-  avgTime_ = &(meta.declare_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, "rans_time_scale"));
-  stk::mesh::put_field_on_mesh(*avgTime_, *part, nullptr);
+  avgTime_ =
+    &(meta.declare_field<double>(stk::topology::NODE_RANK, "rans_time_scale"));
+  stk::mesh::put_field_on_mesh(*avgTime_, selector, nullptr);
 
-  metric_ = &(meta.declare_field<GenericFieldType>(
-    stk::topology::NODE_RANK, "metric_tensor"));
-  stk::mesh::put_field_on_mesh(*metric_, *part, nDim * nDim, nullptr);
+  metric_ =
+    &(meta.declare_field<double>(stk::topology::NODE_RANK, "metric_tensor"));
+  stk::mesh::put_field_on_mesh(*metric_, selector, nDim * nDim, nullptr);
 
-  resAdequacy_ = &(meta.declare_field<ScalarFieldType>(
+  resAdequacy_ = &(meta.declare_field<double>(
     stk::topology::NODE_RANK, "resolution_adequacy_parameter"));
-  stk::mesh::put_field_on_mesh(*resAdequacy_, *part, nullptr);
+  stk::mesh::put_field_on_mesh(*resAdequacy_, selector, nullptr);
 
-  avgResAdequacy_ = &(meta.declare_field<ScalarFieldType>(
+  avgResAdequacy_ = &(meta.declare_field<double>(
     stk::topology::NODE_RANK, "avg_res_adequacy_parameter", numStates));
-  stk::mesh::put_field_on_mesh(*avgResAdequacy_, *part, nullptr);
+  stk::mesh::put_field_on_mesh(*avgResAdequacy_, selector, nullptr);
   realm_.augment_restart_variable_list("avg_res_adequacy_parameter");
 
-  forcingComp_ = &(meta.declare_field<VectorFieldType>(
+  forcingComp_ = &(meta.declare_field<double>(
     stk::topology::NODE_RANK, "forcing_components", numStates));
-  stk::mesh::put_field_on_mesh(*forcingComp_, *part, nDim, nullptr);
+  stk::mesh::put_field_on_mesh(*forcingComp_, selector, nDim, nullptr);
+  stk::io::set_field_output_type(
+    *forcingComp_, stk::io::FieldOutputType::VECTOR_3D);
 }
 
 void
-AMSAlgDriver::register_edge_fields(stk::mesh::Part* part)
+AMSAlgDriver::register_edge_fields(const stk::mesh::PartVector& part_vec)
 {
+  stk::mesh::Selector selector = stk::mesh::selectUnion(part_vec);
   stk::mesh::MetaData& meta = realm_.meta_data();
-  NaluEnv::self().naluOutputP0()
+  KynemaUGFEnv::self().kynema_ugfOutputP0()
     << "Edge Mdot average added in AMS " << std::endl;
-  avgMdot_ = &(meta.declare_field<ScalarFieldType>(
+  avgMdot_ = &(meta.declare_field<double>(
     stk::topology::EDGE_RANK, "average_mass_flow_rate"));
-  stk::mesh::put_field_on_mesh(*avgMdot_, *part, nullptr);
+  stk::mesh::put_field_on_mesh(*avgMdot_, selector, nullptr);
   realm_.augment_restart_variable_list("average_mass_flow_rate");
 }
 
@@ -184,21 +192,21 @@ AMSAlgDriver::initial_work()
         .mesh_meta_data_ordinal());
     const unsigned velocityID = get_field_ordinal(meta, "velocity");
     const auto& U = fieldMgr.get_field<double>(velocityID);
-    nalu_ngp::field_copy(ngpMesh, sel, avgU, U, nDim);
+    kynema_ugf_ngp::field_copy(ngpMesh, sel, avgU, U, nDim);
 
     // Copy dudx to average dudx
     auto avgDudx =
       fieldMgr.get_field<double>(avgDudx_->mesh_meta_data_ordinal());
     const auto& dudx =
       fieldMgr.get_field<double>(get_field_ordinal(meta, "dudx"));
-    nalu_ngp::field_copy(ngpMesh, sel, avgDudx, dudx, nDim * nDim);
+    kynema_ugf_ngp::field_copy(ngpMesh, sel, avgDudx, dudx, nDim * nDim);
   }
 }
 
 void
 AMSAlgDriver::initial_production()
 {
-  using Traits = nalu_ngp::NGPMeshTraits<stk::mesh::NgpMesh>;
+  using Traits = kynema_ugf_ngp::NGPMeshTraits<stk::mesh::NgpMesh>;
 
   // Initialize average_production (after tvisc)
   // We don't want to do this on restart where AMS fields are present
@@ -221,10 +229,10 @@ AMSAlgDriver::initial_production()
     // Compute average production
     auto avgProd =
       fieldMgr.get_field<double>(avgProduction_->mesh_meta_data_ordinal());
-    nalu_ngp::run_entity_algorithm(
+    kynema_ugf_ngp::run_entity_algorithm(
       "AMSAlgDriver_avgProd", ngpMesh, stk::topology::NODE_RANK, sel,
       KOKKOS_LAMBDA(const Traits::MeshIndex& mi) {
-        NALU_ALIGNED DblType tij[nalu_ngp::NDimMax * nalu_ngp::NDimMax];
+        DblType tij[kynema_ugf_ngp::NDimMax * kynema_ugf_ngp::NDimMax];
         for (int i = 0; i < nDim; ++i) {
           for (int j = 0; j < nDim; ++j) {
             const DblType avgSij = 0.5 * (avgDudx.get(mi, i * nDim + j) +
@@ -233,7 +241,7 @@ AMSAlgDriver::initial_production()
           }
         }
 
-        NALU_ALIGNED DblType Pij[nalu_ngp::NDimMax * nalu_ngp::NDimMax];
+        DblType Pij[kynema_ugf_ngp::NDimMax * kynema_ugf_ngp::NDimMax];
         for (int i = 0; i < nDim; ++i) {
           for (int j = 0; j < nDim; ++j) {
             Pij[i * nDim + j] = 0.0;
@@ -277,7 +285,7 @@ AMSAlgDriver::initial_mdot()
       stk::mesh::selectField(
         *meta.get_field(stk::topology::EDGE_RANK, "average_mass_flow_rate"));
 
-    nalu_ngp::field_copy(
+    kynema_ugf_ngp::field_copy(
       ngpMesh, sel, avgMdot, massFlowRate, 1, stk::topology::EDGE_RANK);
   }
 }
@@ -321,8 +329,8 @@ AMSAlgDriver::post_iter_work()
 
   ngpForcingComp.sync_to_host();
 
-  VectorFieldType* forcingComp = meta.get_field<VectorFieldType>(
-    stk::topology::NODE_RANK, "forcing_components");
+  VectorFieldType* forcingComp =
+    meta.get_field<double>(stk::topology::NODE_RANK, "forcing_components");
 
   stk::mesh::copy_owned_to_shared(bulk, {forcingComp});
   if (realm_.hasPeriodic_) {
@@ -372,14 +380,14 @@ AMSAlgDriver::predict_state()
     (meta.locally_owned_part() | meta.globally_shared_part() |
      meta.aura_part()) &
     stk::mesh::selectField(*avgVelocity_);
-  nalu_ngp::field_copy(
+  kynema_ugf_ngp::field_copy(
     ngpMesh, sel, avgVelNp1, avgVelN, meta.spatial_dimension());
-  nalu_ngp::field_copy(
+  kynema_ugf_ngp::field_copy(
     ngpMesh, sel, avgDudxNp1, avgDudxN,
     meta.spatial_dimension() * meta.spatial_dimension());
-  nalu_ngp::field_copy(ngpMesh, sel, avgProdNp1, avgProdN, 1);
-  nalu_ngp::field_copy(ngpMesh, sel, avgTkeResNp1, avgTkeResN, 1);
-  nalu_ngp::field_copy(ngpMesh, sel, avgResAdeqNp1, avgResAdeqN, 1);
+  kynema_ugf_ngp::field_copy(ngpMesh, sel, avgProdNp1, avgProdN, 1);
+  kynema_ugf_ngp::field_copy(ngpMesh, sel, avgTkeResNp1, avgTkeResN, 1);
+  kynema_ugf_ngp::field_copy(ngpMesh, sel, avgResAdeqNp1, avgResAdeqN, 1);
   avgVelNp1.modify_on_device();
   avgDudxNp1.modify_on_device();
   avgProdNp1.modify_on_device();
@@ -387,5 +395,5 @@ AMSAlgDriver::predict_state()
   avgResAdeqNp1.modify_on_device();
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

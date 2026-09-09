@@ -16,14 +16,6 @@
 #include <Kokkos_Macros.hpp>
 #include <Kokkos_Core.hpp>
 
-#if defined(KOKKOS_ENABLE_CUDA) || defined(KOKKOS_ENABLE_HIP)
-#define NALU_ALIGNED alignas(sizeof(double))
-#elif defined(NALU_USE_POWER9_ALIGNMENT)
-#define NALU_ALIGNED alignas(16)
-#else
-#define NALU_ALIGNED alignas(KOKKOS_MEMORY_ALIGNMENT)
-#endif
-
 #if defined(__INTEL_COMPILER)
 #define POINTER_RESTRICT restrict
 #elif defined(__GNUC__)
@@ -41,12 +33,12 @@
 #endif
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 #if defined(KOKKOS_ENABLE_CUDA)
 typedef Kokkos::CudaSpace MemSpace;
 #elif defined(KOKKOS_ENABLE_HIP)
-typedef Kokkos::Experimental::HIPSpace MemSpace;
+typedef Kokkos::HIPSpace MemSpace;
 #elif defined(KOKKOS_HAVE_OPENMP)
 typedef Kokkos::OpenMP MemSpace;
 #else
@@ -61,6 +53,7 @@ typedef Kokkos::HostSpace MemSpace;
 
 using HostSpace = Kokkos::DefaultHostExecutionSpace;
 using DeviceSpace = Kokkos::DefaultExecutionSpace;
+static constexpr bool isHostBuild = std::is_same_v<HostSpace, DeviceSpace>;
 
 using LinSysMemSpace = DeviceSpace::memory_space;
 
@@ -260,7 +253,7 @@ set_vals(ViewType& view, const T& val)
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif /* INCLUDE_KOKKOSINTERFACE_H_ */

@@ -9,7 +9,7 @@
 
 #include "edge_kernels/ContinuityOpenEdgeKernel.h"
 #include "master_element/MasterElement.h"
-#include "master_element/MasterElementFactory.h"
+#include "master_element/MasterElementRepo.h"
 #include "SolutionOptions.h"
 #include "TimeIntegrator.h"
 
@@ -20,7 +20,7 @@
 #include "stk_mesh/base/Field.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 template <typename BcAlgTraits>
 ContinuityOpenEdgeKernel<BcAlgTraits>::ContinuityOpenEdgeKernel(
@@ -45,10 +45,13 @@ ContinuityOpenEdgeKernel<BcAlgTraits>::ContinuityOpenEdgeKernel(
     dynPress_(get_field_ordinal(meta, "dynamic_pressure", meta.side_rank())),
     pstabFac_(solnOpts->activateOpenMdotCorrection_ ? 0.0 : 1.0),
     nocFac_(solnOpts_->get_noc_usage("pressure")),
-    meFC_(sierra::nalu::MasterElementRepo::get_surface_master_element<
-          typename BcAlgTraits::FaceTraits>()),
-    meSCS_(sierra::nalu::MasterElementRepo::get_surface_master_element<
-           typename BcAlgTraits::ElemTraits>())
+    meFC_(
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_dev(
+        BcAlgTraits::FaceTraits::topo_)),
+    meSCS_(
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_dev(
+        BcAlgTraits::ElemTraits::topo_)),
+    solveInc_(solnOpts_->solveIncompressibleContinuity_ ? 1.0 : 0.0)
 {
   faceData.add_cvfem_face_me(meFC_);
   elemData.add_cvfem_surface_me(meSCS_);
@@ -136,7 +139,8 @@ ContinuityOpenEdgeKernel<BcAlgTraits>::execute(
       const DoubleType Gjp = v_Gpdx(ip, d);
 
       tmdot +=
-        (v_density(ip) * v_velocity(ip, d) + projTimeScale * Gjp * pstabFac_) *
+        ((solveInc_ + v_density(ip) * (1.0 - solveInc_)) * v_velocity(ip, d) +
+         projTimeScale * Gjp * pstabFac_) *
           axj -
         projTimeScale * kxj * Gjp * nocFac_ * pstabFac_;
     }
@@ -152,5 +156,5 @@ ContinuityOpenEdgeKernel<BcAlgTraits>::execute(
 
 INSTANTIATE_KERNEL_FACE_ELEMENT(ContinuityOpenEdgeKernel)
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

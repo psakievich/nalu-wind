@@ -6,16 +6,15 @@
 #include <stk_mesh/base/MetaData.hpp>
 #include <stk_mesh/base/BulkData.hpp>
 #include <stk_mesh/base/Bucket.hpp>
-#include <stk_mesh/base/CoordinateSystems.hpp>
 #include <stk_mesh/base/FieldBase.hpp>
 #include <stk_mesh/base/Field.hpp>
 #include <stk_mesh/base/FieldBLAS.hpp>
 #include <stk_mesh/base/GetEntities.hpp>
 #include <stk_mesh/base/SkinMesh.hpp>
 
-#include <NaluEnv.h>
+#include <KynemaUGFEnv.h>
 
-#include <master_element/MasterElementFactory.h>
+#include <master_element/MasterElementRepo.h>
 #include <memory>
 #include <tuple>
 #include <random>
@@ -24,7 +23,7 @@
 #include "UnitTestUtils.h"
 
 namespace {
-using VectorFieldType = stk::mesh::Field<double, stk::mesh::Cartesian>;
+using VectorFieldType = stk::mesh::Field<double>;
 
 void
 randomly_perturb_element_coords(
@@ -33,7 +32,7 @@ randomly_perturb_element_coords(
   const stk::mesh::Entity* node_rels,
   const VectorFieldType& coordField)
 {
-  int dim = coordField.max_size(stk::topology::NODE_RANK);
+  int dim = coordField.max_size();
   auto rot = unit_test_utils::random_rotation_matrix(dim, rng);
 
   std::uniform_real_distribution<double> random_perturb(0.125, 0.25);
@@ -77,6 +76,7 @@ check_side_is_in_element(stk::topology topo)
     meshBuilder.set_spatial_dimension(dim);
     auto bulk = meshBuilder.create();
     auto& meta = bulk->mesh_meta_data();
+    meta.use_simple_fields();
 
     auto elem = unit_test_utils::create_one_reference_element(*bulk, topo);
     const VectorFieldType& coordField =
@@ -89,9 +89,8 @@ check_side_is_in_element(stk::topology topo)
     for (const auto* ib : face_buckets) {
       const auto& b = *ib;
 
-      auto* meSide =
-        sierra::nalu::MasterElementRepo::get_surface_master_element(
-          b.topology());
+      auto* meSide = sierra::kynema_ugf::MasterElementRepo::
+        get_surface_master_element_on_host(b.topology());
 
       for (size_t k = 0; k < b.size(); ++k) {
         auto face = b[k];

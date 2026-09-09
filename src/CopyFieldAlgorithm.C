@@ -7,7 +7,7 @@
 // for more details.
 //
 
-// nalu
+// kynema_ugf
 #include <CopyFieldAlgorithm.h>
 
 #include <Realm.h>
@@ -17,13 +17,13 @@
 // stk_mesh/base/fem
 #include <stk_mesh/base/BulkData.hpp>
 #include <stk_mesh/base/Field.hpp>
-#include <stk_mesh/base/GetBuckets.hpp>
+
 #include <stk_mesh/base/GetEntities.hpp>
 #include <stk_mesh/base/MetaData.hpp>
 #include <stk_mesh/base/Part.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //==========================================================================
 // Class Definition
@@ -32,6 +32,22 @@ namespace nalu {
 //                      parts; begin/end can be the size of the field as well
 //                      should it be operating on integration point data
 //==========================================================================
+CopyFieldAlgorithm::CopyFieldAlgorithm(
+  Realm& realm,
+  const stk::mesh::PartVector& part_vec,
+  stk::mesh::FieldBase* fromField,
+  stk::mesh::FieldBase* toField,
+  const unsigned beginPos,
+  const unsigned endPos,
+  const stk::mesh::EntityRank entityRank)
+  : Algorithm(realm, part_vec),
+    fromField_(fromField),
+    toField_(toField),
+    beginPos_(beginPos),
+    endPos_(endPos),
+    entityRank_(entityRank)
+{
+}
 CopyFieldAlgorithm::CopyFieldAlgorithm(
   Realm& realm,
   stk::mesh::Part* part,
@@ -60,11 +76,11 @@ CopyFieldAlgorithm::execute()
     fieldMgr.get_field<double>(fromField_->mesh_meta_data_ordinal());
   fromField.sync_to_device();
   toField.sync_to_device();
-  nalu_ngp::field_copy(
+  kynema_ugf_ngp::field_copy(
     realm_.ngp_mesh(), selector, toField, fromField, beginPos_, endPos_,
     entityRank_);
   toField.modify_on_device();
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

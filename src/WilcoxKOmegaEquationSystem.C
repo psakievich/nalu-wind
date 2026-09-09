@@ -11,9 +11,9 @@
 #include <AlgorithmDriver.h>
 #include <FieldFunctions.h>
 #include <master_element/MasterElement.h>
-#include <master_element/MasterElementFactory.h>
-#include <NaluEnv.h>
-#include <NaluParsing.h>
+#include <master_element/MasterElementRepo.h>
+#include <KynemaUGFEnv.h>
+#include <KynemaUGFParsing.h>
 #include <SpecificDissipationRateEquationSystem.h>
 #include <SolutionOptions.h>
 #include <TurbKineticEnergyEquationSystem.h>
@@ -50,7 +50,7 @@
 #include "ngp_utils/NgpFieldBLAS.h"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //==========================================================================
 // Class Definition
@@ -111,24 +111,26 @@ WilcoxKOmegaEquationSystem::initialize()
 //-------- register_nodal_fields -------------------------------------------
 //--------------------------------------------------------------------------
 void
-WilcoxKOmegaEquationSystem::register_nodal_fields(stk::mesh::Part* part)
+WilcoxKOmegaEquationSystem::register_nodal_fields(
+  const stk::mesh::PartVector& part_vec)
 {
 
   stk::mesh::MetaData& meta_data = realm_.meta_data();
   const int numStates = realm_.number_of_states();
+  stk::mesh::Selector selector = stk::mesh::selectUnion(part_vec);
 
   // re-register tke and sdr for convenience
-  tke_ = &(meta_data.declare_field<ScalarFieldType>(
+  tke_ = &(meta_data.declare_field<double>(
     stk::topology::NODE_RANK, "turbulent_ke", numStates));
-  stk::mesh::put_field_on_mesh(*tke_, *part, nullptr);
-  sdr_ = &(meta_data.declare_field<ScalarFieldType>(
+  stk::mesh::put_field_on_mesh(*tke_, selector, nullptr);
+  sdr_ = &(meta_data.declare_field<double>(
     stk::topology::NODE_RANK, "specific_dissipation_rate", numStates));
-  stk::mesh::put_field_on_mesh(*sdr_, *part, nullptr);
+  stk::mesh::put_field_on_mesh(*sdr_, selector, nullptr);
 
   // SST parameters that everyone needs
-  minDistanceToWall_ = &(meta_data.declare_field<ScalarFieldType>(
+  minDistanceToWall_ = &(meta_data.declare_field<double>(
     stk::topology::NODE_RANK, "minimum_distance_to_wall"));
-  stk::mesh::put_field_on_mesh(*minDistanceToWall_, *part, nullptr);
+  stk::mesh::put_field_on_mesh(*minDistanceToWall_, selector, nullptr);
 
   // add to restart field
   realm_.augment_restart_variable_list("minimum_distance_to_wall");
@@ -160,15 +162,15 @@ WilcoxKOmegaEquationSystem::register_wall_bc(
   wallBcPart_.push_back(part);
 
   auto& meta = realm_.meta_data();
-  auto& assembledWallArea = meta.declare_field<ScalarFieldType>(
+  auto& assembledWallArea = meta.declare_field<double>(
     stk::topology::NODE_RANK, "assembled_wall_area_wf");
   stk::mesh::put_field_on_mesh(assembledWallArea, *part, nullptr);
-  auto& assembledWallNormDist = meta.declare_field<ScalarFieldType>(
+  auto& assembledWallNormDist = meta.declare_field<double>(
     stk::topology::NODE_RANK, "assembled_wall_normal_distance");
   stk::mesh::put_field_on_mesh(assembledWallNormDist, *part, nullptr);
-  auto& wallNormDistBip = meta.declare_field<ScalarFieldType>(
-    meta.side_rank(), "wall_normal_distance_bip");
-  auto* meFC = MasterElementRepo::get_surface_master_element(partTopo);
+  auto& wallNormDistBip =
+    meta.declare_field<double>(meta.side_rank(), "wall_normal_distance_bip");
+  auto* meFC = MasterElementRepo::get_surface_master_element_on_host(partTopo);
   const int numScsBip = meFC->num_integration_points();
   stk::mesh::put_field_on_mesh(wallNormDistBip, *part, numScsBip, nullptr);
 }
@@ -203,7 +205,7 @@ WilcoxKOmegaEquationSystem::solve_and_update()
   // start the iteration loop
   for (int k = 0; k < maxIterations_; ++k) {
 
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << " " << k + 1 << "/" << maxIterations_ << std::setw(15) << std::right
       << name_ << std::endl;
 
@@ -259,12 +261,10 @@ WilcoxKOmegaEquationSystem::post_external_data_transfer_work()
   auto interior_sel = owned_and_shared & stk::mesh::selectField(*sdr_);
   clip_ko(ngpMesh, interior_sel, tkeNp1, sdrNp1);
 
-  auto sdrBCField =
-    meta.get_field<ScalarFieldType>(stk::topology::NODE_RANK, "sdr_bc");
-  auto tkeBCField =
-    meta.get_field<ScalarFieldType>(stk::topology::NODE_RANK, "tke_bc");
+  auto sdrBCField = meta.get_field<double>(stk::topology::NODE_RANK, "sdr_bc");
+  auto tkeBCField = meta.get_field<double>(stk::topology::NODE_RANK, "tke_bc");
   if (sdrBCField != nullptr) {
-    ThrowRequire(tkeBCField);
+    STK_ThrowRequire(tkeBCField);
     auto bc_sel = owned_and_shared & stk::mesh::selectField(*sdrBCField);
     auto ngpTkeBC =
       fieldMgr.get_field<double>(tkeBCField->mesh_meta_data_ordinal());
@@ -279,7 +279,7 @@ WilcoxKOmegaEquationSystem::post_external_data_transfer_work()
 void
 WilcoxKOmegaEquationSystem::update_and_clip()
 {
-  using MeshIndex = nalu_ngp::NGPMeshTraits<>::MeshIndex;
+  using MeshIndex = kynema_ugf_ngp::NGPMeshTraits<>::MeshIndex;
 
   const auto& meshInfo = realm_.mesh_info();
   const auto& meta = meshInfo.meta();
@@ -293,8 +293,8 @@ WilcoxKOmegaEquationSystem::update_and_clip()
   const auto& wTmp =
     fieldMgr.get_field<double>(sdrEqSys_->wTmp_->mesh_meta_data_ordinal());
 
-  auto* turbViscosity = meta.get_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, "turbulent_viscosity");
+  auto* turbViscosity =
+    meta.get_field<double>(stk::topology::NODE_RANK, "turbulent_viscosity");
 
   const stk::mesh::Selector sel =
     (meta.locally_owned_part() | meta.globally_shared_part()) &
@@ -307,7 +307,7 @@ WilcoxKOmegaEquationSystem::update_and_clip()
   tkeNp1.sync_to_device();
   sdrNp1.sync_to_device();
 
-  nalu_ngp::run_entity_algorithm(
+  kynema_ugf_ngp::run_entity_algorithm(
     "KE::update_and_clip", ngpMesh, stk::topology::NODE_RANK, sel,
     KOKKOS_LAMBDA(const MeshIndex& mi) {
       const double tkeNew = tkeNp1.get(mi, 0) + kTmp.get(mi, 0);
@@ -335,9 +335,9 @@ WilcoxKOmegaEquationSystem::clip_ko(
   const double tkeMinVal = tkeMinValue_;
   const double sdrMinVal = sdrMinValue_;
 
-  nalu_ngp::run_entity_algorithm(
+  kynema_ugf_ngp::run_entity_algorithm(
     "KE::clip", ngpMesh, stk::topology::NODE_RANK, sel,
-    KOKKOS_LAMBDA(const nalu_ngp::NGPMeshTraits<>::MeshIndex& mi) {
+    KOKKOS_LAMBDA(const kynema_ugf_ngp::NGPMeshTraits<>::MeshIndex& mi) {
       const double tkeNew = tke.get(mi, 0);
       const double sdrNew = sdr.get(mi, 0);
 
@@ -354,7 +354,7 @@ WilcoxKOmegaEquationSystem::clip_ko(
 void
 WilcoxKOmegaEquationSystem::clip_min_distance_to_wall()
 {
-  using MeshIndex = nalu_ngp::NGPMeshTraits<>::MeshIndex;
+  using MeshIndex = kynema_ugf_ngp::NGPMeshTraits<>::MeshIndex;
   const auto& meshInfo = realm_.mesh_info();
   const auto& ngpMesh = meshInfo.ngp_mesh();
   const auto& meta = meshInfo.meta();
@@ -363,7 +363,7 @@ WilcoxKOmegaEquationSystem::clip_min_distance_to_wall()
   auto& ndtw =
     fieldMgr.get_field<double>(minDistanceToWall_->mesh_meta_data_ordinal());
   const auto& wallNormDist =
-    nalu_ngp::get_ngp_field(meshInfo, "assembled_wall_normal_distance");
+    kynema_ugf_ngp::get_ngp_field(meshInfo, "assembled_wall_normal_distance");
 
   const stk::mesh::Selector sel =
     (meta.locally_owned_part() | meta.globally_shared_part()) &
@@ -371,7 +371,7 @@ WilcoxKOmegaEquationSystem::clip_min_distance_to_wall()
 
   ndtw.sync_to_device();
 
-  nalu_ngp::run_entity_algorithm(
+  kynema_ugf_ngp::run_entity_algorithm(
     "SST::clip_ndtw", ngpMesh, stk::topology::NODE_RANK, sel,
     KOKKOS_LAMBDA(const MeshIndex& mi) {
       const double minD = ndtw.get(mi, 0);
@@ -392,5 +392,5 @@ WilcoxKOmegaEquationSystem::post_iter_work()
   // nothing to do here ...
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

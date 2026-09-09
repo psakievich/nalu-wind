@@ -16,7 +16,7 @@
 #include <stk_mesh/base/Entity.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class Realm;
 
@@ -31,14 +31,14 @@ public:
 
   virtual void node_execute(double* lhs, double* rhs, stk::mesh::Entity node);
 
-  GenericFieldType* dudx_;
+  TensorFieldType* dudx_;
   ScalarFieldType* viscosity_;
   ScalarFieldType* dualNodalVolume_;
   const double includeDivU_;
   const int nDim_;
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

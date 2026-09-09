@@ -9,7 +9,7 @@
 
 #include "kernel/ScalarFluxPenaltyElemKernel.h"
 #include "master_element/MasterElement.h"
-#include "master_element/MasterElementFactory.h"
+#include "master_element/MasterElementRepo.h"
 #include "SolutionOptions.h"
 #include "TimeIntegrator.h"
 
@@ -24,7 +24,7 @@
 #include <stk_mesh/base/Field.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace {
 template <typename BcAlgTraits, typename T>
 void
@@ -57,8 +57,9 @@ ScalarFluxPenaltyElemKernel<BcAlgTraits>::ScalarFluxPenaltyElemKernel(
     diffFluxCoeff_(diffFluxCoeff->mesh_meta_data_ordinal()),
     penaltyFac_(2.0),
     shiftedGradOp_(solnOpts.get_shifted_grad_op("pressure")),
-    meSCS_(sierra::nalu::MasterElementRepo::get_surface_master_element(
-      BcAlgTraits::elemTopo_))
+    meSCS_(
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
+        BcAlgTraits::elemTopo_))
 {
   coordinates_ = get_field_ordinal(metaData, solnOpts.get_coordinates_name());
   exposedAreaVec_ =
@@ -66,10 +67,10 @@ ScalarFluxPenaltyElemKernel<BcAlgTraits>::ScalarFluxPenaltyElemKernel(
 
   // extract master elements
   MasterElement* meFC =
-    sierra::nalu::MasterElementRepo::get_surface_master_element(
+    sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
       BcAlgTraits::faceTopo_);
   MasterElement* meFC_dev =
-    sierra::nalu::MasterElementRepo::get_surface_master_element_on_dev(
+    sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_dev(
       BcAlgTraits::faceTopo_);
 
   // add master elements
@@ -111,7 +112,7 @@ ScalarFluxPenaltyElemKernel<BcAlgTraits>::execute(
   ScratchViews<DoubleType>& elemScratchViews,
   int elemFaceOrdinal)
 {
-  NALU_ALIGNED DoubleType w_dqdxBip[BcAlgTraits::nDim_];
+  DoubleType w_dqdxBip[BcAlgTraits::nDim_];
 
   const int* face_node_ordinals = meSCS_->side_node_ordinals(elemFaceOrdinal);
 
@@ -210,5 +211,5 @@ ScalarFluxPenaltyElemKernel<BcAlgTraits>::execute(
 
 INSTANTIATE_KERNEL_FACE_ELEMENT(ScalarFluxPenaltyElemKernel)
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

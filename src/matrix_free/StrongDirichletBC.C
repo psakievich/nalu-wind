@@ -20,7 +20,7 @@
 #include "stk_util/util/ReportHandler.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 
 void
@@ -55,7 +55,8 @@ dirichlet_residual(
   tpetra_view_type yout)
 {
   stk::mesh::ProfilingBlock pf("vector_dirichlet_residual");
-  ThrowRequireMsg(yout.extent_int(1) == 3, "length is " << yout.extent_int(1));
+  STK_ThrowRequireMsg(
+    yout.extent_int(1) == 3, "length is " << yout.extent_int(1));
 
 #if defined(KOKKOS_ENABLE_HIP)
   using policy_type = Kokkos::MDRangePolicy<
@@ -85,8 +86,8 @@ dirichlet_linearized(
   tpetra_view_type yout)
 {
   stk::mesh::ProfilingBlock pf("dirichlet_linearized");
-  ThrowRequire(yout.extent_int(0) == xin.extent_int(0));
-  ThrowRequire(yout.extent_int(1) == xin.extent_int(1));
+  STK_ThrowRequire(yout.extent_int(0) == xin.extent_int(0));
+  STK_ThrowRequire(yout.extent_int(1) == xin.extent_int(1));
 
 #if defined(KOKKOS_ENABLE_HIP)
   using policy_type = Kokkos::MDRangePolicy<
@@ -131,5 +132,5 @@ dirichlet_diagonal(
 }
 
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

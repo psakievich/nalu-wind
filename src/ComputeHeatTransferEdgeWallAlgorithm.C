@@ -7,19 +7,19 @@
 // for more details.
 //
 
-// nalu
+// kynema_ugf
 #include <ComputeHeatTransferEdgeWallAlgorithm.h>
 
 #include <FieldTypeDef.h>
 #include <Realm.h>
 #include <TimeIntegrator.h>
 #include <master_element/MasterElement.h>
-#include "master_element/MasterElementFactory.h"
+#include "master_element/MasterElementRepo.h"
 
 // stk_mesh/base/fem
 #include <stk_mesh/base/BulkData.hpp>
 #include <stk_mesh/base/Field.hpp>
-#include <stk_mesh/base/GetBuckets.hpp>
+
 #include <stk_mesh/base/GetEntities.hpp>
 #include <stk_mesh/base/MetaData.hpp>
 #include <stk_mesh/base/Part.hpp>
@@ -28,7 +28,7 @@
 #include <cmath>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //==========================================================================
 // Class Definition
@@ -56,29 +56,27 @@ ComputeHeatTransferEdgeWallAlgorithm::ComputeHeatTransferEdgeWallAlgorithm(
 {
   // save off fields
   stk::mesh::MetaData& meta_data = realm_.meta_data();
-  temperature_ = meta_data.get_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, "temperature");
-  dhdx_ =
-    meta_data.get_field<VectorFieldType>(stk::topology::NODE_RANK, "dhdx");
-  coordinates_ = meta_data.get_field<VectorFieldType>(
+  temperature_ =
+    meta_data.get_field<double>(stk::topology::NODE_RANK, "temperature");
+  dhdx_ = meta_data.get_field<double>(stk::topology::NODE_RANK, "dhdx");
+  coordinates_ = meta_data.get_field<double>(
     stk::topology::NODE_RANK, realm_.get_coordinates_name());
-  density_ =
-    meta_data.get_field<ScalarFieldType>(stk::topology::NODE_RANK, "density");
-  thermalCond_ = meta_data.get_field<ScalarFieldType>(
+  density_ = meta_data.get_field<double>(stk::topology::NODE_RANK, "density");
+  thermalCond_ = meta_data.get_field<double>(
     stk::topology::NODE_RANK, "thermal_conductivity");
-  specificHeat_ = meta_data.get_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, "specific_heat");
-  exposedAreaVec_ = meta_data.get_field<GenericFieldType>(
-    meta_data.side_rank(), "exposed_area_vector");
-  assembledWallArea_ = meta_data.get_field<ScalarFieldType>(
+  specificHeat_ =
+    meta_data.get_field<double>(stk::topology::NODE_RANK, "specific_heat");
+  exposedAreaVec_ =
+    meta_data.get_field<double>(meta_data.side_rank(), "exposed_area_vector");
+  assembledWallArea_ = meta_data.get_field<double>(
     stk::topology::NODE_RANK, "assembled_wall_area_ht");
-  referenceTemperature_ = meta_data.get_field<ScalarFieldType>(
+  referenceTemperature_ = meta_data.get_field<double>(
     stk::topology::NODE_RANK, "reference_temperature");
-  heatTransferCoefficient_ = meta_data.get_field<ScalarFieldType>(
+  heatTransferCoefficient_ = meta_data.get_field<double>(
     stk::topology::NODE_RANK, "heat_transfer_coefficient");
-  normalHeatFlux_ = meta_data.get_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, "normal_heat_flux");
-  robinCouplingParameter_ = meta_data.get_field<ScalarFieldType>(
+  normalHeatFlux_ =
+    meta_data.get_field<double>(stk::topology::NODE_RANK, "normal_heat_flux");
+  robinCouplingParameter_ = meta_data.get_field<double>(
     stk::topology::NODE_RANK, "robin_coupling_parameter");
 }
 
@@ -111,10 +109,11 @@ ComputeHeatTransferEdgeWallAlgorithm::execute()
 
     // extract connected element topology
     b.parent_topology(stk::topology::ELEMENT_RANK, parentTopo);
-    ThrowAssert(parentTopo.size() == 1);
+    STK_ThrowAssert(parentTopo.size() == 1);
     stk::topology theElemTopo = parentTopo[0];
     MasterElement* meSCS =
-      sierra::nalu::MasterElementRepo::get_surface_master_element(theElemTopo);
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
+        theElemTopo);
 
     // size some things that are useful
     const int num_face_nodes = b.topology().num_nodes();
@@ -129,7 +128,7 @@ ComputeHeatTransferEdgeWallAlgorithm::execute()
       // extract the connected element to this exposed face; should be single in
       // size!
       stk::mesh::Entity const* face_elem_rels = b.begin_elements(k);
-      ThrowAssert(b.num_elements(k) == 1);
+      STK_ThrowAssert(b.num_elements(k) == 1);
 
       // get element; its face ordinal number and populate face_node_ordinals
       stk::mesh::Entity element = face_elem_rels[0];
@@ -243,5 +242,5 @@ ComputeHeatTransferEdgeWallAlgorithm::compute_coupling_parameter(
   return A * kappa / h;
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

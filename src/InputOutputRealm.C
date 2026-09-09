@@ -8,7 +8,7 @@
 //
 
 #include <InputOutputRealm.h>
-#include <NaluParsing.h>
+#include <KynemaUGFParsing.h>
 #include <Realm.h>
 #include <SolutionOptions.h>
 
@@ -29,7 +29,7 @@
 #include <string>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //==========================================================================
 // Class Definition
@@ -107,17 +107,15 @@ InputOutputRealm::register_io_fields()
         if (fieldName.find(velocityName) != std::string::npos) { // FIXME:
                                                                  // require
                                                                  // FieldType?
-          VectorFieldType* velocity =
-            &(meta_data().declare_field<VectorFieldType>(
-              stk::topology::NODE_RANK, fieldName));
+          VectorFieldType* velocity = &(meta_data().declare_field<double>(
+            stk::topology::NODE_RANK, fieldName));
           stk::mesh::put_field_on_mesh(
             *velocity, *targetPart, fieldSize, nullptr);
+          stk::io::set_field_output_type(
+            *velocity, stk::io::FieldOutputType::VECTOR_3D);
         } else {
-          stk::mesh::FieldBase* theField =
-            &(meta_data()
-                .declare_field<
-                  stk::mesh::Field<double, stk::mesh::SimpleArrayTag>>(
-                  stk::topology::NODE_RANK, fieldName));
+          stk::mesh::FieldBase* theField = &(meta_data().declare_field<double>(
+            stk::topology::NODE_RANK, fieldName));
           stk::mesh::put_field_on_mesh(
             *theField, *targetPart, fieldSize, nullptr);
         }
@@ -211,18 +209,18 @@ InputOutputRealm::populate_external_variables_from_input(
       ioBroker_->read_defined_input_fields(currentTime, &missingFields);
     if (missingFields.size() > 0) {
       for (size_t k = 0; k < missingFields.size(); ++k) {
-        NaluEnv::self().naluOutputP0()
+        KynemaUGFEnv::self().kynema_ugfOutputP0()
           << "WARNING: Realm::populate_external_variables_from_input for field "
           << missingFields[k].field()->name()
           << " is missing; will default to IC specification" << std::endl;
       }
     }
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << "Realm::populate_external_variables_from_input() candidate input "
          "time: "
       << foundTime << " for Realm: " << name() << std::endl;
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

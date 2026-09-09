@@ -10,32 +10,32 @@
 #define UTILITIESACTUATOR_H_
 
 #include <master_element/MasterElement.h>
-#include <master_element/MasterElementFactory.h>
-#include <NaluEnv.h>
+#include <master_element/MasterElementRepo.h>
+#include <KynemaUGFEnv.h>
 
 // stk_mesh/base/fem
 #include <stk_mesh/base/BulkData.hpp>
 #include <stk_mesh/base/Entity.hpp>
 #include <stk_mesh/base/Field.hpp>
 #include <stk_mesh/base/FieldParallel.hpp>
-#include <stk_mesh/base/GetBuckets.hpp>
+
 #include <stk_mesh/base/Selector.hpp>
 #include <stk_mesh/base/MetaData.hpp>
 #include <stk_mesh/base/Part.hpp>
 #include <stk_search/Point.hpp>
-#ifdef NALU_USES_OPENFAST
+#ifdef KYNEMA_UGF_USES_OPENFAST
 #include <OpenFAST.H>
 #endif
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 struct Coordinates;
 using Point = stk::search::Point<double>;
 
 namespace actuator_utils {
 
-#ifdef NALU_USES_OPENFAST
+#ifdef KYNEMA_UGF_USES_OPENFAST
 
 Point get_fast_point(
   fast::OpenFAST& fast,
@@ -87,8 +87,8 @@ template <typename T>
 inline void
 reduce_view_on_host(T view)
 {
-  ThrowAssert(view.size() > 0);
-  ThrowAssert(view.data());
+  STK_ThrowAssert(view.size() > 0);
+  STK_ThrowAssert(view.data());
   MPI_Datatype mpi_type;
   if (std::is_same<typename T::value_type, double>::value) {
     mpi_type = MPI_DOUBLE;
@@ -99,12 +99,12 @@ reduce_view_on_host(T view)
   } else if (std::is_same<typename T::value_type, uint64_t>::value) {
     mpi_type = MPI_LONG;
   } else {
-    ThrowErrorMsg("unsupported type to reduce view on host");
+    STK_ThrowErrorMsg("unsupported type to reduce view on host");
   }
 
   MPI_Allreduce(
     MPI_IN_PLACE, view.data(), view.size(), mpi_type, MPI_SUM,
-    NaluEnv::self().parallel_comm());
+    KynemaUGFEnv::self().parallel_comm());
 }
 
 // A Gaussian projection function
@@ -147,7 +147,7 @@ void compute_distance(
   const double* pointCentroid,
   double* distance);
 } // namespace actuator_utils
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

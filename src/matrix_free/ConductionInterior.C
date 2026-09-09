@@ -14,14 +14,14 @@
 #include "matrix_free/PolynomialOrders.h"
 #include "matrix_free/ValidSimdLength.h"
 #include "matrix_free/KokkosViewTypes.h"
-#include "matrix_free/LocalArray.h"
+#include "ArrayND.h"
 
 #include <KokkosInterface.h>
 #include <Kokkos_ScatterView.hpp>
 #include "stk_mesh/base/NgpProfilingBlock.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 namespace impl {
 
@@ -94,7 +94,7 @@ conduction_linearized_residual_t<p>::invoke(
   Kokkos::parallel_for(
     "conduction_linop", offsets.extent_int(0), KOKKOS_LAMBDA(int index) {
       narray delta;
-      LocalArray<int[p + 1][p + 1][p + 1][simd_len]> idx;
+      ArrayND<int[p + 1][p + 1][p + 1][simd_len]> idx;
       const auto valid_length = valid_offset<p>(index, offsets);
       for (int k = 0; k < p + 1; ++k) {
         for (int j = 0; j < p + 1; ++j) {
@@ -137,5 +137,5 @@ INSTANTIATE_POLYSTRUCT(conduction_linearized_residual_t);
 
 } // namespace impl
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

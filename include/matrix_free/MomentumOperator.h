@@ -26,7 +26,7 @@
 #include "stk_util/util/ReportHandler.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 
 template <int p>
@@ -57,8 +57,9 @@ public:
     dirichlet_bc_active_ = dirichlet_offsets_in.extent_int(0) > 0;
     dirichlet_bc_offsets_ = dirichlet_offsets_in;
     bc_ = bc;
-    ThrowRequire(bc.up1.extent_int(0) == dirichlet_bc_offsets_.extent_int(0));
-    ThrowRequire(bc.ubc.extent_int(0) == bc.up1.extent_int(0));
+    STK_ThrowRequire(
+      bc.up1.extent_int(0) == dirichlet_bc_offsets_.extent_int(0));
+    STK_ThrowRequire(bc.ubc.extent_int(0) == bc.up1.extent_int(0));
   }
 
 private:
@@ -136,6 +137,6 @@ private:
 };
 
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 #endif

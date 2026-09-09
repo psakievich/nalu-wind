@@ -12,6 +12,7 @@
 
 #include "Teuchos_RCP.hpp"
 #include "stk_mesh/base/Types.hpp"
+#include "stk_util/parallel/Parallel.hpp"
 
 namespace Teuchos {
 template <class OrdinalType>
@@ -19,14 +20,14 @@ class Comm;
 }
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 
 Teuchos::RCP<const Teuchos::Comm<int>>
 teuchos_communicator(const stk::ParallelMachine& pm);
 
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

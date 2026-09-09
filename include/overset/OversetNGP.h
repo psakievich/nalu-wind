@@ -3,22 +3,22 @@
 
 #include "KokkosInterface.h"
 
-namespace tioga_nalu {
+namespace tioga_kynema_ugf {
 
 template <
   typename T,
   typename Layout = Kokkos::LayoutRight,
-  typename Space = sierra::nalu::MemSpace>
+  typename Space = sierra::kynema_ugf::MemSpace>
 using OversetArrayViewType = Kokkos::View<T, Layout, Space>;
 
 template <
   typename T,
   typename Layout = Kokkos::LayoutRight,
-  typename Space = sierra::nalu::MemSpace>
+  typename Space = sierra::kynema_ugf::MemSpace>
 struct OversetArrayType
 {
   using ArrayType = OversetArrayViewType<T, Layout, Space>;
-  using HostArrayType = typename ArrayType::HostMirror;
+  using HostArrayType = typename ArrayType::host_mirror_type;
 
   ArrayType d_view;
   HostArrayType h_view;
@@ -43,6 +43,6 @@ struct OversetArrayType
   void sync_host() { Kokkos::deep_copy(h_view, d_view); }
 };
 
-} // namespace tioga_nalu
+} // namespace tioga_kynema_ugf
 
 #endif /* OVERSETNGP_H */

@@ -9,7 +9,7 @@
 
 #include "ngp_algorithms/SDRLowReWallAlg.h"
 #include "BuildTemplates.h"
-#include "master_element/MasterElementFactory.h"
+#include "master_element/MasterElementRepo.h"
 #include "ngp_utils/NgpLoopUtils.h"
 #include "ngp_utils/NgpFieldOps.h"
 #include "ngp_utils/NgpFieldManager.h"
@@ -18,7 +18,7 @@
 #include "stk_mesh/base/NgpMesh.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 template <typename BcAlgTraits>
 SDRLowReWallAlg<BcAlgTraits>::SDRLowReWallAlg(
@@ -37,10 +37,12 @@ SDRLowReWallAlg<BcAlgTraits>::SDRLowReWallAlg(
     betaOne_(realm.get_turb_model_constant(TM_betaOne)),
     wallFactor_(realm.get_turb_model_constant(TM_SDRWallFactor)),
     useShifted_(useShifted),
-    meFC_(MasterElementRepo::get_surface_master_element<
-          typename BcAlgTraits::FaceTraits>()),
-    meSCS_(MasterElementRepo::get_surface_master_element<
-           typename BcAlgTraits::ElemTraits>())
+    meFC_(
+      MasterElementRepo::get_surface_master_element_on_dev(
+        BcAlgTraits::FaceTraits::topo_)),
+    meSCS_(
+      MasterElementRepo::get_surface_master_element_on_dev(
+        BcAlgTraits::ElemTraits::topo_))
 {
   faceData_.add_cvfem_face_me(meFC_);
   elemData_.add_cvfem_surface_me(meSCS_);
@@ -54,16 +56,13 @@ SDRLowReWallAlg<BcAlgTraits>::SDRLowReWallAlg(
 
   elemData_.add_coordinates_field(
     coordinates_, BcAlgTraits::nDim_, CURRENT_COORDINATES);
-
-  auto shp_fcn = useShifted_ ? FC_SHIFTED_SHAPE_FCN : FC_SHAPE_FCN;
-  faceData_.add_master_element_call(shp_fcn, CURRENT_COORDINATES);
 }
 
 template <typename BcAlgTraits>
 void
 SDRLowReWallAlg<BcAlgTraits>::execute()
 {
-  using SimdDataType = nalu_ngp::FaceElemSimdData<stk::mesh::NgpMesh>;
+  using SimdDataType = kynema_ugf_ngp::FaceElemSimdData<stk::mesh::NgpMesh>;
 
   const auto& meta = realm_.meta_data();
 
@@ -73,9 +72,9 @@ SDRLowReWallAlg<BcAlgTraits>::execute()
   auto& warea = fieldMgr.template get_field<double>(wallArea_);
   auto& sdrbc = fieldMgr.template get_field<double>(sdrbc_);
   const auto areaOps =
-    nalu_ngp::simd_face_elem_nodal_field_updater(ngpMesh, warea);
+    kynema_ugf_ngp::simd_face_elem_nodal_field_updater(ngpMesh, warea);
   const auto sdrbcOps =
-    nalu_ngp::simd_face_elem_nodal_field_updater(ngpMesh, sdrbc);
+    kynema_ugf_ngp::simd_face_elem_nodal_field_updater(ngpMesh, sdrbc);
 
   // Bring class members into local scope for device capture
   const auto coordsID = coordinates_;
@@ -96,18 +95,16 @@ SDRLowReWallAlg<BcAlgTraits>::execute()
                               std::to_string(BcAlgTraits::faceTopo_) + "_" +
                               std::to_string(BcAlgTraits::elemTopo_);
 
-  nalu_ngp::run_face_elem_algorithm(
+  const auto shp = shape_fcn<typename BcAlgTraits::FaceTraits, QuadRank::SCV>(
+    use_shifted_quad(useShifted));
+
+  kynema_ugf_ngp::run_face_elem_algorithm(
     algName, meshInfo, faceData_, elemData_, sel,
     KOKKOS_LAMBDA(SimdDataType & fdata) {
       auto& v_coord = fdata.simdElemView.get_scratch_view_2D(coordsID);
       auto& v_density = fdata.simdFaceView.get_scratch_view_1D(densityID);
       auto& v_viscosity = fdata.simdFaceView.get_scratch_view_1D(viscosityID);
       auto& v_area = fdata.simdFaceView.get_scratch_view_2D(exposedAreaVecID);
-
-      const auto& meViews =
-        fdata.simdFaceView.get_me_views(CURRENT_COORDINATES);
-      const auto& v_shape_fcn =
-        useShifted ? meViews.fc_shifted_shape_fcn : meViews.fc_shape_fcn;
 
       const int* faceIpNodeMap = meFC->ipNodeMap();
       for (int ip = 0; ip < BcAlgTraits::numFaceIp_; ++ip) {
@@ -130,7 +127,7 @@ SDRLowReWallAlg<BcAlgTraits>::execute()
         DoubleType rhoIp = 0.0;
         DoubleType muIp = 0.0;
         for (int ic = 0; ic < BcAlgTraits::nodesPerFace_; ++ic) {
-          const DoubleType r = v_shape_fcn(ip, ic);
+          const DoubleType r = shp(ip, ic);
           rhoIp += r * v_density(ic);
           muIp += r * v_viscosity(ic);
         }
@@ -151,5 +148,5 @@ SDRLowReWallAlg<BcAlgTraits>::execute()
 
 INSTANTIATE_KERNEL_FACE_ELEMENT(SDRLowReWallAlg)
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

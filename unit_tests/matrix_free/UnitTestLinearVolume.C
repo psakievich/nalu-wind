@@ -13,13 +13,13 @@
 #include "matrix_free/LobattoQuadratureRule.h"
 #include "matrix_free/TensorOperations.h"
 #include "matrix_free/KokkosViewTypes.h"
-#include "matrix_free/LocalArray.h"
+#include "ArrayND.h"
 
 #include <Kokkos_Core.hpp>
 #include <stk_simd/Simd.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 
 namespace {
@@ -28,7 +28,7 @@ template <int poly>
 void
 single_affine_hex_p(bool cube)
 {
-  LocalArray<double[3][3]> jac = {{{0, 0, 1}, {1, 0, 0}, {0, 1, 0}}};
+  ArrayND<double[3][3]> jac = {{{0, 0, 1}, {1, 0, 0}, {0, 1, 0}}};
   if (!cube) {
     jac = {{{2, 1, 1.3333}, {0, 2, -1}, {1, 0, 2}}};
   }
@@ -83,5 +83,5 @@ TEST(linear_volume, single_cube_hex8) { single_affine_hex_p<1>(true); }
 TEST(linear_volume, single_cube_hex27) { single_affine_hex_p<2>(false); }
 
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

@@ -20,7 +20,7 @@ class Node;
 }
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class LinearSolvers;
 class TimeIntegrator;
@@ -43,8 +43,6 @@ public:
   void high_level_banner();
   Simulation* root() { return this; }
   Simulation* parent() { return 0; }
-  bool debug() { return debug_; }
-  bool debug() const { return debug_; }
   void setSerializedIOGroupSize(int siogs);
   static stk::diag::TimerSet& rootTimerSet();
   static stk::diag::Timer& rootTimer();
@@ -56,17 +54,16 @@ public:
   Transfers* transfers_;
   LinearSolvers* linearSolvers_;
 
-  static bool debug_;
   int serializedIOGroupSize_;
 
 private:
 #if defined(KOKKOS_ENABLE_GPU)
   size_t default_stack_size;
-  const size_t nalu_stack_size = 16384;
+  const size_t kynema_ugf_stack_size = 16384;
 #endif
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

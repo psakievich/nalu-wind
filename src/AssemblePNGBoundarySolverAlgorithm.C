@@ -7,7 +7,7 @@
 // for more details.
 //
 
-// nalu
+// kynema_ugf
 #include <AssemblePNGBoundarySolverAlgorithm.h>
 #include <EquationSystem.h>
 #include <FieldTypeDef.h>
@@ -16,18 +16,18 @@
 #include <SolutionOptions.h>
 #include <TimeIntegrator.h>
 #include <master_element/MasterElement.h>
-#include "master_element/MasterElementFactory.h"
+#include "master_element/MasterElementRepo.h"
 
 // stk_mesh/base/fem
 #include <stk_mesh/base/BulkData.hpp>
 #include <stk_mesh/base/Field.hpp>
-#include <stk_mesh/base/GetBuckets.hpp>
+
 #include <stk_mesh/base/GetEntities.hpp>
 #include <stk_mesh/base/MetaData.hpp>
 #include <stk_mesh/base/Part.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //==========================================================================
 // Class Definition
@@ -48,10 +48,10 @@ AssemblePNGBoundarySolverAlgorithm::AssemblePNGBoundarySolverAlgorithm(
 {
   // save off fields
   stk::mesh::MetaData& meta_data = realm_.meta_data();
-  scalarQ_ = meta_data.get_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, independentDofName);
-  exposedAreaVec_ = meta_data.get_field<GenericFieldType>(
-    meta_data.side_rank(), "exposed_area_vector");
+  scalarQ_ =
+    meta_data.get_field<double>(stk::topology::NODE_RANK, independentDofName);
+  exposedAreaVec_ =
+    meta_data.get_field<double>(meta_data.side_rank(), "exposed_area_vector");
 }
 
 //--------------------------------------------------------------------------
@@ -99,7 +99,8 @@ AssemblePNGBoundarySolverAlgorithm::execute()
 
     // face master element
     MasterElement* meFC =
-      sierra::nalu::MasterElementRepo::get_surface_master_element(b.topology());
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
+        b.topology());
     const int nodesPerFace = meFC->nodesPerElement_;
     const int numScsBip = meFC->num_integration_points();
     const int* faceIpNodeMap = meFC->ipNodeMap();
@@ -145,7 +146,7 @@ AssemblePNGBoundarySolverAlgorithm::execute()
       stk::mesh::Entity const* face_node_rels = b.begin_nodes(k);
       int num_face_nodes = b.num_nodes(k);
       // sanity check on num nodes
-      ThrowAssert(num_face_nodes == nodesPerFace);
+      STK_ThrowAssert(num_face_nodes == nodesPerFace);
       for (int ni = 0; ni < num_face_nodes; ++ni) {
         // get the node and form connected_node
         stk::mesh::Entity node = face_node_rels[ni];
@@ -184,5 +185,5 @@ AssemblePNGBoundarySolverAlgorithm::execute()
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

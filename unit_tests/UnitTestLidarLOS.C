@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "wind_energy/SyntheticLidar.h"
-#include "NaluParsing.h"
+#include "KynemaUGFParsing.h"
 #include "UnitTestUtils.h"
 #include "stk_mesh/base/MeshBuilder.hpp"
 #include "stk_mesh/base/FieldBLAS.hpp"
@@ -13,7 +13,7 @@
 #include <array>
 #include "Ioss_FileInfo.h"
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 const std::string db_spec =
   "data_probes:                                             \n"
@@ -87,13 +87,15 @@ class LidarLOSFixture : public ::testing::Test
 {
 public:
   LidarLOSFixture()
-    : bulkptr(stk::mesh::MeshBuilder(MPI_COMM_WORLD)
-                .set_aura_option((stk::mesh::BulkData::NO_AUTO_AURA))
-                .set_spatial_dimension(3U)
-                .create()),
+    : bulkptr(
+        stk::mesh::MeshBuilder(MPI_COMM_WORLD)
+          .set_aura_option((stk::mesh::BulkData::NO_AUTO_AURA))
+          .set_spatial_dimension(3U)
+          .create()),
       bulk(*bulkptr),
       meta(bulk.mesh_meta_data())
   {
+    meta.use_simple_fields();
     stk::io::StkMeshIoBroker io(bulk.parallel());
     io.set_bulk_data(bulk);
 
@@ -106,11 +108,12 @@ public:
     io.add_mesh_database(mesh_name, stk::io::READ_MESH);
     io.create_input_mesh();
 
-    using vector_field_type = stk::mesh::Field<double, stk::mesh::Cartesian3d>;
+    using vector_field_type = stk::mesh::Field<double>;
     auto node_rank = stk::topology::NODE_RANK;
-    auto& vel_field =
-      meta.declare_field<vector_field_type>(node_rank, "velocity", 2);
-    stk::mesh::put_field_on_entire_mesh(vel_field);
+    auto& vel_field = meta.declare_field<double>(node_rank, "velocity", 2);
+    stk::mesh::put_field_on_entire_mesh(vel_field, meta.spatial_dimension());
+    stk::io::set_field_output_type(
+      vel_field, stk::io::FieldOutputType::VECTOR_3D);
     io.populate_bulk_data();
     stk::mesh::field_fill(1., vel_field.field_of_state(stk::mesh::StateNP1));
     stk::mesh::field_fill(1., vel_field.field_of_state(stk::mesh::StateN));
@@ -308,5 +311,5 @@ TEST(spherical_cap_quadrature, error_improves_with_points_for_nonpoly)
   ASSERT_NEAR(error(121, 9), 0, 1e-8); // should be small with this many points
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

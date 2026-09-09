@@ -22,7 +22,7 @@ class MetaData;
 } // namespace stk
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class Realm;
 class SolutionOptions;
@@ -56,13 +56,13 @@ private:
   const unsigned tviscID_{stk::mesh::InvalidOrdinal};
   const unsigned dualNodalVolumeID_{stk::mesh::InvalidOrdinal};
 
-  NALU_ALIGNED NodeKernelTraits::DblType gravity_[NodeKernelTraits::NDimMax];
+  NodeKernelTraits::DblType gravity_[NodeKernelTraits::NDimMax];
   NodeKernelTraits::DblType turbPr_;
   const NodeKernelTraits::DblType beta_;
   const int nDim_;
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

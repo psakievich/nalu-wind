@@ -24,7 +24,7 @@
 #include "stk_mesh/base/GetNgpMesh.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 
 stk::mesh::NgpField<double>
@@ -33,8 +33,8 @@ get_ngp_field(
   std::string name,
   stk::mesh::FieldState state = stk::mesh::StateNP1)
 {
-  ThrowAssert(meta.get_field(stk::topology::NODE_RANK, name));
-  ThrowAssert(
+  STK_ThrowAssert(meta.get_field(stk::topology::NODE_RANK, name));
+  STK_ThrowAssert(
     meta.get_field(stk::topology::NODE_RANK, name)->field_state(state));
   return stk::mesh::get_updated_ngp_field<double>(
     *meta.get_field(stk::topology::NODE_RANK, name)->field_state(state));
@@ -128,5 +128,5 @@ ConductionGatheredFieldManager<p>::swap_states()
 INSTANTIATE_POLYCLASS(ConductionGatheredFieldManager);
 
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

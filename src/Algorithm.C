@@ -9,10 +9,11 @@
 
 #include <Algorithm.h>
 #include <SupplementalAlgorithm.h>
+#include <Realm.h>
 #include <kernel/Kernel.h>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //==========================================================================
 // Class Definition
@@ -22,15 +23,19 @@ namespace nalu {
 //--------------------------------------------------------------------------
 //-------- constructor -----------------------------------------------------
 //--------------------------------------------------------------------------
-Algorithm::Algorithm(Realm& realm, stk::mesh::Part* part) : realm_(realm)
+Algorithm::Algorithm(Realm& realm, stk::mesh::Part* part)
+  : realm_(realm),
+    partVec_(1, part),
+    fieldManager_(*(realm.fieldManager_.get()))
 {
-  // push back on partVec
-  partVec_.push_back(part);
+  // nothing to do
 }
 
 // alternative; provide full partVec
-Algorithm::Algorithm(Realm& realm, stk::mesh::PartVector& partVec)
-  : realm_(realm), partVec_(partVec)
+Algorithm::Algorithm(Realm& realm, const stk::mesh::PartVector& partVec)
+  : realm_(realm),
+    partVec_(partVec),
+    fieldManager_(*(realm.fieldManager_.get()))
 {
   // nothing to do
 }
@@ -51,5 +56,5 @@ Algorithm::~Algorithm()
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

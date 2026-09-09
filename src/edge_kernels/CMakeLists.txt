@@ -1,4 +1,4 @@
-target_sources(nalu PRIVATE
+target_sources(${kynema_ugf_lib_name} PRIVATE
   # Edge kernels
   ${CMAKE_CURRENT_SOURCE_DIR}/AssembleEdgeKernelAlg.C
   ${CMAKE_CURRENT_SOURCE_DIR}/AssembleAMSEdgeKernelAlg.C
@@ -10,6 +10,7 @@ target_sources(nalu PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/MomentumEdgePecletAlg.C
   ${CMAKE_CURRENT_SOURCE_DIR}/StreletsUpwindEdgeAlg.C
   ${CMAKE_CURRENT_SOURCE_DIR}/AMSMomentumEdgePecletAlg.C
+  ${CMAKE_CURRENT_SOURCE_DIR}/VOFAdvectionEdgeAlg.C
 
   # Face/edge BC kernels
   ${CMAKE_CURRENT_SOURCE_DIR}/ContinuityOpenEdgeKernel.C

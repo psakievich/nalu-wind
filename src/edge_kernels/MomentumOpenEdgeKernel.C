@@ -10,7 +10,7 @@
 #include "Enums.h"
 #include "edge_kernels/MomentumOpenEdgeKernel.h"
 #include "master_element/MasterElement.h"
-#include "master_element/MasterElementFactory.h"
+#include "master_element/MasterElementRepo.h"
 #include "SolutionOptions.h"
 
 #include "BuildTemplates.h"
@@ -22,7 +22,7 @@
 #include <stk_util/util/ReportHandler.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //--------------------------------------------------------------------------
 //-------- Constructor for MomentumOpenEdgeKernel --------------------------
@@ -49,10 +49,12 @@ MomentumOpenEdgeKernel<BcAlgTraits>::MomentumOpenEdgeKernel(
     nfEntrain_(solnOpts->nearestFaceEntrain_),
     entrain_(method),
     turbModel_(solnOpts->turbulenceModel_),
-    meFC_(sierra::nalu::MasterElementRepo::get_surface_master_element<
-          typename BcAlgTraits::FaceTraits>()),
-    meSCS_(sierra::nalu::MasterElementRepo::get_surface_master_element<
-           typename BcAlgTraits::ElemTraits>())
+    meFC_(
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_dev(
+        BcAlgTraits::FaceTraits::topo_)),
+    meSCS_(
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_dev(
+        BcAlgTraits::ElemTraits::topo_))
 {
   faceData.add_cvfem_face_me(meFC_);
   elemData.add_cvfem_surface_me(meSCS_);
@@ -86,9 +88,9 @@ MomentumOpenEdgeKernel<BcAlgTraits>::execute(
   const double om_nfEntrain = 1.0 - nfEntrain_;
 
   // Work arrays
-  NALU_ALIGNED DoubleType nx[BcAlgTraits::nDim_];
-  NALU_ALIGNED DoubleType fx[BcAlgTraits::nDim_];
-  NALU_ALIGNED DoubleType duidxj[BcAlgTraits::nDim_][BcAlgTraits::nDim_];
+  DoubleType nx[BcAlgTraits::nDim_];
+  DoubleType fx[BcAlgTraits::nDim_];
+  DoubleType duidxj[BcAlgTraits::nDim_][BcAlgTraits::nDim_];
 
   // Field variables on the boundary face
   auto& v_areavec = faceScratchViews.get_scratch_view_2D(exposedAreaVec_);
@@ -268,12 +270,12 @@ MomentumOpenEdgeKernel<BcAlgTraits>::execute(
       break;
     }
     default:
-      NGP_ThrowErrorMsg("invalid entrainment method");
+      STK_NGP_ThrowErrorMsg("invalid entrainment method");
     }
   }
 }
 
 INSTANTIATE_KERNEL_FACE_ELEMENT(MomentumOpenEdgeKernel)
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

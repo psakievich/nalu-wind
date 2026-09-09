@@ -36,7 +36,7 @@
 #include <type_traits>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 
 template <int p>
@@ -61,15 +61,17 @@ GreenGaussGradient<p>::GreenGaussGradient(
       Teuchos::rcpFromRef(linsys_.owned)),
     conn_(
       stk_connectivity_map<p>(stk::mesh::get_updated_ngp_mesh(bulk), active)),
-    offsets_(create_offset_map<p>(
-      stk::mesh::get_updated_ngp_mesh(bulk),
-      active,
-      linsys_.stk_lid_to_tpetra_lid)),
+    offsets_(
+      create_offset_map<p>(
+        stk::mesh::get_updated_ngp_mesh(bulk),
+        active,
+        linsys_.stk_lid_to_tpetra_lid)),
     face_conn_(face_node_map<p>(stk::mesh::get_updated_ngp_mesh(bulk), sides)),
-    bc_faces_(face_offsets<p>(
-      stk::mesh::get_updated_ngp_mesh(bulk),
-      sides,
-      linsys_.stk_lid_to_tpetra_lid)),
+    bc_faces_(
+      face_offsets<p>(
+        stk::mesh::get_updated_ngp_mesh(bulk),
+        sides,
+        linsys_.stk_lid_to_tpetra_lid)),
     grad_(
       params, meta_, linsys_, exporter_, conn_, offsets_, face_conn_, bc_faces_)
 {
@@ -176,5 +178,5 @@ ComputeGradient<p>::gradient(
 INSTANTIATE_POLYCLASS(ComputeGradient);
 
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

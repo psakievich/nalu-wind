@@ -16,7 +16,7 @@
 #include <stdexcept>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 BoussinesqNonIsoVelocityAuxFunction::BoussinesqNonIsoVelocityAuxFunction(
   const unsigned beginPos, const unsigned endPos)
@@ -24,8 +24,9 @@ BoussinesqNonIsoVelocityAuxFunction::BoussinesqNonIsoVelocityAuxFunction(
 {
   // must be 3D
   if (3 != endPos)
-    throw std::runtime_error("BoussinesqNonIsoVelocityAuxFunction::Error: must "
-                             "be a three dimensional case");
+    throw std::runtime_error(
+      "BoussinesqNonIsoVelocityAuxFunction::Error: must "
+      "be a three dimensional case");
 }
 
 void
@@ -56,5 +57,5 @@ BoussinesqNonIsoVelocityAuxFunction::do_evaluate(
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

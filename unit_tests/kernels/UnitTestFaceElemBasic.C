@@ -46,8 +46,8 @@ public:
     stk::topology faceTopo,
     stk::topology elemTopo,
     IdFieldType* idField,
-    sierra::nalu::ElemDataRequests& faceDataNeeded,
-    sierra::nalu::ElemDataRequests& elemDataNeeded)
+    sierra::kynema_ugf::ElemDataRequests& faceDataNeeded,
+    sierra::kynema_ugf::ElemDataRequests& elemDataNeeded)
     : faceTopo_(faceTopo),
       elemTopo_(elemTopo),
       idFieldOrdinal_(idField->mesh_meta_data_ordinal()),
@@ -55,32 +55,32 @@ public:
   {
     faceDataNeeded.add_gathered_nodal_field(*idField, 1);
     elemDataNeeded.add_gathered_nodal_field(*idField, 1);
-    result_.h_view(CORRECTNESS) = 0;
-    result_.h_view(NUM_TIMES_EXECUTED) = 0;
+    result_.view_host()(CORRECTNESS) = 0;
+    result_.view_host()(NUM_TIMES_EXECUTED) = 0;
     result_.modify_host();
     result_.sync_device();
   }
 
   KOKKOS_FUNCTION
   void execute(
-    sierra::nalu::ScratchViews<
+    sierra::kynema_ugf::ScratchViews<
       DoubleType,
-      sierra::nalu::DeviceTeamHandleType,
-      sierra::nalu::DeviceShmem>& faceViews,
-    sierra::nalu::ScratchViews<
+      sierra::kynema_ugf::DeviceTeamHandleType,
+      sierra::kynema_ugf::DeviceShmem>& faceViews,
+    sierra::kynema_ugf::ScratchViews<
       DoubleType,
-      sierra::nalu::DeviceTeamHandleType,
-      sierra::nalu::DeviceShmem>& elemViews,
+      sierra::kynema_ugf::DeviceTeamHandleType,
+      sierra::kynema_ugf::DeviceShmem>& elemViews,
     int numSimdFaces,
     const int elemFaceOrdinal) const
   {
     auto& faceNodeIds = faceViews.get_scratch_view_1D(idFieldOrdinal_);
     auto& elemNodeIds = elemViews.get_scratch_view_1D(idFieldOrdinal_);
     if (faceTopo_.num_nodes() != faceNodeIds.size()) {
-      result_.d_view(CORRECTNESS) = 2;
+      result_.view_device()(CORRECTNESS) = 2;
     }
     if (elemTopo_.num_nodes() != elemNodeIds.size()) {
-      result_.d_view(CORRECTNESS) = 2;
+      result_.view_device()(CORRECTNESS) = 2;
     }
 
     int faceNodeOrdinals[100];
@@ -92,22 +92,24 @@ public:
         DoubleType elemNodeId = elemNodeIds(faceNodeOrdinals[i]);
         double diff = stk::simd::get_data(faceNodeId, simdIndex) -
                       stk::simd::get_data(elemNodeId, simdIndex);
-        if ((diff < 1.e-9) && (diff > -1.e-9) && (result_.d_view(0) == 0)) {
-          result_.d_view(CORRECTNESS) = 1;
+        if (
+          (diff < 1.e-9) && (diff > -1.e-9) &&
+          (result_.view_device()(0) == 0)) {
+          result_.view_device()(CORRECTNESS) = 1;
         }
         if ((diff > 1.e-9) || (diff < -1.e-9)) {
-          result_.d_view(CORRECTNESS) = 2;
+          result_.view_device()(CORRECTNESS) = 2;
         }
       }
     }
 
-    Kokkos::atomic_add(&result_.d_view(NUM_TIMES_EXECUTED), 1);
+    Kokkos::atomic_add(&result_.view_device()(NUM_TIMES_EXECUTED), 1);
   }
 
   stk::topology faceTopo_;
   stk::topology elemTopo_;
   unsigned idFieldOrdinal_;
-  Kokkos::DualView<int*, Kokkos::LayoutRight, sierra::nalu::DeviceSpace>
+  Kokkos::DualView<int*, Kokkos::LayoutRight, sierra::kynema_ugf::DeviceSpace>
     result_;
 };
 
@@ -116,7 +118,7 @@ public:
 void
 do_assemble_face_elem_solver_test(
   stk::mesh::BulkData& bulk,
-  sierra::nalu::AssembleFaceElemSolverAlgorithm& faceElemAlg,
+  sierra::kynema_ugf::AssembleFaceElemSolverAlgorithm& faceElemAlg,
   IdFieldType* idField)
 {
   stk::topology faceTopo = stk::topology::QUAD_4;
@@ -126,8 +128,9 @@ do_assemble_face_elem_solver_test(
     faceElemAlg.elemDataNeeded_);
   faceElemAlg.run_face_elem_algorithm(
     bulk, KOKKOS_LAMBDA(
-            sierra::nalu::SharedMemData_FaceElem<
-              sierra::nalu::DeviceTeamHandleType, sierra::nalu::DeviceShmem> &
+            sierra::kynema_ugf::SharedMemData_FaceElem<
+              sierra::kynema_ugf::DeviceTeamHandleType,
+              sierra::kynema_ugf::DeviceShmem> &
             smdata) {
       faceElemKernel.execute(
         smdata.simdFaceViews, smdata.simdElemViews, smdata.numSimdFaces,
@@ -140,11 +143,11 @@ do_assemble_face_elem_solver_test(
   int expectedGoodResult = 1;
   EXPECT_EQ(
     expectedGoodResult,
-    faceElemKernel.result_.h_view(TestFaceElemKernel::CORRECTNESS));
+    faceElemKernel.result_.view_host()(TestFaceElemKernel::CORRECTNESS));
   int expectedNumTimesExecuted = 6;
   EXPECT_EQ(
     expectedNumTimesExecuted,
-    faceElemKernel.result_.h_view(TestFaceElemKernel::NUM_TIMES_EXECUTED));
+    faceElemKernel.result_.view_host()(TestFaceElemKernel::NUM_TIMES_EXECUTED));
 }
 
 TEST_F(Hex8Mesh, NGP_faceElemBasic)
@@ -158,22 +161,22 @@ TEST_F(Hex8Mesh, NGP_faceElemBasic)
 
   stk::topology faceTopo = stk::topology::QUAD_4;
   stk::topology elemTopo = stk::topology::HEX_8;
-  sierra::nalu::MasterElement* meFC =
-    sierra::nalu::MasterElementRepo::get_surface_master_element<
-      sierra::nalu::AlgTraitsQuad4>();
-  sierra::nalu::MasterElement* meSCS =
-    sierra::nalu::MasterElementRepo::get_surface_master_element<
-      sierra::nalu::AlgTraitsHex8>();
-  sierra::nalu::MasterElement* meSCV =
-    sierra::nalu::MasterElementRepo::get_volume_master_element<
-      sierra::nalu::AlgTraitsHex8>();
+  sierra::kynema_ugf::MasterElement* meFC =
+    sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_dev(
+      sierra::kynema_ugf::AlgTraitsQuad4::topo_);
+  sierra::kynema_ugf::MasterElement* meSCS =
+    sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_dev(
+      sierra::kynema_ugf::AlgTraitsHex8::topo_);
+  sierra::kynema_ugf::MasterElement* meSCV =
+    sierra::kynema_ugf::MasterElementRepo::get_volume_master_element_on_dev(
+      sierra::kynema_ugf::AlgTraitsHex8::topo_);
 
   stk::mesh::Part* surface1 = meta->get_part("surface_1");
   unsigned numDof = 3;
 
   unit_test_utils::HelperObjects helperObjs(bulk, elemTopo, numDof, surface1);
 
-  sierra::nalu::AssembleFaceElemSolverAlgorithm faceElemAlg(
+  sierra::kynema_ugf::AssembleFaceElemSolverAlgorithm faceElemAlg(
     helperObjs.realm, surface1, &helperObjs.eqSystem, faceTopo.num_nodes(),
     elemTopo.num_nodes());
   faceElemAlg.faceDataNeeded_.add_cvfem_face_me(meFC);
@@ -182,9 +185,7 @@ TEST_F(Hex8Mesh, NGP_faceElemBasic)
 
   do_assemble_face_elem_solver_test(*bulk, faceElemAlg, idField);
 }
-
 #if !defined(KOKKOS_ENABLE_GPU)
-
 void
 move_face_from_surface2_to_surface3(stk::mesh::BulkData& bulk)
 {
@@ -232,21 +233,21 @@ TEST_F(Hex8ElementWithBCFields, faceElemMomentumSymmetry)
   }
   verify_faces_exist(*bulk);
 
-  sierra::nalu::SolutionOptions solnOptions;
+  sierra::kynema_ugf::SolutionOptions solnOptions;
 
   stk::topology faceTopo = stk::topology::QUAD_4;
   stk::topology elemTopo = stk::topology::HEX_8;
   stk::mesh::Part* surface1 = meta->get_part("all_surfaces");
   unit_test_utils::HelperObjects helperObjs(
-    bulk, elemTopo, sierra::nalu::AlgTraitsQuad4Hex8::nDim_, surface1);
+    bulk, elemTopo, sierra::kynema_ugf::AlgTraitsQuad4Hex8::nDim_, surface1);
 
-  sierra::nalu::AssembleFaceElemSolverAlgorithm faceElemAlg(
+  sierra::kynema_ugf::AssembleFaceElemSolverAlgorithm faceElemAlg(
     helperObjs.realm, surface1, &helperObjs.eqSystem, faceTopo.num_nodes(),
     elemTopo.num_nodes());
 
   auto momentumSymmetryElemKernel =
-    new sierra::nalu::MomentumSymmetryElemKernel<
-      sierra::nalu::AlgTraitsQuad4Hex8>(
+    new sierra::kynema_ugf::MomentumSymmetryElemKernel<
+      sierra::kynema_ugf::AlgTraitsQuad4Hex8>(
       *meta, solnOptions, velocity, viscosity, faceElemAlg.faceDataNeeded_,
       faceElemAlg.elemDataNeeded_);
 
@@ -262,21 +263,21 @@ TEST_F(Hex8ElementWithBCFields, faceElemMomentumOpen)
   }
   verify_faces_exist(*bulk);
 
-  sierra::nalu::SolutionOptions solnOptions;
+  sierra::kynema_ugf::SolutionOptions solnOptions;
 
   stk::topology faceTopo = stk::topology::QUAD_4;
   stk::topology elemTopo = stk::topology::HEX_8;
   stk::mesh::Part* surface1 = meta->get_part("all_surfaces");
   unit_test_utils::HelperObjects helperObjs(
-    bulk, elemTopo, sierra::nalu::AlgTraitsQuad4Hex8::nDim_, surface1);
+    bulk, elemTopo, sierra::kynema_ugf::AlgTraitsQuad4Hex8::nDim_, surface1);
 
-  sierra::nalu::AssembleFaceElemSolverAlgorithm faceElemAlg(
+  sierra::kynema_ugf::AssembleFaceElemSolverAlgorithm faceElemAlg(
     helperObjs.realm, surface1, &helperObjs.eqSystem, faceTopo.num_nodes(),
     elemTopo.num_nodes());
 
   auto momentumOpenAdvDiffElemKernel =
-    new sierra::nalu::MomentumOpenAdvDiffElemKernel<
-      sierra::nalu::AlgTraitsQuad4Hex8>(
+    new sierra::kynema_ugf::MomentumOpenAdvDiffElemKernel<
+      sierra::kynema_ugf::AlgTraitsQuad4Hex8>(
       *meta, solnOptions, &helperObjs.eqSystem, velocity, Gjui, viscosity,
       faceElemAlg.faceDataNeeded_, faceElemAlg.elemDataNeeded_);
 
@@ -292,20 +293,21 @@ TEST_F(Hex8ElementWithBCFields, faceElemScalarOpen)
   }
   verify_faces_exist(*bulk);
 
-  sierra::nalu::SolutionOptions solnOptions;
+  sierra::kynema_ugf::SolutionOptions solnOptions;
 
   stk::topology faceTopo = stk::topology::QUAD_4;
   stk::topology elemTopo = stk::topology::HEX_8;
   stk::mesh::Part* surface1 = meta->get_part("all_surfaces");
   unit_test_utils::HelperObjects helperObjs(
-    bulk, elemTopo, sierra::nalu::AlgTraitsQuad4Hex8::nDim_, surface1);
+    bulk, elemTopo, sierra::kynema_ugf::AlgTraitsQuad4Hex8::nDim_, surface1);
 
-  sierra::nalu::AssembleFaceElemSolverAlgorithm faceElemAlg(
+  sierra::kynema_ugf::AssembleFaceElemSolverAlgorithm faceElemAlg(
     helperObjs.realm, surface1, &helperObjs.eqSystem, faceTopo.num_nodes(),
     elemTopo.num_nodes());
 
   auto scalarOpenAdvElemKernel =
-    new sierra::nalu::ScalarOpenAdvElemKernel<sierra::nalu::AlgTraitsQuad4Hex8>(
+    new sierra::kynema_ugf::ScalarOpenAdvElemKernel<
+      sierra::kynema_ugf::AlgTraitsQuad4Hex8>(
       *meta, solnOptions, &helperObjs.eqSystem, scalarQ, bcScalarQ, Gjq,
       viscosity, faceElemAlg.faceDataNeeded_, faceElemAlg.elemDataNeeded_);
 
@@ -313,5 +315,4 @@ TEST_F(Hex8ElementWithBCFields, faceElemScalarOpen)
 
   faceElemAlg.execute();
 }
-
 #endif

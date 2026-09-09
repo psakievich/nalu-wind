@@ -1,50 +1,50 @@
-name: Nalu-Wind-CI
+name: Kynema-UGF-CI
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
-    branches: [master]
+    branches: [main]
+
+concurrency:
+  group: ${{github.ref}}-${{github.head_ref}}-ci
+  cancel-in-progress: true
 
 jobs:
   Formatting:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-    - name: Clone
-      uses: actions/checkout@v3
-    - name: Check formatting
-      uses: DoozyX/clang-format-lint-action@v0.13
+    - uses: actions/checkout@v6
+    - name: Run clang-format
+      uses: jidicula/clang-format-action@v4.18.0
       with:
-        source: '. ./include ./src ./unit_tests'
-        exclude: './docs'
-        extensions: 'H,h,cpp,C'
-        clangFormatVersion: 13
+        clang-format-version: '22'
+        check-path: '.'
   CPU:
     needs: Formatting
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     container:
-      image: ecpe4s/exawind-snapshot
+      image: roodj/kynema-snapshot:latest
       env:
-          SPACK_MANAGER: /spack-manager
+          KYNEMA_MANAGER: /kynema-manager
           E4S_MACHINE: true
     steps:
-      - name: Cancel previous runs
-        uses: styfle/cancel-workflow-action@0.6.0
-        with:
-          access_token: ${{github.token}}
       - name: Clone
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
         with:
           submodules: true
-      - name: Tests
-        working-directory: /spack-manager/environments/exawind
+      - name: Test
         run: |
           /bin/bash -c " \
-            source ${SPACK_MANAGER}/start.sh && \
-            ln -s ${GITHUB_WORKSPACE} nalu-wind && \
-            source ${SPACK_MANAGER}/start.sh && \
-            quick-develop -s nalu-wind@master+tioga+hypre && \
-            spack install && \
-            spack cd -b nalu-wind && \
-            spack build-env nalu-wind ctest -j $(nproc) -L unit --output-on-failure \
+            source ${KYNEMA_MANAGER}/start.sh && spack-start && \
+            spack env activate e4s-build && \
+            cd ${KYNEMA_MANAGER}/environments/e4s-build && \
+            ln -s ${GITHUB_WORKSPACE} kynema-ugf && \
+            spack develop --no-modify-concrete-specs --no-clone kynema-ugf@main && \
+            spack rm kynema && \
+            spack add kynema-ugf@main+hypre~kynema-fmb+openfast+tests+tioga+trilinos-solvers+unit-tests~wind-utils && \
+            spack concretize --reuse -f && \
+            spack install -v && \
+            spack cd -b kynema-ugf && \
+            spack build-env kynema-ugf ctest -L unit --output-on-failure \
           "

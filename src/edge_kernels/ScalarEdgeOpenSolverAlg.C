@@ -9,7 +9,7 @@
 
 #include "edge_kernels/ScalarEdgeOpenSolverAlg.h"
 #include "master_element/MasterElement.h"
-#include "master_element/MasterElementFactory.h"
+#include "master_element/MasterElementRepo.h"
 #include "SolutionOptions.h"
 
 #include "BuildTemplates.h"
@@ -19,7 +19,7 @@
 #include "stk_mesh/base/Field.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 template <typename BcAlgTraits>
 ScalarEdgeOpenSolverAlg<BcAlgTraits>::ScalarEdgeOpenSolverAlg(
@@ -41,10 +41,12 @@ ScalarEdgeOpenSolverAlg<BcAlgTraits>::ScalarEdgeOpenSolverAlg(
     openMassFlowRate_(
       get_field_ordinal(meta, "open_mass_flow_rate", meta.side_rank())),
     relaxFac_(solnOpts.get_relaxation_factor(scalarQ->name())),
-    meFC_(sierra::nalu::MasterElementRepo::get_surface_master_element<
-          typename BcAlgTraits::FaceTraits>()),
-    meSCS_(sierra::nalu::MasterElementRepo::get_surface_master_element<
-           typename BcAlgTraits::ElemTraits>())
+    meFC_(
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_dev(
+        BcAlgTraits::FaceTraits::topo_)),
+    meSCS_(
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_dev(
+        BcAlgTraits::ElemTraits::topo_))
 {
   faceDataPreReqs.add_cvfem_face_me(meFC_);
   elemDataPreReqs.add_cvfem_surface_me(meSCS_);
@@ -103,5 +105,5 @@ ScalarEdgeOpenSolverAlg<BcAlgTraits>::execute(
 
 INSTANTIATE_KERNEL_FACE_ELEMENT(ScalarEdgeOpenSolverAlg)
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

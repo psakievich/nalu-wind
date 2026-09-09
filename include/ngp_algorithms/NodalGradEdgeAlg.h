@@ -16,18 +16,11 @@
 #include "stk_mesh/base/Types.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 template <typename PhiType, typename GradPhiType>
 class NodalGradEdgeAlg : public Algorithm
 {
-  static_assert(
-    ((std::is_same<PhiType, ScalarFieldType>::value &&
-      std::is_same<GradPhiType, VectorFieldType>::value) ||
-     (std::is_same<PhiType, VectorFieldType>::value &&
-      std::is_same<GradPhiType, GenericFieldType>::value)),
-    "Improper field types passed to nodal gradient calculator");
-
 public:
   using DblType = double;
 
@@ -58,8 +51,10 @@ using ScalarNodalGradEdgeAlg =
   NodalGradEdgeAlg<ScalarFieldType, VectorFieldType>;
 using VectorNodalGradEdgeAlg =
   NodalGradEdgeAlg<VectorFieldType, GenericFieldType>;
+using TensorNodalGradEdgeAlg =
+  NodalGradEdgeAlg<VectorFieldType, TensorFieldType>;
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif /* NODALGRADEDGEALG_H */

@@ -7,19 +7,19 @@
 // for more details.
 //
 
-// nalu
+// kynema_ugf
 #include <SurfaceForceAndMomentAlgorithm.h>
 #include <Algorithm.h>
 #include <FieldTypeDef.h>
 #include <Realm.h>
 #include <master_element/MasterElement.h>
-#include <master_element/MasterElementFactory.h>
-#include <NaluEnv.h>
+#include <master_element/MasterElementRepo.h>
+#include <KynemaUGFEnv.h>
 
 // stk_mesh/base/fem
 #include <stk_mesh/base/BulkData.hpp>
 #include <stk_mesh/base/Field.hpp>
-#include <stk_mesh/base/GetBuckets.hpp>
+
 #include <stk_mesh/base/GetEntities.hpp>
 #include <stk_mesh/base/MetaData.hpp>
 #include <stk_mesh/base/Part.hpp>
@@ -34,7 +34,7 @@
 #include <vector>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //==========================================================================
 // Class Definition
@@ -75,32 +75,26 @@ SurfaceForceAndMomentAlgorithm::SurfaceForceAndMomentAlgorithm(
 {
   // save off fields
   stk::mesh::MetaData& meta_data = realm_.meta_data();
-  coordinates_ = meta_data.get_field<VectorFieldType>(
+  coordinates_ = meta_data.get_field<double>(
     stk::topology::NODE_RANK, realm_.get_coordinates_name());
-  pressure_ =
-    meta_data.get_field<ScalarFieldType>(stk::topology::NODE_RANK, "pressure");
-  pressureForce_ = meta_data.get_field<VectorFieldType>(
-    stk::topology::NODE_RANK, "pressure_force");
-  viscousForce_ = meta_data.get_field<VectorFieldType>(
-    stk::topology::NODE_RANK, "viscous_force");
-  tauWallVector_ = meta_data.get_field<VectorFieldType>(
-    stk::topology::NODE_RANK, "tau_wall_vector");
-  tauWall_ =
-    meta_data.get_field<ScalarFieldType>(stk::topology::NODE_RANK, "tau_wall");
-  yplus_ =
-    meta_data.get_field<ScalarFieldType>(stk::topology::NODE_RANK, "yplus");
-  density_ =
-    meta_data.get_field<ScalarFieldType>(stk::topology::NODE_RANK, "density");
+  pressure_ = meta_data.get_field<double>(stk::topology::NODE_RANK, "pressure");
+  pressureForce_ =
+    meta_data.get_field<double>(stk::topology::NODE_RANK, "pressure_force");
+  viscousForce_ =
+    meta_data.get_field<double>(stk::topology::NODE_RANK, "viscous_force");
+  tauWallVector_ =
+    meta_data.get_field<double>(stk::topology::NODE_RANK, "tau_wall_vector");
+  tauWall_ = meta_data.get_field<double>(stk::topology::NODE_RANK, "tau_wall");
+  yplus_ = meta_data.get_field<double>(stk::topology::NODE_RANK, "yplus");
+  density_ = meta_data.get_field<double>(stk::topology::NODE_RANK, "density");
   // extract viscosity name
   const std::string viscName =
     realm_.is_turbulent() ? "effective_viscosity_u" : "viscosity";
-  viscosity_ =
-    meta_data.get_field<ScalarFieldType>(stk::topology::NODE_RANK, viscName);
-  dudx_ =
-    meta_data.get_field<GenericFieldType>(stk::topology::NODE_RANK, "dudx");
-  exposedAreaVec_ = meta_data.get_field<GenericFieldType>(
-    meta_data.side_rank(), "exposed_area_vector");
-  assembledArea_ = meta_data.get_field<ScalarFieldType>(
+  viscosity_ = meta_data.get_field<double>(stk::topology::NODE_RANK, viscName);
+  dudx_ = meta_data.get_field<double>(stk::topology::NODE_RANK, "dudx");
+  exposedAreaVec_ =
+    meta_data.get_field<double>(meta_data.side_rank(), "exposed_area_vector");
+  assembledArea_ = meta_data.get_field<double>(
     stk::topology::NODE_RANK, "assembled_area_force_moment");
   // error check on params
   const size_t nDim = meta_data.spatial_dimension();
@@ -109,7 +103,7 @@ SurfaceForceAndMomentAlgorithm::SurfaceForceAndMomentAlgorithm(
       "SurfaceForce: parameter length wrong; expect nDim");
 
   // deal with file name and banner
-  if (NaluEnv::self().parallel_rank() == 0) {
+  if (KynemaUGFEnv::self().parallel_rank() == 0) {
     std::ofstream myfile;
     myfile.open(outputFileName_.c_str());
     myfile << std::setw(w_) << "Time" << std::setw(w_) << "Fpx" << std::setw(w_)
@@ -156,6 +150,20 @@ SurfaceForceAndMomentAlgorithm::execute()
   // set min and max values
   double yplusMin = 1.0e8;
   double yplusMax = -1.0e8;
+
+  // sync fields to host
+  coordinates_->sync_to_host();
+  pressure_->sync_to_host();
+  pressureForce_->sync_to_host();
+  viscousForce_->sync_to_host();
+  tauWallVector_->sync_to_host();
+  tauWall_->sync_to_host();
+  yplus_->sync_to_host();
+  density_->sync_to_host();
+  viscosity_->sync_to_host();
+  dudx_->sync_to_host();
+  exposedAreaVec_->sync_to_host();
+  assembledArea_->sync_to_host();
 
   // nodal fields to gather
   std::vector<double> ws_pressure;
@@ -204,7 +212,8 @@ SurfaceForceAndMomentAlgorithm::execute()
 
     // face master element
     MasterElement* meFC =
-      sierra::nalu::MasterElementRepo::get_surface_master_element(b.topology());
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
+        b.topology());
     const int nodesPerFace = meFC->nodesPerElement_;
     const int numScsBip = meFC->num_integration_points();
 
@@ -214,12 +223,13 @@ SurfaceForceAndMomentAlgorithm::execute()
 
     // extract connected element topology
     b.parent_topology(stk::topology::ELEMENT_RANK, parentTopo);
-    ThrowAssert(parentTopo.size() == 1);
+    STK_ThrowAssert(parentTopo.size() == 1);
     stk::topology theElemTopo = parentTopo[0];
 
     // extract master element for this element topo
     MasterElement* meSCS =
-      sierra::nalu::MasterElementRepo::get_surface_master_element(theElemTopo);
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
+        theElemTopo);
 
     // algorithm related; element
     ws_pressure.resize(nodesPerFace);
@@ -267,7 +277,7 @@ SurfaceForceAndMomentAlgorithm::execute()
       // extract the connected element to this exposed face; should be single in
       // size!
       const stk::mesh::Entity* face_elem_rels = bulk_data.begin_elements(face);
-      ThrowAssert(bulk_data.num_elements(face) == 1);
+      STK_ThrowAssert(bulk_data.num_elements(face) == 1);
 
       // get element; its face ordinal number
       stk::mesh::Entity element = face_elem_rels[0];
@@ -410,7 +420,7 @@ SurfaceForceAndMomentAlgorithm::execute()
   if (processMe) {
     // parallel assemble and output
     double g_force_moment[9] = {};
-    stk::ParallelMachine comm = NaluEnv::self().parallel_comm();
+    stk::ParallelMachine comm = KynemaUGFEnv::self().parallel_comm();
 
     // Parallel assembly of L2
     stk::all_reduce_sum(comm, &l_force_moment[0], &g_force_moment[0], 9);
@@ -421,7 +431,7 @@ SurfaceForceAndMomentAlgorithm::execute()
     stk::all_reduce_max(comm, &yplusMax, &g_yplusMax, 1);
 
     // deal with file name and banner
-    if (NaluEnv::self().parallel_rank() == 0) {
+    if (KynemaUGFEnv::self().parallel_rank() == 0) {
       std::ofstream myfile;
       myfile.open(outputFileName_.c_str(), std::ios_base::app);
       myfile << std::setprecision(6) << std::setw(w_) << currentTime
@@ -466,7 +476,8 @@ SurfaceForceAndMomentAlgorithm::pre_work()
 
     // face master element
     MasterElement* meFC =
-      sierra::nalu::MasterElementRepo::get_surface_master_element(b.topology());
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
+        b.topology());
     const int numScsBip = meFC->num_integration_points();
 
     // mapping from ip to nodes for this ordinal; face perspective (use with
@@ -522,5 +533,5 @@ SurfaceForceAndMomentAlgorithm::cross_product(
   cross[2] = rad[0] * force[1] - rad[1] * force[0];
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

@@ -7,7 +7,7 @@
 // for more details.
 //
 
-// nalu
+// kynema_ugf
 #include <AssembleElemSolverAlgorithm.h>
 #include <EquationSystem.h>
 #include <SolverAlgorithm.h>
@@ -25,7 +25,7 @@
 // stk_mesh/base/fem
 #include <stk_mesh/base/BulkData.hpp>
 #include <stk_mesh/base/Field.hpp>
-#include <stk_mesh/base/GetBuckets.hpp>
+
 #include <stk_mesh/base/GetEntities.hpp>
 #include <stk_mesh/base/MetaData.hpp>
 #include <stk_mesh/base/Part.hpp>
@@ -38,7 +38,7 @@
 #include <CopyAndInterleave.h>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //==========================================================================
 // Class Definition
@@ -88,7 +88,7 @@ AssembleElemSolverAlgorithm::execute()
   for (size_t i = 0; i < numKernels; ++i)
     activeKernels_[i]->setup(*realm_.timeIntegrator_);
 
-  auto ngpKernels = nalu_ngp::create_ngp_view<Kernel>(activeKernels_);
+  auto ngpKernels = kynema_ugf_ngp::create_ngp_view<Kernel>(activeKernels_);
   auto coeffApplier = coeff_applier();
 
   double diagRelaxFactor = diagRelaxFactor_;
@@ -124,5 +124,5 @@ AssembleElemSolverAlgorithm::execute()
   coeffApplier.free_coeff_applier();
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

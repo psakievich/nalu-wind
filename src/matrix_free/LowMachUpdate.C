@@ -23,7 +23,7 @@
 #include "stk_mesh/base/GetNgpMesh.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 
 template <typename T = double>
@@ -33,8 +33,8 @@ get_ngp_field(
   std::string name,
   stk::mesh::FieldState state = stk::mesh::StateNP1)
 {
-  ThrowAssert(meta.get_field(stk::topology::NODE_RANK, name));
-  ThrowAssert(
+  STK_ThrowAssert(meta.get_field(stk::topology::NODE_RANK, name));
+  STK_ThrowAssert(
     meta.get_field(stk::topology::NODE_RANK, name)->field_state(state));
   return stk::mesh::get_updated_ngp_field<T>(
     *meta.get_field(stk::topology::NODE_RANK, name)->field_state(state));
@@ -69,10 +69,11 @@ LowMachUpdate<p>::LowMachUpdate(
     exporter_(
       Teuchos::rcpFromRef(linsys_.owned_and_shared),
       Teuchos::rcpFromRef(linsys_.owned)),
-    offsets_(create_offset_map<p>(
-      stk::mesh::get_updated_ngp_mesh(bulk_in),
-      active_in,
-      linsys_.stk_lid_to_tpetra_lid)),
+    offsets_(
+      create_offset_map<p>(
+        stk::mesh::get_updated_ngp_mesh(bulk_in),
+        active_in,
+        linsys_.stk_lid_to_tpetra_lid)),
     field_gather_(bulk_in, active_in),
     post_process_(field_gather_),
     momentum_update_(params_mom, linsys_, exporter_, offsets_),
@@ -99,14 +100,16 @@ LowMachUpdate<p>::LowMachUpdate(
     exporter_(
       Teuchos::rcpFromRef(linsys_.owned_and_shared),
       Teuchos::rcpFromRef(linsys_.owned)),
-    offsets_(create_offset_map<p>(
-      stk::mesh::get_updated_ngp_mesh(bulk_in),
-      active_in,
-      linsys_.stk_lid_to_tpetra_lid)),
-    exposed_face_offsets_(face_offsets<p>(
-      stk::mesh::get_updated_ngp_mesh(bulk_in),
-      dirichlet_in,
-      linsys_.stk_lid_to_tpetra_lid)),
+    offsets_(
+      create_offset_map<p>(
+        stk::mesh::get_updated_ngp_mesh(bulk_in),
+        active_in,
+        linsys_.stk_lid_to_tpetra_lid)),
+    exposed_face_offsets_(
+      face_offsets<p>(
+        stk::mesh::get_updated_ngp_mesh(bulk_in),
+        dirichlet_in,
+        linsys_.stk_lid_to_tpetra_lid)),
     dirichlet_offsets_(simd_node_offsets(
       stk::mesh::get_updated_ngp_mesh(bulk_in),
       dirichlet_in,
@@ -417,5 +420,5 @@ LowMachUpdate<p>::create_continuity_preconditioner(
 INSTANTIATE_POLYCLASS(LowMachUpdate);
 
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

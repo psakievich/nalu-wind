@@ -14,8 +14,8 @@
 #include "matrix_free/ConductionUpdate.h"
 #include "matrix_free/GreenGaussGradient.h"
 
-#include "NaluEnv.h"
-#include "NaluParsing.h"
+#include "KynemaUGFEnv.h"
+#include "KynemaUGFParsing.h"
 #include "PeriodicManager.h"
 #include "Realm.h"
 #include "TimeIntegrator.h"
@@ -25,9 +25,10 @@
 #include <stk_mesh/base/NgpForEachEntity.hpp>
 #include <stk_mesh/base/Types.hpp>
 #include <stk_topology/topology.hpp>
+#include <stk_io/IossBridge.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 MatrixFreeHeatCondEquationSystem::MatrixFreeHeatCondEquationSystem(
   EquationSystems& eqSystems)
@@ -36,10 +37,10 @@ MatrixFreeHeatCondEquationSystem::MatrixFreeHeatCondEquationSystem(
     meta_(realm_.meta_data())
 {
   realm_.push_equation_to_systems(this);
-  ThrowRequireMsg(
+  STK_ThrowRequireMsg(
     realm_.spatialDimension_ == dim,
     "Only 3D supported for matrix free heat conduction");
-  ThrowRequireMsg(realm_.matrixFree_, "Only matrix free supported");
+  STK_ThrowRequireMsg(realm_.matrixFree_, "Only matrix free supported");
 }
 
 MatrixFreeHeatCondEquationSystem::~MatrixFreeHeatCondEquationSystem() = default;
@@ -52,68 +53,72 @@ get_node_field(
   std::string name,
   stk::mesh::FieldState state = stk::mesh::StateNP1)
 {
-  ThrowAssert(meta.get_field(stk::topology::NODE_RANK, name));
-  ThrowAssert(
+  STK_ThrowAssert(meta.get_field(stk::topology::NODE_RANK, name));
+  STK_ThrowAssert(
     meta.get_field(stk::topology::NODE_RANK, name)->field_state(state));
   return stk::mesh::get_updated_ngp_field<T>(
     *meta.get_field(stk::topology::NODE_RANK, name)->field_state(state));
 }
 
-void
-register_scalar_nodal_field_on_part(
-  stk::mesh::MetaData& meta,
-  std::string name,
-  const stk::mesh::Selector& selector,
-  int num_states,
-  double ic = 0)
-{
-  auto& field = meta.declare_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, name, num_states);
-  stk::mesh::put_field_on_mesh(field, selector, &ic);
-}
-
-void
-register_vector_nodal_field_on_part(
-  stk::mesh::MetaData& meta,
-  std::string name,
-  const stk::mesh::Selector& selector,
-  int num_states,
-  double ic = 0)
-{
-  constexpr int dim = MatrixFreeHeatCondEquationSystem::dim;
-  std::array<double, dim> x{{ic, ic, ic}};
-  auto& field = meta.declare_field<VectorFieldType>(
-    stk::topology::NODE_RANK, name, num_states);
-  stk::mesh::put_field_on_mesh(field, selector, dim, x.data());
-}
 } // namespace
 
 void
-MatrixFreeHeatCondEquationSystem::register_nodal_fields(stk::mesh::Part* part)
+MatrixFreeHeatCondEquationSystem::register_nodal_fields(
+  const stk::mesh::PartVector& part_vec)
 {
   constexpr int three_states = 3;
   constexpr int one_state = 1;
-  register_scalar_nodal_field_on_part(
-    meta_, names::temperature, *part, three_states);
-  register_scalar_nodal_field_on_part(meta_, names::delta, *part, one_state);
-  register_scalar_nodal_field_on_part(
-    meta_, names::volume_weight, *part, one_state);
-  register_scalar_nodal_field_on_part(meta_, names::density, *part, one_state);
-  register_scalar_nodal_field_on_part(
-    meta_, names::specific_heat, *part, one_state);
-  register_scalar_nodal_field_on_part(
-    meta_, names::thermal_conductivity, *part, one_state);
-  register_vector_nodal_field_on_part(meta_, names::dtdx, *part, one_state);
+  const double zero = 0;
+  stk::mesh::Selector selector = stk::mesh::selectUnion(part_vec);
+  {
+    auto& field = meta_.declare_field<double>(
+      stk::topology::NODE_RANK, names::temperature, three_states);
+    stk::mesh::put_field_on_mesh(field, selector, &zero);
+  }
+  {
+    auto& field = meta_.declare_field<double>(
+      stk::topology::NODE_RANK, names::delta, one_state);
+    stk::mesh::put_field_on_mesh(field, selector, &zero);
+  }
+  {
+    auto& field = meta_.declare_field<double>(
+      stk::topology::NODE_RANK, names::volume_weight, one_state);
+    stk::mesh::put_field_on_mesh(field, selector, &zero);
+  }
+  {
+    auto& field = meta_.declare_field<double>(
+      stk::topology::NODE_RANK, names::density, one_state);
+    stk::mesh::put_field_on_mesh(field, selector, &zero);
+  }
+  {
+    auto& field = meta_.declare_field<double>(
+      stk::topology::NODE_RANK, names::specific_heat, one_state);
+    stk::mesh::put_field_on_mesh(field, selector, &zero);
+  }
+  {
+    auto& field = meta_.declare_field<double>(
+      stk::topology::NODE_RANK, names::thermal_conductivity, one_state);
+    stk::mesh::put_field_on_mesh(field, selector, &zero);
+  }
+  {
+    const double zero = 0;
+    constexpr int dim = MatrixFreeHeatCondEquationSystem::dim;
+    const std::array<double, dim> x{{zero, zero, zero}};
+    auto& field = meta_.declare_field<double>(
+      stk::topology::NODE_RANK, names::dtdx, one_state);
+    stk::mesh::put_field_on_mesh(field, selector, dim, x.data());
+    stk::io::set_field_output_type(field, stk::io::FieldOutputType::VECTOR_3D);
+  }
 
   realm_.augment_restart_variable_list(names::temperature);
   realm_.augment_property_map(
-    DENSITY_ID, meta_.get_field<stk::mesh::Field<double>>(
-                  stk::topology::NODE_RANK, names::density));
+    DENSITY_ID,
+    meta_.get_field<double>(stk::topology::NODE_RANK, names::density));
   realm_.augment_property_map(
-    SPEC_HEAT_ID, meta_.get_field<stk::mesh::Field<double>>(
-                    stk::topology::NODE_RANK, names::specific_heat));
+    SPEC_HEAT_ID,
+    meta_.get_field<double>(stk::topology::NODE_RANK, names::specific_heat));
   realm_.augment_property_map(
-    THERMAL_COND_ID, meta_.get_field<stk::mesh::Field<double>>(
+    THERMAL_COND_ID, meta_.get_field<double>(
                        stk::topology::NODE_RANK, names::thermal_conductivity));
 }
 
@@ -121,7 +126,7 @@ void
 MatrixFreeHeatCondEquationSystem::register_interior_algorithm(
   stk::mesh::Part* part)
 {
-  ThrowRequireMsg(
+  STK_ThrowRequireMsg(
     matrix_free::part_is_valid_for_matrix_free(polynomial_order_, *part),
     "part " + part->name() + " has invalid topology " +
       part->topology().name() + ". Only hex8/hex27 supported");
@@ -134,22 +139,23 @@ MatrixFreeHeatCondEquationSystem::register_wall_bc(
   const stk::topology&,
   const WallBoundaryConditionData& wallBCData)
 {
-  ThrowRequireMsg(
+  STK_ThrowRequireMsg(
     matrix_free::part_is_valid_for_matrix_free(polynomial_order_, *part),
     "part " + part->name() + " has invalid topology " +
       part->topology().name() + ". Only Quad4 and Quad9 supported");
-
   WallUserData userData = wallBCData.userData_;
   constexpr int one_state = 1;
   if (userData.tempSpec_) {
     const auto temperature_data = wallBCData.userData_.temperature_;
-    register_scalar_nodal_field_on_part(
-      meta_, names::qbc, *part, one_state, temperature_data.temperature_);
+    auto& field = meta_.declare_field<double>(
+      stk::topology::NODE_RANK, names::qbc, one_state);
+    stk::mesh::put_field_on_mesh(field, *part, &temperature_data.temperature_);
     dirichlet_selector_ |= *part;
   } else if (userData.heatFluxSpec_) {
     const auto flux_data = wallBCData.userData_.q_;
-    register_scalar_nodal_field_on_part(
-      meta_, names::flux, *part, one_state, flux_data.qn_);
+    auto& field = meta_.declare_field<double>(
+      stk::topology::NODE_RANK, names::flux, one_state);
+    stk::mesh::put_field_on_mesh(field, *part, &flux_data.qn_);
     flux_selector_ |= *part;
   }
 }
@@ -308,64 +314,62 @@ MatrixFreeHeatCondEquationSystem::initialize_solve_and_update()
 void
 MatrixFreeHeatCondEquationSystem::solve_and_update()
 {
-  const auto time_start_initialize = NaluEnv::self().nalu_time();
+  const auto time_start_initialize = KynemaUGFEnv::self().kynema_ugf_time();
   initialize_solve_and_update();
-  const auto time_end_initialize = NaluEnv::self().nalu_time();
+  const auto time_end_initialize = KynemaUGFEnv::self().kynema_ugf_time();
   timerInit_ += time_end_initialize - time_start_initialize;
 
-  const auto time_start_update_states = NaluEnv::self().nalu_time();
+  const auto time_start_update_states = KynemaUGFEnv::self().kynema_ugf_time();
   grad_->reset_initial_residual();
   update_->swap_states();
   update_->update_solution_fields();
-  const auto time_end_update_states = NaluEnv::self().nalu_time();
+  const auto time_end_update_states = KynemaUGFEnv::self().kynema_ugf_time();
   timerAssemble_ += time_end_update_states - time_start_update_states;
 
-  const auto time_start_preconditioner = NaluEnv::self().nalu_time();
+  const auto time_start_preconditioner = KynemaUGFEnv::self().kynema_ugf_time();
   update_->compute_preconditioner(
     realm_.timeIntegrator_->get_gamma1() /
     realm_.timeIntegrator_->get_time_step());
-  const auto time_end_preconditioner = NaluEnv::self().nalu_time();
+  const auto time_end_preconditioner = KynemaUGFEnv::self().kynema_ugf_time();
   timerPrecond_ += time_end_preconditioner - time_start_preconditioner;
 
   for (int k = 0; k < maxIterations_; ++k) {
     nonlinear_iteration_banner(
-      k, maxIterations_, userSuppliedName_, NaluEnv::self().naluOutputP0());
+      k, maxIterations_, userSuppliedName_,
+      KynemaUGFEnv::self().kynema_ugfOutputP0());
 
-    const auto time_start_solve = NaluEnv::self().nalu_time();
+    const auto time_start_solve = KynemaUGFEnv::self().kynema_ugf_time();
     update_->compute_update(
       compute_scaled_gammas(*realm_.timeIntegrator_),
       get_node_field(meta_, names::delta));
-    const auto time_end_solve = NaluEnv::self().nalu_time();
+    const auto time_end_solve = KynemaUGFEnv::self().kynema_ugf_time();
     timerSolve_ += time_end_solve - time_start_solve;
 
-    const auto time_start_assemble = NaluEnv::self().nalu_time();
+    const auto time_start_assemble = KynemaUGFEnv::self().kynema_ugf_time();
     sync_field_on_periodic_nodes(names::delta, 1);
 
     solution_update(
+      1.0, *meta_.get_field<double>(stk::topology::NODE_RANK, names::delta),
       1.0,
-      *meta_.get_field<ScalarFieldType>(stk::topology::NODE_RANK, names::delta),
-      1.0,
-      meta_
-        .get_field<ScalarFieldType>(
-          stk::topology::NODE_RANK, names::temperature)
+      meta_.get_field<double>(stk::topology::NODE_RANK, names::temperature)
         ->field_of_state(stk::mesh::StateNP1));
 
     update_->update_solution_fields();
-    const auto time_end_assemble = NaluEnv::self().nalu_time();
+    const auto time_end_assemble = KynemaUGFEnv::self().kynema_ugf_time();
     timerAssemble_ += time_end_assemble - time_start_assemble;
 
-    const auto time_start_banner = NaluEnv::self().nalu_time();
-    update_->banner(name_, NaluEnv::self().naluOutputP0());
-    const auto time_end_banner = NaluEnv::self().nalu_time();
+    const auto time_start_banner = KynemaUGFEnv::self().kynema_ugf_time();
+    update_->banner(name_, KynemaUGFEnv::self().kynema_ugfOutputP0());
+    const auto time_end_banner = KynemaUGFEnv::self().kynema_ugf_time();
     timerMisc_ += time_end_banner - time_start_banner;
 
     grad_->gradient(
       get_node_field(meta_, names::temperature),
       get_node_field(meta_, names::dtdx));
     sync_field_on_periodic_nodes(names::dtdx, dim);
-    grad_->banner("dtdx", NaluEnv::self().naluOutputP0());
+    grad_->banner("dtdx", KynemaUGFEnv::self().kynema_ugfOutputP0());
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

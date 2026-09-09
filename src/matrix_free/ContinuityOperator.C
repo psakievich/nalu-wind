@@ -23,7 +23,7 @@
 #include <type_traits>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 
 template <int p>
@@ -40,8 +40,7 @@ namespace {
 void
 remove_constant(Kokkos::View<double*> x, double value)
 {
-  Kokkos::parallel_for(
-    x.extent(0), KOKKOS_LAMBDA(int n) { x(n) -= value; });
+  Kokkos::parallel_for(x.extent(0), KOKKOS_LAMBDA(int n) { x(n) -= value; });
 }
 
 void
@@ -49,8 +48,9 @@ remove_constant(Tpetra::MultiVector<>& vector)
 {
   // orthogonalize wrt (1,1,..,1)^T
 
-  auto avg = KokkosBlas::sum(Kokkos::subview(
-    vector.getLocalViewDevice(Tpetra::Access::ReadOnly), Kokkos::ALL, 0));
+  auto avg = KokkosBlas::sum(
+    Kokkos::subview(
+      vector.getLocalViewDevice(Tpetra::Access::ReadOnly), Kokkos::ALL, 0));
 
   auto comm = Teuchos::getRawMpiComm(*vector.getMap()->getComm());
   MPI_Allreduce(MPI_IN_PLACE, &avg, 1, MPI_DOUBLE, MPI_SUM, comm);
@@ -109,9 +109,9 @@ ContinuityLinearizedResidualOperator<p>::apply(
 {
   stk::mesh::ProfilingBlock pf(
     "ContinuityLinearizedResidualOperator<p>::apply");
-  ThrowRequire(trans == Teuchos::NO_TRANS);
-  ThrowRequire(alpha == 1.0);
-  ThrowRequire(beta == 0.0);
+  STK_ThrowRequire(trans == Teuchos::NO_TRANS);
+  STK_ThrowRequire(alpha == 1.0);
+  STK_ThrowRequire(beta == 0.0);
 
   if (exporter_.getTargetMap()->isDistributed()) {
     {
@@ -138,5 +138,5 @@ ContinuityLinearizedResidualOperator<p>::apply(
 }
 INSTANTIATE_POLYCLASS(ContinuityLinearizedResidualOperator);
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

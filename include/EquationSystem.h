@@ -11,13 +11,13 @@
 #define EquationSystem_h
 
 #include "KokkosInterface.h"
-#include "NaluParsedTypes.h"
+#include "KynemaUGFParsedTypes.h"
 #include "Realm.h"
 #include "PecletFunction.h"
 #include "NGPInstance.h"
 #include "SimdInterface.h"
 
-#include <NaluParsedTypes.h>
+#include <KynemaUGFParsedTypes.h>
 
 #include <stk_mesh/base/Ngp.hpp>
 #include <stk_mesh/base/NgpMesh.hpp>
@@ -32,7 +32,7 @@ typedef std::vector<Part*> PartVector;
 } // namespace stk
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class Algorithm;
 class AlgorithmDriver;
@@ -69,12 +69,16 @@ public:
   virtual void populate_derived_quantities() {}
 
   // base class with desired default no-op
-  virtual void register_nodal_fields(stk::mesh::Part* /* part */) {}
-
-  virtual void register_edge_fields(stk::mesh::Part* /* part */) {}
-
+  virtual void
+  register_nodal_fields(const stk::mesh::PartVector& /* part_vec */)
+  {
+  }
+  virtual void register_edge_fields(const stk::mesh::PartVector& /* part_vec */)
+  {
+  }
   virtual void register_element_fields(
-    stk::mesh::Part* /* part */, const stk::topology& /* theTopo */)
+    const stk::mesh::PartVector& /* part_vec */,
+    const stk::topology& /* theTopo */)
   {
   }
 
@@ -163,7 +167,7 @@ public:
   virtual double provide_norm() const;
   virtual double provide_norm_increment() const;
   virtual bool system_is_converged() const;
-  virtual void post_external_data_transfer_work(){};
+  virtual void post_external_data_transfer_work() {};
 
   virtual void register_wall_bc(
     stk::mesh::Part* /* part */,
@@ -226,6 +230,12 @@ public:
     stk::mesh::Part* /* part */,
     const std::map<std::string, std::string>& /* theNames */,
     const std::map<std::string, std::vector<double>>& /* theParams */)
+  {
+  }
+
+  virtual void register_initial_condition_string_function(
+    stk::mesh::Part* /*part*/,
+    const std::map<std::string, std::string>& /*func*/)
   {
   }
 
@@ -395,18 +405,18 @@ EquationSystem::ngp_create_peclet_function(const std::string& dofName)
     const T hybridFactor = realm_.get_hybrid_factor(dofName);
     const T A = 5.0;
     pecletFunction =
-      nalu_ngp::create<ClassicPecletFunction<T>>(A, hybridFactor);
+      kynema_ugf_ngp::create<ClassicPecletFunction<T>>(A, hybridFactor);
   } else {
     const T c1 = realm_.get_tanh_trans(dofName);
     const T c2 = realm_.get_tanh_width(dofName);
-    pecletFunction = nalu_ngp::create<TanhFunction<T>>(c1, c2);
+    pecletFunction = kynema_ugf_ngp::create<TanhFunction<T>>(c1, c2);
   }
 
   ngpPecletFunctions_.push_back(pecletFunction);
   return pecletFunction;
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

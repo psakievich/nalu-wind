@@ -17,7 +17,7 @@
 #include <stk_mesh/base/MetaData.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //==========================================================================
 // Class Definition
@@ -35,8 +35,8 @@ CoriolisSrc::CoriolisSrc(const SolutionOptions& solnOpts)
   earthAngularVelocity_ = solnOpts.earthAngularVelocity_;
   latitude_ = solnOpts.latitude_ * pi_ / 180.0;
 
-  ThrowRequire(solnOpts.eastVector_.size() == nDim_);
-  ThrowRequire(solnOpts.northVector_.size() == nDim_);
+  STK_ThrowRequire(solnOpts.eastVector_.size() == nDim_);
+  STK_ThrowRequire(solnOpts.northVector_.size() == nDim_);
 
   for (int i = 0; i < nDim_; ++i) {
     eastVector_[i] = solnOpts.eastVector_[i];
@@ -81,5 +81,5 @@ CoriolisSrc::CoriolisSrc(const SolutionOptions& solnOpts)
      (upVector_[1] * eastVector_[2] - eastVector_[1] * upVector_[2]) * cosphi_);
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

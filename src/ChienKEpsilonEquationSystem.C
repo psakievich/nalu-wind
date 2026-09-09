@@ -11,9 +11,9 @@
 #include <AlgorithmDriver.h>
 #include <FieldFunctions.h>
 #include <master_element/MasterElement.h>
-#include <master_element/MasterElementFactory.h>
-#include <NaluEnv.h>
-#include <NaluParsing.h>
+#include <master_element/MasterElementRepo.h>
+#include <KynemaUGFEnv.h>
+#include <KynemaUGFParsing.h>
 #include <TotalDissipationRateEquationSystem.h>
 #include <SolutionOptions.h>
 #include <TurbKineticEnergyEquationSystem.h>
@@ -50,7 +50,7 @@
 #include "ngp_utils/NgpFieldBLAS.h"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 //==========================================================================
 // Class Definition
@@ -112,27 +112,29 @@ ChienKEpsilonEquationSystem::initialize()
 //-------- register_nodal_fields -------------------------------------------
 //--------------------------------------------------------------------------
 void
-ChienKEpsilonEquationSystem::register_nodal_fields(stk::mesh::Part* part)
+ChienKEpsilonEquationSystem::register_nodal_fields(
+  const stk::mesh::PartVector& part_vec)
 {
 
   stk::mesh::MetaData& meta_data = realm_.meta_data();
   const int numStates = realm_.number_of_states();
+  stk::mesh::Selector selector = stk::mesh::selectUnion(part_vec);
 
   // re-register tke and tdr for convenience
-  tke_ = &(meta_data.declare_field<ScalarFieldType>(
+  tke_ = &(meta_data.declare_field<double>(
     stk::topology::NODE_RANK, "turbulent_ke", numStates));
-  stk::mesh::put_field_on_mesh(*tke_, *part, nullptr);
-  tdr_ = &(meta_data.declare_field<ScalarFieldType>(
+  stk::mesh::put_field_on_mesh(*tke_, selector, nullptr);
+  tdr_ = &(meta_data.declare_field<double>(
     stk::topology::NODE_RANK, "total_dissipation_rate", numStates));
-  stk::mesh::put_field_on_mesh(*tdr_, *part, nullptr);
+  stk::mesh::put_field_on_mesh(*tdr_, selector, nullptr);
 
   // SST parameters that everyone needs
-  minDistanceToWall_ = &(meta_data.declare_field<ScalarFieldType>(
+  minDistanceToWall_ = &(meta_data.declare_field<double>(
     stk::topology::NODE_RANK, "minimum_distance_to_wall"));
-  stk::mesh::put_field_on_mesh(*minDistanceToWall_, *part, nullptr);
-  dplus_ = &(meta_data.declare_field<ScalarFieldType>(
+  stk::mesh::put_field_on_mesh(*minDistanceToWall_, selector, nullptr);
+  dplus_ = &(meta_data.declare_field<double>(
     stk::topology::NODE_RANK, "dplus_wall_function"));
-  stk::mesh::put_field_on_mesh(*dplus_, *part, nullptr);
+  stk::mesh::put_field_on_mesh(*dplus_, selector, nullptr);
 
   // add to restart field
   realm_.augment_restart_variable_list("minimum_distance_to_wall");
@@ -165,15 +167,15 @@ ChienKEpsilonEquationSystem::register_wall_bc(
   wallBcPart_.push_back(part);
 
   auto& meta = realm_.meta_data();
-  auto& assembledWallArea = meta.declare_field<ScalarFieldType>(
+  auto& assembledWallArea = meta.declare_field<double>(
     stk::topology::NODE_RANK, "assembled_wall_area_wf");
   stk::mesh::put_field_on_mesh(assembledWallArea, *part, nullptr);
-  auto& assembledWallNormDist = meta.declare_field<ScalarFieldType>(
+  auto& assembledWallNormDist = meta.declare_field<double>(
     stk::topology::NODE_RANK, "assembled_wall_normal_distance");
   stk::mesh::put_field_on_mesh(assembledWallNormDist, *part, nullptr);
-  auto& wallNormDistBip = meta.declare_field<ScalarFieldType>(
-    meta.side_rank(), "wall_normal_distance_bip");
-  auto* meFC = MasterElementRepo::get_surface_master_element(partTopo);
+  auto& wallNormDistBip =
+    meta.declare_field<double>(meta.side_rank(), "wall_normal_distance_bip");
+  auto* meFC = MasterElementRepo::get_surface_master_element_on_host(partTopo);
   const int numScsBip = meFC->num_integration_points();
   stk::mesh::put_field_on_mesh(wallNormDistBip, *part, numScsBip, nullptr);
 }
@@ -207,7 +209,7 @@ ChienKEpsilonEquationSystem::solve_and_update()
   // start the iteration loop
   for (int k = 0; k < maxIterations_; ++k) {
 
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << " " << k + 1 << "/" << maxIterations_ << std::setw(20) << std::right
       << name_ << std::endl;
 
@@ -263,12 +265,10 @@ ChienKEpsilonEquationSystem::post_external_data_transfer_work()
   auto interior_sel = owned_and_shared & stk::mesh::selectField(*tdr_);
   clip_ke(ngpMesh, interior_sel, tkeNp1, tdrNp1);
 
-  auto tdrBCField =
-    meta.get_field<ScalarFieldType>(stk::topology::NODE_RANK, "tdr_bc");
-  auto tkeBCField =
-    meta.get_field<ScalarFieldType>(stk::topology::NODE_RANK, "tke_bc");
+  auto tdrBCField = meta.get_field<double>(stk::topology::NODE_RANK, "tdr_bc");
+  auto tkeBCField = meta.get_field<double>(stk::topology::NODE_RANK, "tke_bc");
   if (tdrBCField != nullptr) {
-    ThrowRequire(tkeBCField);
+    STK_ThrowRequire(tkeBCField);
     auto bc_sel = owned_and_shared & stk::mesh::selectField(*tdrBCField);
     auto ngpTkeBC =
       fieldMgr.get_field<double>(tkeBCField->mesh_meta_data_ordinal());
@@ -283,7 +283,7 @@ ChienKEpsilonEquationSystem::post_external_data_transfer_work()
 void
 ChienKEpsilonEquationSystem::update_and_clip()
 {
-  using MeshIndex = nalu_ngp::NGPMeshTraits<>::MeshIndex;
+  using MeshIndex = kynema_ugf_ngp::NGPMeshTraits<>::MeshIndex;
 
   const auto& meshInfo = realm_.mesh_info();
   const auto& meta = meshInfo.meta();
@@ -297,8 +297,8 @@ ChienKEpsilonEquationSystem::update_and_clip()
   const auto& eTmp =
     fieldMgr.get_field<double>(tdrEqSys_->eTmp_->mesh_meta_data_ordinal());
 
-  auto* turbViscosity = meta.get_field<ScalarFieldType>(
-    stk::topology::NODE_RANK, "turbulent_viscosity");
+  auto* turbViscosity =
+    meta.get_field<double>(stk::topology::NODE_RANK, "turbulent_viscosity");
 
   const stk::mesh::Selector sel =
     (meta.locally_owned_part() | meta.globally_shared_part()) &
@@ -311,7 +311,7 @@ ChienKEpsilonEquationSystem::update_and_clip()
   tkeNp1.sync_to_device();
   tdrNp1.sync_to_device();
 
-  nalu_ngp::run_entity_algorithm(
+  kynema_ugf_ngp::run_entity_algorithm(
     "KE::update_and_clip", ngpMesh, stk::topology::NODE_RANK, sel,
     KOKKOS_LAMBDA(const MeshIndex& mi) {
       const double tkeNew = tkeNp1.get(mi, 0) + kTmp.get(mi, 0);
@@ -339,9 +339,9 @@ ChienKEpsilonEquationSystem::clip_ke(
   const double tkeMinVal = tkeMinValue_;
   const double tdrMinVal = tdrMinValue_;
 
-  nalu_ngp::run_entity_algorithm(
+  kynema_ugf_ngp::run_entity_algorithm(
     "KE::clip", ngpMesh, stk::topology::NODE_RANK, sel,
-    KOKKOS_LAMBDA(const nalu_ngp::NGPMeshTraits<>::MeshIndex& mi) {
+    KOKKOS_LAMBDA(const kynema_ugf_ngp::NGPMeshTraits<>::MeshIndex& mi) {
       const double tkeNew = tke.get(mi, 0);
       const double tdrNew = tdr.get(mi, 0);
 
@@ -358,7 +358,7 @@ ChienKEpsilonEquationSystem::clip_ke(
 void
 ChienKEpsilonEquationSystem::clip_min_distance_to_wall()
 {
-  using MeshIndex = nalu_ngp::NGPMeshTraits<>::MeshIndex;
+  using MeshIndex = kynema_ugf_ngp::NGPMeshTraits<>::MeshIndex;
   const auto& meshInfo = realm_.mesh_info();
   const auto& ngpMesh = meshInfo.ngp_mesh();
   const auto& meta = meshInfo.meta();
@@ -367,7 +367,7 @@ ChienKEpsilonEquationSystem::clip_min_distance_to_wall()
   auto& ndtw =
     fieldMgr.get_field<double>(minDistanceToWall_->mesh_meta_data_ordinal());
   const auto& wallNormDist =
-    nalu_ngp::get_ngp_field(meshInfo, "assembled_wall_normal_distance");
+    kynema_ugf_ngp::get_ngp_field(meshInfo, "assembled_wall_normal_distance");
 
   const stk::mesh::Selector sel =
     (meta.locally_owned_part() | meta.globally_shared_part()) &
@@ -375,7 +375,7 @@ ChienKEpsilonEquationSystem::clip_min_distance_to_wall()
 
   ndtw.sync_to_device();
 
-  nalu_ngp::run_entity_algorithm(
+  kynema_ugf_ngp::run_entity_algorithm(
     "SST::clip_ndtw", ngpMesh, stk::topology::NODE_RANK, sel,
     KOKKOS_LAMBDA(const MeshIndex& mi) {
       const double minD = ndtw.get(mi, 0);
@@ -395,7 +395,7 @@ ChienKEpsilonEquationSystem::clip_min_distance_to_wall()
 void
 ChienKEpsilonEquationSystem::compute_dplus_function()
 {
-  using MeshIndex = nalu_ngp::NGPMeshTraits<>::MeshIndex;
+  using MeshIndex = kynema_ugf_ngp::NGPMeshTraits<>::MeshIndex;
 
   const auto& meshInfo = realm_.mesh_info();
   const auto& meta = meshInfo.meta();
@@ -404,8 +404,8 @@ ChienKEpsilonEquationSystem::compute_dplus_function()
 
   const double utau = realm_.get_turb_model_constant(TM_utau);
 
-  const auto& density = nalu_ngp::get_ngp_field(meshInfo, "density");
-  const auto& viscosity = nalu_ngp::get_ngp_field(meshInfo, "viscosity");
+  const auto& density = kynema_ugf_ngp::get_ngp_field(meshInfo, "density");
+  const auto& viscosity = kynema_ugf_ngp::get_ngp_field(meshInfo, "viscosity");
   const auto& ndtw =
     fieldMgr.get_field<double>(minDistanceToWall_->mesh_meta_data_ordinal());
   auto& dplus = fieldMgr.get_field<double>(dplus_->mesh_meta_data_ordinal());
@@ -416,7 +416,7 @@ ChienKEpsilonEquationSystem::compute_dplus_function()
 
   dplus.sync_to_device();
 
-  nalu_ngp::run_entity_algorithm(
+  kynema_ugf_ngp::run_entity_algorithm(
     "KE::compute_dplus_function", ngpMesh, stk::topology::NODE_RANK, sel,
     KOKKOS_LAMBDA(const MeshIndex& mi) {
       const double rho = density.get(mi, 0);
@@ -435,5 +435,5 @@ ChienKEpsilonEquationSystem::post_iter_work()
   // nothing to do here ...
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

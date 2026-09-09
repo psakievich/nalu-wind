@@ -13,10 +13,10 @@
 #include <Tpetra_MultiVector.hpp>
 
 #include "matrix_free/KokkosViewTypes.h"
-#include "matrix_free/LocalArray.h"
+#include "ArrayND.h"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 
 using tpetra_view_type = typename Tpetra::MultiVector<>::dual_view_type::t_dev;
@@ -47,7 +47,7 @@ void dirichlet_diagonal(
   const_node_offset_view offsets, int max_owned_lid, tpetra_view_type yout);
 
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

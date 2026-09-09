@@ -9,7 +9,7 @@
 
 #include "edge_kernels/MomentumABLWallFuncEdgeKernel.h"
 #include "master_element/MasterElement.h"
-#include "master_element/MasterElementFactory.h"
+#include "master_element/MasterElementRepo.h"
 #include "SolutionOptions.h"
 
 #include "BuildTemplates.h"
@@ -20,7 +20,7 @@
 #include "stk_mesh/base/Field.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 template <typename BcAlgTraits>
 MomentumABLWallFuncEdgeKernel<BcAlgTraits>::MomentumABLWallFuncEdgeKernel(
@@ -46,8 +46,9 @@ MomentumABLWallFuncEdgeKernel<BcAlgTraits>::MomentumABLWallFuncEdgeKernel(
     z0_(z0),
     Tref_(Tref),
     kappa_(kappa),
-    meFC_(sierra::nalu::MasterElementRepo::get_surface_master_element<
-          BcAlgTraits>())
+    meFC_(
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_dev(
+        BcAlgTraits::topo_))
 {
   faceDataPreReqs.add_cvfem_face_me(meFC_);
 
@@ -75,7 +76,7 @@ MomentumABLWallFuncEdgeKernel<BcAlgTraits>::execute(
   const DoubleType Lmax = 1.0e8;
 
   // Unit normal vector
-  NALU_ALIGNED DoubleType nx[BcAlgTraits::nDim_];
+  DoubleType nx[BcAlgTraits::nDim_];
 
   const auto& v_vel = scratchViews.get_scratch_view_2D(velocityNp1_);
   const auto& v_bcvel = scratchViews.get_scratch_view_2D(bcVelocity_);
@@ -155,5 +156,5 @@ MomentumABLWallFuncEdgeKernel<BcAlgTraits>::execute(
 
 INSTANTIATE_KERNEL_FACE(MomentumABLWallFuncEdgeKernel)
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

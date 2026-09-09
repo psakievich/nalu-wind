@@ -12,13 +12,13 @@
 
 #include "matrix_free/PolynomialOrders.h"
 #include "matrix_free/KokkosViewTypes.h"
-#include "matrix_free/LocalArray.h"
+#include "ArrayND.h"
 
 #include "Kokkos_Array.hpp"
 #include "Tpetra_MultiVector.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 
 using tpetra_view_type = typename Tpetra::MultiVector<>::dual_view_type::t_dev;
@@ -29,7 +29,7 @@ namespace impl {
 template <int p>
 struct conduction_residual_t
 {
-  using narray = LocalArray<ftype[p + 1][p + 1][p + 1]>;
+  using narray = ArrayND<ftype[p + 1][p + 1][p + 1]>;
 
   static void invoke(
     Kokkos::Array<double, 3> gammas,
@@ -47,7 +47,7 @@ namespace impl {
 template <int p>
 struct conduction_linearized_residual_t
 {
-  using narray = LocalArray<ftype[p + 1][p + 1][p + 1]>;
+  using narray = ArrayND<ftype[p + 1][p + 1][p + 1]>;
 
   static void invoke(
     double gamma,
@@ -60,7 +60,7 @@ struct conduction_linearized_residual_t
 } // namespace impl
 P_INVOKEABLE(conduction_linearized_residual)
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

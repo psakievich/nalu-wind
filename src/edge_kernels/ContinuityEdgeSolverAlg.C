@@ -11,9 +11,10 @@
 #include "utils/StkHelpers.h"
 #include "stk_mesh/base/NgpField.hpp"
 #include "stk_mesh/base/Types.hpp"
+#include "SolutionOptions.h"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 ContinuityEdgeSolverAlg::ContinuityEdgeSolverAlg(
   Realm& realm, stk::mesh::Part* part, EquationSystem* eqSystem)
@@ -22,7 +23,7 @@ ContinuityEdgeSolverAlg::ContinuityEdgeSolverAlg(
   const auto& meta = realm.meta_data();
 
   coordinates_ = get_field_ordinal(meta, realm.get_coordinates_name());
-  velocity_ = realm.has_mesh_motion() && !realm.has_mesh_deformation()
+  velocity_ = realm.does_mesh_move() && !realm.has_mesh_deformation()
                 ? get_field_ordinal(meta, "velocity_rtm")
                 : get_field_ordinal(meta, "velocity");
   densityNp1_ = get_field_ordinal(meta, "density", stk::mesh::StateNP1);
@@ -42,7 +43,7 @@ ContinuityEdgeSolverAlg::execute()
   const std::string dofName = "pressure";
   const DblType nocFac = (realm_.get_noc_usage(dofName) == true) ? 1.0 : 0.0;
 
-  // Classic Nalu projection timescale
+  // Classic KynemaUGF projection timescale
   const DblType dt = realm_.get_time_step();
   const DblType gamma1 = realm_.get_gamma1();
   const DblType tauScale = dt / gamma1;
@@ -51,15 +52,40 @@ ContinuityEdgeSolverAlg::execute()
   const DblType interpTogether = realm_.get_mdot_interp();
   const DblType om_interpTogether = (1.0 - interpTogether);
 
+  const DblType solveIncompressibleEqn = realm_.get_incompressible_solve();
+  const DblType om_solveIncompressibleEqn = 1.0 - solveIncompressibleEqn;
+
+  const bool add_balanced_forcing =
+    realm_.solutionOptions_->use_balanced_buoyancy_force_;
+
+  DblType gravity[3] = {};
+  if (add_balanced_forcing) {
+    const auto& solnOptsGravity =
+      realm_.solutionOptions_->get_gravity_vector(ndim);
+    for (int idim = 0; idim < ndim; ++idim) {
+      gravity[idim] = solnOptsGravity[idim];
+    }
+  }
+
   // STK stk::mesh::NgpField instances for capture by lambda
   const auto& fieldMgr = realm_.ngp_field_manager();
-  const auto coordinates = fieldMgr.get_field<double>(coordinates_);
-  const auto velocity = fieldMgr.get_field<double>(velocity_);
-  const auto Gpdx = fieldMgr.get_field<double>(Gpdx_);
-  const auto density = fieldMgr.get_field<double>(densityNp1_);
-  const auto pressure = fieldMgr.get_field<double>(pressure_);
-  const auto udiag = fieldMgr.get_field<double>(Udiag_);
-  const auto edgeAreaVec = fieldMgr.get_field<double>(edgeAreaVec_);
+  auto coordinates = fieldMgr.get_field<double>(coordinates_);
+  auto velocity = fieldMgr.get_field<double>(velocity_);
+  auto Gpdx = fieldMgr.get_field<double>(Gpdx_);
+  auto density = fieldMgr.get_field<double>(densityNp1_);
+  auto pressure = fieldMgr.get_field<double>(pressure_);
+  auto udiag = fieldMgr.get_field<double>(Udiag_);
+  auto edgeAreaVec = fieldMgr.get_field<double>(edgeAreaVec_);
+
+  auto source = !add_balanced_forcing
+                  ? fieldMgr.get_field<double>(Gpdx_)
+                  : fieldMgr.get_field<double>(
+                      get_field_ordinal(realm_.meta_data(), "buoyancy_source"));
+
+  auto source_mask = !add_balanced_forcing
+                       ? fieldMgr.get_field<double>(densityNp1_)
+                       : fieldMgr.get_field<double>(get_field_ordinal(
+                           realm_.meta_data(), "buoyancy_source_mask"));
 
   stk::mesh::NgpField<double> edgeFaceVelMag;
   bool needs_gcl = false;
@@ -68,7 +94,17 @@ ContinuityEdgeSolverAlg::execute()
     edgeFaceVelMag_ = get_field_ordinal(
       realm_.meta_data(), "edge_face_velocity_mag", stk::topology::EDGE_RANK);
     edgeFaceVelMag = fieldMgr.get_field<double>(edgeFaceVelMag_);
+    edgeFaceVelMag.sync_to_device();
   }
+  coordinates.sync_to_device();
+  velocity.sync_to_device();
+  Gpdx.sync_to_device();
+  density.sync_to_device();
+  pressure.sync_to_device();
+  udiag.sync_to_device();
+  edgeAreaVec.sync_to_device();
+  source.sync_to_device();
+  source_mask.sync_to_device();
 
   run_algorithm(
     realm_.bulk_data(),
@@ -77,7 +113,8 @@ ContinuityEdgeSolverAlg::execute()
       const stk::mesh::FastMeshIndex& nodeL,
       const stk::mesh::FastMeshIndex& nodeR) {
       // Scratch work array for edgeAreaVector
-      NALU_ALIGNED DblType av[NDimMax_];
+      DblType av[NDimMax_];
+
       // Populate area vector work array
       for (int d = 0; d < ndim; ++d)
         av[d] = edgeAreaVec.get(edge, d);
@@ -90,9 +127,10 @@ ContinuityEdgeSolverAlg::execute()
 
       const DblType udiagL = udiag.get(nodeL, 0);
       const DblType udiagR = udiag.get(nodeR, 0);
-
       const DblType projTimeScale = 0.5 * (1.0 / udiagL + 1.0 / udiagR);
       const DblType rhoIp = 0.5 * (densityL + densityR);
+      const DblType denScale =
+        (1.0 / rhoIp) * solveIncompressibleEqn + om_solveIncompressibleEqn;
 
       DblType axdx = 0.0;
       DblType asq = 0.0;
@@ -105,6 +143,14 @@ ContinuityEdgeSolverAlg::execute()
       const DblType inv_axdx = 1.0 / axdx;
 
       DblType tmdot = -projTimeScale * (pressureR - pressureL) * asq * inv_axdx;
+
+      if (add_balanced_forcing) {
+        const DblType masked_weights =
+          0.5 * (source_mask.get(nodeL, 0) + source_mask.get(nodeR, 0));
+        for (int d = 0; d < ndim; ++d) {
+          tmdot += projTimeScale * av[d] * gravity[d] * rhoIp * masked_weights;
+        }
+      }
       if (needs_gcl) {
         tmdot -= rhoIp * edgeFaceVelMag.get(edge, 0);
       }
@@ -118,15 +164,23 @@ ContinuityEdgeSolverAlg::execute()
                                        densityL * velocity.get(nodeL, d));
         const DblType ujIp =
           0.5 * (velocity.get(nodeR, d) + velocity.get(nodeL, d));
-        const DblType GjIp =
-          0.5 * (Gpdx.get(nodeR, d) / udiagR + Gpdx.get(nodeL, d) / udiagL);
+        DblType GjIp =
+          0.5 * (Gpdx.get(nodeR, d) / (udiagR) + Gpdx.get(nodeL, d) / (udiagL));
+        if (add_balanced_forcing) {
+          GjIp -=
+            0.5 *
+            ((source_mask.get(nodeR, 0) * source.get(nodeR, d)) / (udiagR) +
+             (source_mask.get(nodeL, 0) * source.get(nodeL, d)) / (udiagL));
+        }
         tmdot +=
           (interpTogether * rhoUjIp + om_interpTogether * rhoIp * ujIp + GjIp) *
             av[d] -
           kxj * GjIp * nocFac;
       }
       tmdot /= tauScale;
-      const DblType lhsfac = -asq * inv_axdx * projTimeScale / tauScale;
+      tmdot *= denScale;
+      const DblType lhsfac =
+        -asq * inv_axdx * projTimeScale * denScale / tauScale;
 
       // Left node entries
       smdata.lhs(0, 0) = -lhsfac;
@@ -140,5 +194,5 @@ ContinuityEdgeSolverAlg::execute()
     });
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

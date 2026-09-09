@@ -16,7 +16,7 @@
 #include "utils/StkHelpers.h"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 MomentumMassBDFNodeKernel::MomentumMassBDFNodeKernel(
   const stk::mesh::BulkData& bulk)
@@ -26,7 +26,7 @@ MomentumMassBDFNodeKernel::MomentumMassBDFNodeKernel(
   const auto& meta = bulk.mesh_meta_data();
 
   const auto* velocity =
-    meta.get_field<VectorFieldType>(stk::topology::NODE_RANK, "velocity");
+    meta.get_field<double>(stk::topology::NODE_RANK, "velocity");
 
   velocityNID_ =
     velocity->field_of_state(stk::mesh::StateN).mesh_meta_data_ordinal();
@@ -106,5 +106,5 @@ MomentumMassBDFNodeKernel::execute(
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

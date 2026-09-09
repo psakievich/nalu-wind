@@ -38,7 +38,7 @@
 #include <stk_util/util/ReportHandler.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 
 template <typename T = double>
@@ -48,8 +48,8 @@ get_synced_ngp_field(
   std::string name,
   stk::mesh::FieldState state = stk::mesh::StateNP1)
 {
-  ThrowAssert(meta.get_field(stk::topology::NODE_RANK, name));
-  ThrowAssert(
+  STK_ThrowAssert(meta.get_field(stk::topology::NODE_RANK, name));
+  STK_ThrowAssert(
     meta.get_field(stk::topology::NODE_RANK, name)->field_state(state));
 
   auto field = stk::mesh::get_updated_ngp_field<T>(
@@ -209,5 +209,5 @@ LowMachGatheredFieldManager<p>::swap_states()
 INSTANTIATE_POLYCLASS(LowMachGatheredFieldManager);
 
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

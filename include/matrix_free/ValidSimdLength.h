@@ -17,10 +17,10 @@
 #include "stk_mesh/base/Types.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 
-static constexpr int invalid_offset = -1;
+inline constexpr int invalid_offset = -1;
 
 constexpr stk::mesh::FastMeshIndex invalid_mesh_index =
   stk::mesh::FastMeshIndex{
@@ -116,6 +116,6 @@ valid_offset(int index, const const_elem_mesh_index_view<p>& offsets)
 }
 
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 #endif

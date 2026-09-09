@@ -18,7 +18,7 @@
 #include "stk_mesh/base/Types.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class MomentumBodyForceNodeKernel
   : public NGPNodeKernel<MomentumBodyForceNodeKernel>
@@ -43,15 +43,14 @@ public:
 private:
   stk::mesh::NgpField<double> dualNodalVolume_;
 
-  NALU_ALIGNED NodeKernelTraits::DblType
-    forceVector_[NodeKernelTraits::NDimMax];
+  NodeKernelTraits::DblType forceVector_[NodeKernelTraits::NDimMax];
 
   unsigned dualNodalVolumeID_{stk::mesh::InvalidOrdinal};
 
   const int nDim_;
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif /* MOMENTUMBODYFORCENODEKERNEL_H */

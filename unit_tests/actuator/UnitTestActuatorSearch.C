@@ -10,11 +10,11 @@
 #include <UnitTestUtils.h>
 #include <aero/actuator/ActuatorSearch.h>
 #include <stk_io/StkMeshIoBroker.hpp>
-#include <NaluEnv.h>
+#include <KynemaUGFEnv.h>
 #include <UnitTestUtils.h>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 // These functions are only designed to run on host
 
@@ -24,8 +24,8 @@ class ActuatorSearchTest : public ::testing::Test
 {
 public:
   ActuatorSearchTest()
-    : nProcs(NaluEnv::self().parallel_size()),
-      myRank(NaluEnv::self().parallel_rank()),
+    : nProcs(KynemaUGFEnv::self().parallel_size()),
+      myRank(KynemaUGFEnv::self().parallel_rank()),
       nPoints(nProcs * 4),
       partNames({"block_1"}),
       ioBroker(MPI_COMM_WORLD),
@@ -38,6 +38,7 @@ public:
       nx("nx"),
       slabSize(4)
   {
+    ioBroker.use_simple_fields();
   }
 
   void SetUp()
@@ -48,7 +49,7 @@ public:
     ASSERT_EQ(slabSize, (unsigned)nx(0) * nx(1));
     ASSERT_EQ(static_cast<unsigned>(nPoints), (int)slabSize * nProcs);
     Kokkos::parallel_for(
-      "populateValues", ActFixRangePolicy(0, nPoints), ACTUATOR_LAMBDA(int i) {
+      "populateValues", ActFixRangePolicy(0, nPoints), [=, this](int i) {
         // place point in center of elements for easy parallel mapping
         points(i, 0) = i % nx(0) + 0.5;
         points(i, 1) = (i / nx(0)) % nx(1) + 0.5;
@@ -99,10 +100,9 @@ TEST_F(ActuatorSearchTest, NGP_createBoundingSpheres)
 TEST_F(ActuatorSearchTest, NGP_createElementBoxes)
 {
   stk::mesh::BulkData& stkBulk = ioBroker.bulk_data();
-  typedef stk::mesh::Field<double, stk::mesh::Cartesian> CoordFieldType;
-  CoordFieldType* coordField =
-    stkBulk.mesh_meta_data().get_field<CoordFieldType>(
-      stk::topology::NODE_RANK, "coordinates");
+  typedef stk::mesh::Field<double> CoordFieldType;
+  CoordFieldType* coordField = stkBulk.mesh_meta_data().get_field<double>(
+    stk::topology::NODE_RANK, "coordinates");
   EXPECT_TRUE(coordField != nullptr);
   try {
     auto elemVec = CreateElementBoxes(stkBulk, partNames);
@@ -140,8 +140,8 @@ TEST_F(ActuatorSearchTest, NGP_executeCoarseSearch)
       << "Coarse Search result size: "
       << coarsePointIds.view_host().extent_int(0) << " on rank: " << myRank;
     for (unsigned i = 0; i < coarsePointIds.extent(0); i++) {
-      const uint64_t thePt = coarsePointIds.h_view(i);
-      const uint64_t theElem = coarseElemIds.h_view(i);
+      const uint64_t thePt = coarsePointIds.view_host()(i);
+      const uint64_t theElem = coarseElemIds.view_host()(i);
       EXPECT_EQ(thePt + 1, theElem)
         << "rank: " << myRank << " point: " << thePt << " elem: " << theElem;
     }
@@ -186,5 +186,5 @@ TEST_F(ActuatorSearchTest, NGP_executeFineSearch)
 
 } // namespace
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

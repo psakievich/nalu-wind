@@ -18,7 +18,7 @@
 #include "stk_util/util/ReportHandler.hpp"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 
 template <int p>
@@ -90,7 +90,7 @@ GradientLinearizedResidualOperator<p>::apply(
 {
   stk::mesh::ProfilingBlock pf("GradientLinearizedResidualOperator<p>::apply");
 
-  ThrowRequire(owned_sln.getNumVectors() == 3);
+  STK_ThrowRequire(owned_sln.getNumVectors() == 3);
 
   if (exporter_.getTargetMap()->isDistributed()) {
     {
@@ -119,5 +119,5 @@ GradientLinearizedResidualOperator<p>::apply(
 }
 INSTANTIATE_POLYCLASS(GradientLinearizedResidualOperator);
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

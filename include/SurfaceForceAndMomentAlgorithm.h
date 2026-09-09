@@ -17,7 +17,7 @@
 #include <stk_mesh/base/Part.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class Realm;
 
@@ -54,14 +54,14 @@ public:
   ScalarFieldType* yplus_;
   ScalarFieldType* density_;
   ScalarFieldType* viscosity_;
-  GenericFieldType* dudx_;
+  TensorFieldType* dudx_;
   GenericFieldType* exposedAreaVec_;
   ScalarFieldType* assembledArea_;
 
   const int w_;
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

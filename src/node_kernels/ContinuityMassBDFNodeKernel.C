@@ -16,7 +16,7 @@
 #include "utils/FieldHelpers.h"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 ContinuityMassBDFNodeKernel::ContinuityMassBDFNodeKernel(
   const stk::mesh::BulkData& bulk)
@@ -25,7 +25,7 @@ ContinuityMassBDFNodeKernel::ContinuityMassBDFNodeKernel(
   const auto& meta = bulk.mesh_meta_data();
 
   const ScalarFieldType* density =
-    meta.get_field<ScalarFieldType>(stk::topology::NODE_RANK, "density");
+    meta.get_field<double>(stk::topology::NODE_RANK, "density");
 
   densityNID_ = get_field_ordinal(meta, "density", stk::mesh::StateN);
 
@@ -83,5 +83,5 @@ ContinuityMassBDFNodeKernel::execute(
             dt_ * (gamma1_ / dt_);
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

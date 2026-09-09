@@ -11,10 +11,10 @@
 #include <aero/actuator/ActuatorBulk.h>
 #include <aero/actuator/ActuatorInfo.h>
 #include <stdexcept>
-#include <NaluParsing.h>
+#include <KynemaUGFParsing.h>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 /**
  * @brief General options for each actuator instance
@@ -53,12 +53,12 @@ actuator_instance_parse(ActuatorMeta& actMeta, const YAML::Node& y_actuator)
 
     get_required(
       y_instance, "num_force_pts_blade",
-      actMeta.numNearestPointsFllcInt_.h_view(i));
+      actMeta.numNearestPointsFllcInt_.view_host()(i));
     get_if_present_no_default(
       y_instance, "fllt_num_nearest_point",
-      actMeta.numNearestPointsFllcInt_.h_view(i));
+      actMeta.numNearestPointsFllcInt_.view_host()(i));
   }
-} // namespace nalu
+} // namespace kynema_ugf
 
 ActuatorType
 get_backward_compatible_type(const std::string typeName)
@@ -98,7 +98,7 @@ ActuatorMeta
 actuator_parse(const YAML::Node& y_node)
 {
   const YAML::Node y_actuator = y_node["actuator"];
-  ThrowErrorMsgIf(
+  STK_ThrowErrorMsgIf(
     !y_actuator, "actuator argument is "
                  "missing from yaml node passed to actuator_parse");
   int nTurbines = 0;
@@ -123,13 +123,13 @@ actuator_parse(const YAML::Node& y_node)
   // determine search method for this pair
   if (searchMethodName == "boost_rtree") {
     actMeta.searchMethod_ = stk::search::KDTREE;
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << "Warning: search method 'boost_rtree'"
       << " is being deprecated, switching to 'stk_kdtree'" << std::endl;
   } else if (searchMethodName == "stk_kdtree")
     actMeta.searchMethod_ = stk::search::KDTREE;
   else
-    NaluEnv::self().naluOutputP0()
+    KynemaUGFEnv::self().kynema_ugfOutputP0()
       << "Actuator::search method not declared; will use stk_kdtree"
       << std::endl;
   // extract the set of from target names; each spec is homogeneous in this
@@ -194,12 +194,12 @@ epsilon_parsing(int iTurb, const YAML::Node& turbNode, ActuatorMeta& actMeta)
       get_required(turbNode, "epsilon", isotropicEpsilon);
       actMeta.isotropicGaussian_ = true;
       for (int j = 0; j < 3; j++) {
-        actMeta.epsilon_.h_view(iTurb, j) = isotropicEpsilon;
+        actMeta.epsilon_.view_host()(iTurb, j) = isotropicEpsilon;
       }
     } else {
       get_required(turbNode, "epsilon", epsilonTemp);
       for (int j = 0; j < 3; j++) {
-        actMeta.epsilon_.h_view(iTurb, j) = epsilonTemp[j];
+        actMeta.epsilon_.view_host()(iTurb, j) = epsilonTemp[j];
       }
       if (
         epsilonTemp[0] == epsilonTemp[1] && epsilonTemp[1] == epsilonTemp[2]) {
@@ -218,7 +218,7 @@ epsilon_parsing(int iTurb, const YAML::Node& turbNode, ActuatorMeta& actMeta)
           "ERROR:: zero value for epsilon_chord detected. "
           "All epsilon components must be greater than zero");
       }
-      actMeta.epsilonChord_.h_view(iTurb, j) = epsilonTemp[j];
+      actMeta.epsilonChord_.view_host()(iTurb, j) = epsilonTemp[j];
     }
 
     // Minimum epsilon allowed in simulation. This is required when
@@ -229,7 +229,7 @@ epsilon_parsing(int iTurb, const YAML::Node& turbNode, ActuatorMeta& actMeta)
       actMeta.isotropicGaussian_ = false;
     }
     for (int j = 0; j < 3; j++) {
-      actMeta.epsilon_.h_view(iTurb, j) = epsilonTemp[j];
+      actMeta.epsilon_.view_host()(iTurb, j) = epsilonTemp[j];
     }
   } else {
     throw std::runtime_error(
@@ -239,12 +239,12 @@ epsilon_parsing(int iTurb, const YAML::Node& turbNode, ActuatorMeta& actMeta)
   }
   // check epsilon values
   for (int j = 0; j < 3; j++) {
-    if (actMeta.epsilon_.h_view(iTurb, j) <= 0.0) {
+    if (actMeta.epsilon_.view_host()(iTurb, j) <= 0.0) {
       throw std::runtime_error(
         "ERROR:: zero value for epsilon detected. "
         "All epsilon components must be greater than zero");
     }
   }
 }
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

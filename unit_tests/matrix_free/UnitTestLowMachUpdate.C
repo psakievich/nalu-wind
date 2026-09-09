@@ -30,7 +30,7 @@
 #include <stk_mesh/base/GetNgpField.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace matrix_free {
 
 constexpr int nx = 16;
@@ -42,17 +42,18 @@ protected:
   LowMachSimulationFixture()
     : LowMachFixture(nx, scale),
       linsys(mesh(), active(), gid_field_ngp),
-      update(make_updater<LowMachUpdate>(
-        order,
-        bulk,
-        Teuchos::ParameterList{},
-        Teuchos::ParameterList{},
-        Teuchos::ParameterList{},
-        active(),
-        stk::mesh::Selector{},
-        linsys.owned,
-        linsys.owned_and_shared,
-        linsys.stk_lid_to_tpetra_lid))
+      update(
+        make_updater<LowMachUpdate>(
+          order,
+          bulk,
+          Teuchos::ParameterList{},
+          Teuchos::ParameterList{},
+          Teuchos::ParameterList{},
+          active(),
+          stk::mesh::Selector{},
+          linsys.owned,
+          linsys.owned_and_shared,
+          linsys.stk_lid_to_tpetra_lid))
   {
   }
 
@@ -136,5 +137,5 @@ TEST_F(LowMachSimulationFixture, reduce_peak_velocity)
 }
 
 } // namespace matrix_free
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

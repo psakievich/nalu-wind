@@ -223,7 +223,7 @@ realms:
 
         - turbulence_model_constants:
             kappa: 0.40
-            tkeProdLimitRatio: 10.0 # 2015 Masson paper's c1 (I think based on comparing Nalu-Wind implementation eqns. and 2011 thesis)
+            tkeProdLimitRatio: 10.0 # 2015 Masson paper's c1 (I think based on comparing Kynema-UGF implementation eqns. and 2011 thesis)
             betaStar: 0.03
             cMu: 0.03
             aOne: 0.31
@@ -320,7 +320,7 @@ Time_Integrators:
   - StandardTimeIntegrator:
       name: ti_1
       start_time: 0.0
-      termination_step_count: 10
+      termination_step_count: 3
       time_stepping_type: fixed
       time_step: .7
       time_step_count: 0

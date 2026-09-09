@@ -25,7 +25,7 @@ struct topology;
 }
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 namespace MEconstants {
 static const double realmin = std::numeric_limits<double>::min();
@@ -46,17 +46,19 @@ public:
   KOKKOS_FUNCTION virtual ~MasterElement() {}
 
   template <typename SCALAR, typename SHMEM>
-  inline void shape_fcn(SharedMemView<SCALAR**, SHMEM>& /* shpfc */);
+  KOKKOS_INLINE_FUNCTION void
+  shape_fcn(SharedMemView<SCALAR**, SHMEM>& /* shpfc */);
 
   template <typename SCALAR, typename SHMEM>
-  inline void shifted_shape_fcn(SharedMemView<SCALAR**, SHMEM>& /* shpfc */);
+  KOKKOS_INLINE_FUNCTION void
+  shifted_shape_fcn(SharedMemView<SCALAR**, SHMEM>& /* shpfc */);
 
   KOKKOS_FUNCTION virtual void grad_op(
     const SharedMemView<DoubleType**, DeviceShmem>& /* coords */,
     SharedMemView<DoubleType***, DeviceShmem>& /* gradop */,
     SharedMemView<DoubleType***, DeviceShmem>& /* deriv */)
   {
-    NGP_ThrowErrorMsg("MasterElement::grad_op not implemented for element");
+    STK_NGP_ThrowErrorMsg("MasterElement::grad_op not implemented for element");
   }
 
   virtual void grad_op(
@@ -64,7 +66,7 @@ public:
     SharedMemView<double***>& /* gradop */,
     SharedMemView<double***>& /* deriv */)
   {
-    NGP_ThrowErrorMsg("MasterElement::grad_op not implemented for element");
+    STK_NGP_ThrowErrorMsg("MasterElement::grad_op not implemented for element");
   }
 
   KOKKOS_FUNCTION virtual void shifted_grad_op(
@@ -72,7 +74,7 @@ public:
     SharedMemView<DoubleType***, DeviceShmem>& /* gradop */,
     SharedMemView<DoubleType***, DeviceShmem>& /* deriv */)
   {
-    NGP_ThrowErrorMsg(
+    STK_NGP_ThrowErrorMsg(
       "MasterElement::shifted_grad_op not implemented for element");
   }
 
@@ -82,7 +84,7 @@ public:
     SharedMemView<DoubleType***, DeviceShmem>& /* gradop */,
     SharedMemView<DoubleType***, DeviceShmem>& /* deriv */)
   {
-    NGP_ThrowErrorMsg(
+    STK_NGP_ThrowErrorMsg(
       "MasterElement::face_grad_op not implemented for element");
   }
 
@@ -92,7 +94,7 @@ public:
     SharedMemView<DoubleType***, DeviceShmem>& /* gradop */,
     SharedMemView<DoubleType***, DeviceShmem>& /* deriv */)
   {
-    NGP_ThrowErrorMsg(
+    STK_NGP_ThrowErrorMsg(
       "MasterElement::shifted_face_grad_op not implemented for element");
   }
 
@@ -102,7 +104,8 @@ public:
     SharedMemView<DoubleType***, DeviceShmem>& /* deriv */,
     SharedMemView<DoubleType*, DeviceShmem>& /*det_j*/)
   {
-    NGP_ThrowErrorMsg("MasterElement::grad_op_fem not implemented for element");
+    STK_NGP_ThrowErrorMsg(
+      "MasterElement::grad_op_fem not implemented for element");
   }
 
   KOKKOS_FUNCTION virtual void shifted_grad_op_fem(
@@ -111,7 +114,7 @@ public:
     SharedMemView<DoubleType***, DeviceShmem>& /* deriv */,
     SharedMemView<DoubleType*, DeviceShmem>& /*det_j*/)
   {
-    NGP_ThrowErrorMsg(
+    STK_NGP_ThrowErrorMsg(
       "MasterElement::shifted_grad_op_fem not implemented for element");
   }
 
@@ -119,15 +122,16 @@ public:
     const SharedMemView<DoubleType**, DeviceShmem>& /* coords */,
     SharedMemView<DoubleType**, DeviceShmem>& /* areav */)
   {
-    NGP_ThrowErrorMsg("MasterElement::determinant not implemented for element: "
-                      "DoubleType area");
+    STK_NGP_ThrowErrorMsg(
+      "MasterElement::determinant not implemented for element: "
+      "DoubleType area");
   }
 
   virtual void determinant(
     const SharedMemView<double**>& /* coords */,
     SharedMemView<double**>& /* areav */)
   {
-    NGP_ThrowErrorMsg(
+    STK_NGP_ThrowErrorMsg(
       "MasterElement::determinant not implemented for element: double area");
   }
 
@@ -137,7 +141,7 @@ public:
     SharedMemView<DoubleType***, DeviceShmem>& /* glower */,
     SharedMemView<DoubleType***, DeviceShmem>& /* deriv */)
   {
-    NGP_ThrowErrorMsg("MasterElement::gij not implemented for element");
+    STK_NGP_ThrowErrorMsg("MasterElement::gij not implemented for element");
   }
 
   KOKKOS_FUNCTION virtual void Mij(
@@ -145,22 +149,23 @@ public:
     SharedMemView<DoubleType***, DeviceShmem>& /* metric */,
     SharedMemView<DoubleType***, DeviceShmem>& /* deriv */)
   {
-    NGP_ThrowErrorMsg("MasterElement::Mij not implemented for element");
+    STK_NGP_ThrowErrorMsg("MasterElement::Mij not implemented for element");
   }
 
   KOKKOS_FUNCTION virtual void determinant(
     const SharedMemView<DoubleType**, DeviceShmem>& /* coords */,
     SharedMemView<DoubleType*, DeviceShmem>& /* volume */)
   {
-    NGP_ThrowErrorMsg("MasterElement::determinant not implemented for element: "
-                      "DoubleType volume");
+    STK_NGP_ThrowErrorMsg(
+      "MasterElement::determinant not implemented for element: "
+      "DoubleType volume");
   }
 
   virtual void determinant(
     const SharedMemView<double**>& /* coords */,
     SharedMemView<double*>& /* volume */)
   {
-    NGP_ThrowErrorMsg(
+    STK_NGP_ThrowErrorMsg(
       "MasterElement::determinant not implemented for element: double volume");
   }
 
@@ -178,33 +183,33 @@ public:
 
   KOKKOS_FUNCTION virtual const int* adjacentNodes()
   {
-    NGP_ThrowErrorMsg("MasterElement::adjacentNodes not implemented");
+    STK_NGP_ThrowErrorMsg("MasterElement::adjacentNodes not implemented");
     return nullptr;
   }
 
   KOKKOS_FUNCTION virtual const int* scsIpEdgeOrd()
   {
-    NGP_ThrowErrorMsg("MasterElement::scsIpEdgeOrd not implemented");
+    STK_NGP_ThrowErrorMsg("MasterElement::scsIpEdgeOrd not implemented");
     return nullptr;
   }
 
   KOKKOS_FUNCTION virtual const int* ipNodeMap(int /* ordinal */ = 0) const
   {
-    NGP_ThrowErrorMsg("MasterElement::ipNodeMap not implemented");
+    STK_NGP_ThrowErrorMsg("MasterElement::ipNodeMap not implemented");
     return nullptr;
   }
 
   KOKKOS_FUNCTION virtual int
   opposingNodes(const int /* ordinal */, const int /* node */)
   {
-    NGP_ThrowErrorMsg("opposingNodes not implemented");
+    STK_NGP_ThrowErrorMsg("opposingNodes not implemented");
     return -1;
   }
 
   KOKKOS_FUNCTION virtual int
   opposingFace(const int /* ordinal */, const int /* node */)
   {
-    NGP_ThrowErrorMsg("opposingFace not implemented");
+    STK_NGP_ThrowErrorMsg("opposingFace not implemented");
     return -1;
   }
 
@@ -291,7 +296,7 @@ public:
   }
   KOKKOS_FUNCTION virtual const int* side_node_ordinals(int) const
   {
-    NGP_ThrowErrorMsg("side_node_ordinals not implemented");
+    STK_NGP_ThrowErrorMsg("side_node_ordinals not implemented");
     return nullptr;
   }
 
@@ -304,22 +309,24 @@ protected:
   KOKKOS_FUNCTION virtual void
   shape_fcn(SharedMemView<DoubleType**, DeviceShmem>&)
   {
-    NGP_ThrowErrorMsg("MasterElement::shape_fcn not implemented for element");
+    STK_NGP_ThrowErrorMsg(
+      "MasterElement::shape_fcn not implemented for element");
   }
   virtual void shape_fcn(SharedMemView<double**, HostShmem>&)
   {
-    NGP_ThrowErrorMsg("MasterElement::shape_fcn not implemented for element");
+    STK_NGP_ThrowErrorMsg(
+      "MasterElement::shape_fcn not implemented for element");
   }
 
   KOKKOS_FUNCTION virtual void
   shifted_shape_fcn(SharedMemView<DoubleType**, DeviceShmem>&)
   {
-    NGP_ThrowErrorMsg(
+    STK_NGP_ThrowErrorMsg(
       "MasterElement::shifted_shape_fcn not implemented for element");
   }
   virtual void shifted_shape_fcn(SharedMemView<double**, HostShmem>&)
   {
-    NGP_ThrowErrorMsg(
+    STK_NGP_ThrowErrorMsg(
       "MasterElement::shifted_shape_fcn not implemented for element");
   }
 
@@ -336,7 +343,7 @@ MasterElement::shape_fcn<DoubleType, DeviceShmem>(
 }
 
 template <>
-inline void
+KOKKOS_INLINE_FUNCTION void
 MasterElement::shape_fcn<double, HostShmem>(
   SharedMemView<double**, HostShmem>& shpfc)
 {
@@ -352,14 +359,14 @@ MasterElement::shifted_shape_fcn<DoubleType, DeviceShmem>(
 }
 
 template <>
-inline void
+KOKKOS_INLINE_FUNCTION void
 MasterElement::shifted_shape_fcn<double, HostShmem>(
   SharedMemView<double**, HostShmem>& shpfc)
 {
   shifted_shape_fcn(shpfc);
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

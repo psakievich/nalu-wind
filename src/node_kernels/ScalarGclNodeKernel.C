@@ -15,7 +15,7 @@
 #include "utils/StkHelpers.h"
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 ScalarGclNodeKernel::ScalarGclNodeKernel(
   const stk::mesh::BulkData& bulk, ScalarFieldType* scalarQ)
@@ -24,7 +24,7 @@ ScalarGclNodeKernel::ScalarGclNodeKernel(
   const auto& meta = bulk.mesh_meta_data();
 
   const ScalarFieldType* density =
-    meta.get_field<ScalarFieldType>(stk::topology::NODE_RANK, "density");
+    meta.get_field<double>(stk::topology::NODE_RANK, "density");
 
   scalarQNp1ID_ =
     scalarQ->field_of_state(stk::mesh::StateNP1).mesh_meta_data_ordinal();
@@ -88,5 +88,5 @@ ScalarGclNodeKernel::execute(
   rhs(0) -= rhoNp1 * scalarQNp1 * (divV - (volRate - divV)) * dualNdVolNp1;
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

@@ -16,9 +16,9 @@
 
 namespace {
 using KVector =
-  Kokkos::View<vs::Vector*, Kokkos::LayoutRight, sierra::nalu::MemSpace>;
+  Kokkos::View<vs::Vector*, Kokkos::LayoutRight, sierra::kynema_ugf::MemSpace>;
 using KDouble =
-  Kokkos::View<double*, Kokkos::LayoutRight, sierra::nalu::MemSpace>;
+  Kokkos::View<double*, Kokkos::LayoutRight, sierra::kynema_ugf::MemSpace>;
 const double eps_test = vs::DTraits<double>::eps() * 1.e2;
 
 //! compare WM rotation to standard tensor rotation
@@ -61,6 +61,50 @@ impl_test_WM_rotation(
       const auto wmAxis =
         wmp::create_wm_param(dAxis(0), utils::radians(dAngle(0)));
       dEnd(0) = wmp::rotate(wmAxis, dPoint(0), transpose);
+    });
+
+  Kokkos::deep_copy(hEnd, dEnd);
+  Kokkos::deep_copy(hEndGold, dEndGold);
+
+  for (int i = 0; i < 3; ++i) {
+    EXPECT_NEAR(hEndGold(0)[i], hEnd(0)[i], eps_test);
+  }
+}
+
+//! test rotation tensor for a given WM
+void
+test_rotation_tensor(vs::Vector axis, vs::Vector point, double angle)
+{
+
+  // device memory
+  KVector dEnd("end", 1);
+  KVector dEndGold("end_gold", 1);
+  KVector dAxis("axis", 1);
+  KVector dPoint("point", 1);
+  KDouble dAngle("angle_in_degrees", 1);
+  // host mirrors
+  auto hEnd = Kokkos::create_mirror_view(dEnd);
+  auto hEndGold = Kokkos::create_mirror_view(dEndGold);
+  auto hAxis = Kokkos::create_mirror_view(dAxis);
+  auto hPoint = Kokkos::create_mirror_view(dPoint);
+  auto hAngle = Kokkos::create_mirror_view(dAngle);
+
+  hAxis(0) = axis;
+  hPoint(0) = point;
+  hAngle(0) = angle;
+
+  Kokkos::deep_copy(dAxis, hAxis);
+  Kokkos::deep_copy(dPoint, hPoint);
+  Kokkos::deep_copy(dAngle, hAngle);
+
+  Kokkos::parallel_for(
+    1, KOKKOS_LAMBDA(int) {
+      dEndGold(0) = dPoint(0) & vs::quaternion(dAxis(0), dAngle(0));
+
+      // WM setup
+      const auto wmAxis =
+        wmp::create_wm_param(dAxis(0), utils::radians(dAngle(0)));
+      dEnd(0) = wmp::rotation_tensor(wmAxis) & dPoint(0);
     });
 
   Kokkos::deep_copy(hEnd, dEnd);
@@ -174,6 +218,7 @@ TEST(WienerMilenkovic, NGP_rotation_arbitrary_axis)
 {
   // test arbitrary axis rotation
   impl_test_WM_rotation(vs::Vector::one(), vs::Vector::khat(), 90.0);
+  test_rotation_tensor(vs::Vector::one(), vs::Vector::khat(), 90.0);
 }
 
 TEST(WienerMilenkovic, NGP_negative_rotation)
@@ -197,4 +242,16 @@ TEST(WienerMilenkovic, NGP_compose_push_then_pop_param)
   impl_test_WM_compose_add_sub(wmp1, wmp2, point);
 }
 
+TEST(WienerMilenkovic, rotation_interpolation)
+{
+  const double angleStart{30.0}, angleEnd{40.0}, factor{0.5};
+  const auto qStart =
+    wmp::create_wm_param(vs::Vector::khat(), utils::radians(angleStart));
+  const auto qEnd =
+    wmp::create_wm_param(vs::Vector::khat(), utils::radians(angleEnd));
+  const auto interp = wmp::linear_interp_rotation(qStart, qEnd, factor);
+  const auto goldAngle = utils::radians(factor * (angleStart + angleEnd));
+  const double interpAngle = 4.0 * stk::math::atan(0.25 * vs::mag(interp));
+  EXPECT_NEAR(goldAngle, interpAngle, 1e-4);
+}
 } // namespace test_wmp

@@ -1,9 +1,8 @@
 #include <gtest/gtest.h>
-#include <NaluEnv.h>
+#include <KynemaUGFEnv.h>
 
 #include <stk_io/StkMeshIoBroker.hpp>
 #include <stk_mesh/base/BulkData.hpp>
-#include <stk_mesh/base/CoordinateSystems.hpp>
 #include <stk_mesh/base/FEMHelpers.hpp>
 #include <stk_mesh/base/Field.hpp>
 #include <stk_mesh/base/FieldBase.hpp>
@@ -42,7 +41,7 @@ perturb_coord_hex_8(stk::mesh::BulkData& bulk, double perturbSize)
   // ensure that the rng isn't machine/compiler dependent.
   struct Lcg
   {
-    Lcg(uint32_t seed) : prev(seed){};
+    Lcg(uint32_t seed) : prev(seed) {};
 
     double operator()()
     {
@@ -58,9 +57,10 @@ perturb_coord_hex_8(stk::mesh::BulkData& bulk, double perturbSize)
   Lcg lcg(bulk.parallel_rank() + 1);
 
   const auto& meta = bulk.mesh_meta_data();
-  const VectorFieldType* coordField =
-    dynamic_cast<const VectorFieldType*>(meta.coordinate_field());
-  ThrowRequire(coordField != nullptr);
+  const sierra::kynema_ugf::VectorFieldType* coordField =
+    dynamic_cast<const sierra::kynema_ugf::VectorFieldType*>(
+      meta.coordinate_field());
+  STK_ThrowRequire(coordField != nullptr);
 
   for (const auto* ib :
        bulk.get_buckets(stk::topology::NODE_RANK, meta.locally_owned_part())) {
@@ -111,9 +111,9 @@ dump_mesh(
 }
 
 std::ostream&
-nalu_out()
+kynema_ugf_out()
 {
-  return sierra::nalu::NaluEnv::self().naluOutput();
+  return sierra::kynema_ugf::KynemaUGFEnv::self().kynema_ugfOutput();
 }
 
 stk::mesh::Entity
@@ -138,12 +138,13 @@ create_one_element(
   }
 
   // set a coordinate field
-  using vector_field_type = stk::mesh::Field<double, stk::mesh::Cartesian3d>;
-  auto& coordField = meta.declare_field<vector_field_type>(
-    stk::topology::NODE_RANK, "coordinates");
-  stk::mesh::put_field_on_mesh(coordField, block_1, nullptr);
+  auto& coordField =
+    meta.declare_field<double>(stk::topology::NODE_RANK, "coordinates");
   stk::mesh::put_field_on_mesh(
-    coordField, stk::mesh::selectUnion(allSurfaces), nullptr);
+    coordField, block_1, meta.spatial_dimension(), nullptr);
+  stk::mesh::put_field_on_mesh(
+    coordField, stk::mesh::selectUnion(allSurfaces), meta.spatial_dimension(),
+    nullptr);
   meta.set_coordinate_field(&coordField);
   meta.commit();
 
@@ -157,16 +158,17 @@ create_one_element(
   }
   auto elem = stk::mesh::declare_element(
     bulk, block_1, bulk.parallel_rank() + 1, nodeIds);
-  stk::mesh::create_all_sides(bulk, block_1, allSurfaces, false);
 
   bulk.modification_end();
+
+  stk::mesh::create_all_sides(bulk, block_1, allSurfaces, false);
 
   auto surfaceSelector = stk::mesh::selectUnion(allSurfaces);
   stk::mesh::EntityVector all_faces;
   stk::mesh::get_selected_entities(
     surfaceSelector, bulk.get_buckets(meta.side_rank(), surfaceSelector),
     all_faces);
-  ThrowRequire(all_faces.size() == topo.num_sides());
+  STK_ThrowRequire(all_faces.size() == topo.num_sides());
 
   bulk.modification_begin();
   for (unsigned k = 0u; k < all_faces.size(); ++k) {
@@ -382,8 +384,8 @@ global_norm(
 double
 initialize_linear_scalar_field(
   const stk::mesh::BulkData& bulk,
-  const VectorFieldType& coordField,
-  const ScalarFieldType& qField)
+  const sierra::kynema_ugf::VectorFieldType& coordField,
+  const sierra::kynema_ugf::ScalarFieldType& qField)
 {
   // q = a + b^T x
   std::mt19937 rng;
@@ -416,8 +418,8 @@ initialize_linear_scalar_field(
 double
 initialize_quadratic_scalar_field(
   const stk::mesh::BulkData& bulk,
-  const VectorFieldType& coordField,
-  const ScalarFieldType& qField)
+  const sierra::kynema_ugf::VectorFieldType& coordField,
+  const sierra::kynema_ugf::ScalarFieldType& qField)
 {
   // q = a + b^T x + 1/2 x^T H x
   std::mt19937 rng;
@@ -512,7 +514,7 @@ random_linear_transformation(int dim, double scale, std::mt19937& rng)
     std::array<double, 9> rot = random_rotation_matrix(dim, rng);
 
     std::array<double, 9> QR = {{}};
-    sierra::nalu::mxm33(Q.data(), rot.data(), QR.data());
+    sierra::kynema_ugf::mxm33(Q.data(), rot.data(), QR.data());
 
     return QR;
   } else {
@@ -530,7 +532,7 @@ random_linear_transformation(int dim, double scale, std::mt19937& rng)
     std::array<double, 9> rot = random_rotation_matrix(dim, rng);
 
     std::array<double, 9> QR = {{}};
-    sierra::nalu::mxm22(Q.data(), rot.data(), QR.data());
+    sierra::kynema_ugf::mxm22(Q.data(), rot.data(), QR.data());
 
     return QR;
   }
@@ -555,4 +557,55 @@ Hex8Mesh::check_discrete_laplacian(double exactLaplacian)
       }
     }
   }
+}
+
+Hex8MeshWithNSOFields::Hex8MeshWithNSOFields() : Hex8Mesh()
+{
+  sierra::kynema_ugf::HexSCS hex8SCS;
+  const unsigned hex_int_pts = hex8SCS.num_integration_points();
+  const unsigned quad_vec_len =
+    3 *
+    sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
+      stk::topology::QUAD_4)
+      ->num_integration_points();
+  const unsigned Gju_len = 3;
+  const double one = 1.0;
+  const double two = 2.0;
+  const double oneVecThree[3] = {one, one, one};
+  const std::vector<double> oneVecTwelve(quad_vec_len, one);
+  const std::vector<double> oneVecNInt(hex_int_pts, one);
+
+  const stk::mesh::PartVector universal(1, &meta->universal_part());
+  const unsigned num_states = 1;
+  const unsigned vec_len = 3;
+  const unsigned scalar_len = 1;
+
+  massFlowRate = fieldManager->register_generic_field(
+    "mass_flow_rate_scs", universal, num_states, hex_int_pts,
+    oneVecNInt.data());
+
+  Gju = fieldManager->register_generic_field(
+    "Gju", universal, num_states, Gju_len, oneVecThree);
+
+  exposedAreaVec = fieldManager->register_generic_field(
+    "exposed_area_vector", universal, num_states, quad_vec_len,
+    oneVecTwelve.data());
+
+  velocity =
+    fieldManager->register_field<double>("velocity", universal, oneVecThree);
+
+  dpdx = fieldManager->register_field<double>("dpdx", universal, oneVecThree);
+
+  density = fieldManager->register_field<double>("density", universal, &one);
+
+  viscosity =
+    fieldManager->register_field<double>("viscosity", universal, &one);
+
+  pressure = fieldManager->register_field<double>("pressure", universal, &one);
+
+  udiag =
+    fieldManager->register_field<double>("momentum_diag", universal, &one);
+
+  dnvField =
+    fieldManager->register_field<double>("dual_nodal_volume", universal, &one);
 }

@@ -2,13 +2,13 @@
 
 #include "mesh_motion/FrameMoving.h"
 
-#include "NaluParsing.h"
+#include "KynemaUGFParsing.h"
 
 #include <cassert>
 #include <iostream>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 MeshMotionAlg::MeshMotionAlg(stk::mesh::BulkData& bulk, const YAML::Node& node)
 {
@@ -45,8 +45,9 @@ void
 MeshMotionAlg::initialize(const double time)
 {
   if (isInit_)
-    throw std::runtime_error("MeshMotionAlg::initialize(): Re-initialization "
-                             "of MeshMotionAlg not valid");
+    throw std::runtime_error(
+      "MeshMotionAlg::initialize(): Re-initialization "
+      "of MeshMotionAlg not valid");
 
   for (size_t i = 0; i < movingFrameVec_.size(); i++) {
     movingFrameVec_[i]->setup();
@@ -98,5 +99,5 @@ MeshMotionAlg::get_partvec()
   return fpartVec;
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

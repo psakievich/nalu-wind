@@ -10,7 +10,7 @@
 #include "kernel/ScalarOpenAdvElemKernel.h"
 #include "EquationSystem.h"
 #include "master_element/MasterElement.h"
-#include "master_element/MasterElementFactory.h"
+#include "master_element/MasterElementRepo.h"
 #include "PecletFunction.h"
 #include "SolutionOptions.h"
 #include "BuildTemplates.h"
@@ -25,7 +25,7 @@
 #include <stk_mesh/base/Field.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 namespace {
 template <typename BcAlgTraits, typename T>
 void
@@ -65,11 +65,13 @@ ScalarOpenAdvElemKernel<BcAlgTraits>::ScalarOpenAdvElemKernel(
     alphaUpw_(solnOpts.get_alpha_upw_factor(scalarQ->name())),
     om_alphaUpw_(1.0 - alphaUpw_),
     hoUpwind_(solnOpts.get_upw_factor(scalarQ->name())),
-    faceIpNodeMap_(sierra::nalu::MasterElementRepo::get_surface_master_element(
-                     BcAlgTraits::faceTopo_)
-                     ->ipNodeMap()),
-    meSCS_(sierra::nalu::MasterElementRepo::get_surface_master_element(
-      BcAlgTraits::elemTopo_)),
+    faceIpNodeMap_(
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
+        BcAlgTraits::faceTopo_)
+        ->ipNodeMap()),
+    meSCS_(
+      sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
+        BcAlgTraits::elemTopo_)),
     pecletFunction_(
       eqSystem->create_peclet_function<DoubleType>(scalarQ->name()))
 {
@@ -84,10 +86,10 @@ ScalarOpenAdvElemKernel<BcAlgTraits>::ScalarOpenAdvElemKernel(
 
   // extract master elements
   MasterElement* meFC =
-    sierra::nalu::MasterElementRepo::get_surface_master_element(
+    sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_host(
       BcAlgTraits::faceTopo_);
   MasterElement* meFC_dev =
-    sierra::nalu::MasterElementRepo::get_surface_master_element_on_dev(
+    sierra::kynema_ugf::MasterElementRepo::get_surface_master_element_on_dev(
       BcAlgTraits::faceTopo_);
 
   // add master elements
@@ -243,5 +245,5 @@ ScalarOpenAdvElemKernel<BcAlgTraits>::execute(
 
 INSTANTIATE_KERNEL_FACE_ELEMENT(ScalarOpenAdvElemKernel)
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

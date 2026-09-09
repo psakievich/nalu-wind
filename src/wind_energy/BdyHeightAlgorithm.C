@@ -8,7 +8,7 @@
 //
 
 #include "wind_energy/BdyHeightAlgorithm.h"
-#include "NaluParsing.h"
+#include "KynemaUGFParsing.h"
 #include "Realm.h"
 #include "utils/LinearInterpolation.h"
 
@@ -24,7 +24,7 @@
 #include <cstdint>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 RectilinearMeshHeightAlg::RectilinearMeshHeightAlg(
   Realm& realm, const YAML::Node& node)
@@ -52,7 +52,7 @@ RectilinearMeshHeightAlg::calc_height_levels(
   auto& bulk = realm_.bulk_data();
 
   const auto bkts = bulk.get_buckets(stk::topology::NODE_RANK, nodeSel);
-  const VectorFieldType* coords = meta.get_field<VectorFieldType>(
+  const VectorFieldType* coords = meta.get_field<double>(
     stk::topology::NODE_RANK, realm_.get_coordinates_name());
 
   // Index of the wall normal coordinate
@@ -74,7 +74,7 @@ RectilinearMeshHeightAlg::calc_height_levels(
 
   // Gather All height levels on all MPI ranks
   const int nprocs = bulk.parallel_size();
-  const int numLevelsLocal = hLevels.size();
+  int numLevelsLocal = hLevels.size();
   // Convert set to vector for MPI Send/Recv
   std::vector<uint64_t> hLevelsVec(numLevelsLocal);
 
@@ -141,5 +141,5 @@ RectilinearMeshHeightAlg::calc_height_levels(
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra

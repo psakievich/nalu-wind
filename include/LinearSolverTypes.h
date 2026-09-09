@@ -57,11 +57,10 @@ template <
   typename GlobalOrdinal,
   typename Node>
 class Preconditioner;
-
 }
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class TpetraLinearSolver;
 
@@ -105,13 +104,14 @@ struct LinSys
 
   using EntityToLIDView =
     Kokkos::View<LocalOrdinal*, Kokkos::LayoutRight, LinSysMemSpace>;
-  using EntityToLIDHostView = typename EntityToLIDView::HostMirror;
+  using EntityToLIDHostView = typename EntityToLIDView::host_mirror_type;
   using ConstEntityToLIDView =
     Kokkos::View<const LocalOrdinal*, Kokkos::LayoutRight, LinSysMemSpace>;
-  using ConstEntityToLIDHostView = typename ConstEntityToLIDView::HostMirror;
+  using ConstEntityToLIDHostView =
+    typename ConstEntityToLIDView::host_mirror_type;
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif

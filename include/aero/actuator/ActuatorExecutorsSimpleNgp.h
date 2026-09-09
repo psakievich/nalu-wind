@@ -17,7 +17,7 @@
 #include <memory>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 class ActuatorLineSimpleNGP : public ActuatorExecutor
 {
@@ -27,7 +27,7 @@ public:
     ActuatorBulkSimple& actBulk,
     stk::mesh::BulkData& stkBulk);
 
-  virtual ~ActuatorLineSimpleNGP(){};
+  virtual ~ActuatorLineSimpleNGP() {};
   void operator()() final;
 
 private:
@@ -38,7 +38,7 @@ private:
   const bool useSpreadActuatorForce_;
 };
 
-} /* namespace nalu */
+} /* namespace kynema_ugf */
 } /* namespace sierra */
 
 #endif /* ACTUATORLINESIMPLENGP_H_ */

@@ -15,9 +15,9 @@
 #include <type_traits>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
-namespace nalu_ngp {
+namespace kynema_ugf_ngp {
 
 template <class T>
 inline T*
@@ -119,7 +119,7 @@ create_ngp_view(const Container& hostVec)
   const std::string debuggingName = "NGP" + clsName + "View";
   NGPInfoView ngpVec(debuggingName, numObjects);
 
-  typename NGPInfoView::HostMirror hostNgpView =
+  typename NGPInfoView::host_mirror_type hostNgpView =
     Kokkos::create_mirror_view(ngpVec);
 
   for (size_t i = 0; i < numObjects; ++i)
@@ -130,9 +130,9 @@ create_ngp_view(const Container& hostVec)
   return ngpVec;
 }
 
-} // namespace nalu_ngp
+} // namespace kynema_ugf_ngp
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
 
 #endif /* NGPINSTANCE_H */

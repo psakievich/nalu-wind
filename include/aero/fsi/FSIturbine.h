@@ -16,7 +16,6 @@
 
 #include "stk_mesh/base/MetaData.hpp"
 #include "stk_mesh/base/BulkData.hpp"
-#include "stk_mesh/base/CoordinateSystems.hpp"
 #include "stk_mesh/base/Field.hpp"
 #include "FieldTypeDef.h"
 #include <stk_search/Point.hpp>
@@ -35,7 +34,7 @@ struct SixDOF;
 
 namespace sierra {
 
-namespace nalu {
+namespace kynema_ugf {
 
 struct DeflectionRampingParams
 {
@@ -45,17 +44,21 @@ struct DeflectionRampingParams
   double thetaRampSpan_{10.0};
   double startTimeTemporalRamp_{0.0};
   double endTimeTemporalRamp_{0.0};
+  bool enableSpanRamping_{false};
+  bool enableThetaRamping_{false};
+  bool enableTemporalRamping_{false};
 };
 
 // TODO(psakiev) find a better place for this
 // **********************************************************************
 //! convenience function for generating a vs::Vector from a stk::field
-template <typename T, typename P>
+template <typename T>
 inline vs::VectorT<T>
-vector_from_field(stk::mesh::Field<T, P>& field, const stk::mesh::Entity& node)
+vector_from_field(
+  const stk::mesh::Field<T>& field, const stk::mesh::Entity& node)
 {
   // debug only check for optimization
-  assert(field.max_size(stk::topology::NODE_RANK) == 3);
+  assert(field.max_size() == 3);
   assert(field.template type_is<T>());
   T* ptr = stk::mesh::field_data(field, node);
   return {ptr[0], ptr[1], ptr[2]};
@@ -63,15 +66,13 @@ vector_from_field(stk::mesh::Field<T, P>& field, const stk::mesh::Entity& node)
 
 //! convenience function for putting vector computations back onto the
 //! stk::fields
-template <typename T, typename P>
+template <typename T>
 inline void
 vector_to_field(
-  vs::VectorT<T> vec,
-  stk::mesh::Field<T, P>& field,
-  const stk::mesh::Entity& node)
+  vs::VectorT<T> vec, stk::mesh::Field<T>& field, const stk::mesh::Entity& node)
 {
   // debug only check for optimization
-  assert(field.max_size(stk::topology::NODE_RANK) == 3);
+  assert(field.max_size() == 3);
   assert(field.template type_is<T>());
   T* ptr = stk::mesh::field_data(field, node);
   for (int i = 0; i < 3; ++i) {
@@ -188,11 +189,6 @@ private:
     stk::mesh::PartVector& allPartVec,
     const std::string& turbinePart);
 
-  //! Compute the effective force and moment at the OpenFAST mesh node for a
-  //! given force at the CFD surface mesh node
-  void computeEffForceMoment(
-    double* forceCFD, double* xyzCFD, double* forceMomOF, double* xyzOF);
-
   //! Compute the effective force and moment at the hub (can be any point) from
   //! a given mesh part vector
   void computeHubForceMomentForPart(
@@ -209,9 +205,6 @@ private:
   //! velStart).
   void linInterpTotVelocity(
     double* velStart, double* velEnd, double interpFac, double* velInterp);
-  //! Linearly interpolate between 3-dimensional vectors 'a' and 'b' with
-  //! interpolating factor 'interpFac'
-  void linInterpVec(double* a, double* b, double interpFac, double* aInterpb);
 
   /* Linearly interpolate the Wiener-Milenkovic parameters between 'qStart' and
      'qEnd' into 'qInterp' with an interpolating factor 'interpFac' see
@@ -258,14 +251,6 @@ private:
     double* totPosOF,
     double* transVelNode,
     double* xyzCFD);
-
-  //! Split a force and moment into the surrounding 'left' and 'right' nodes in
-  //! a variationally consistent manner using interpFac
-  void splitForceMoment(
-    double* totForceMoment,
-    double interpFac,
-    double* leftForceMoment,
-    double* rightForceMoment);
 
   //! Apply a Wiener-Milenkovic rotation 'wm' to a vector 'r' into 'rRot'
   void
@@ -362,7 +347,7 @@ private:
   std::vector<std::string> bndryPartNames_;
 };
 
-} // namespace nalu
+} // namespace kynema_ugf
 
 } // namespace sierra
 

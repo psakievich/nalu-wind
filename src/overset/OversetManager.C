@@ -18,12 +18,12 @@
 #include <stk_mesh/base/MetaData.hpp>
 #include <stk_mesh/base/Field.hpp>
 #include <stk_mesh/base/FieldParallel.hpp>
-#include <stk_mesh/base/GetBuckets.hpp>
+
 #include <stk_mesh/base/Part.hpp>
 #include <stk_mesh/base/Selector.hpp>
 
 namespace sierra {
-namespace nalu {
+namespace kynema_ugf {
 
 OversetManager::OversetManager(Realm& realm)
   : realm_(realm), metaData_(&realm.meta_data()), bulkData_(&realm_.bulk_data())
@@ -97,7 +97,7 @@ OversetManager::overset_orphan_node_field_update(
     const int num_nodes = bulkData_->num_nodes(owningElement);
 
     // sanity check on num nodes
-    ThrowAssert(num_nodes == nodesPerElement);
+    STK_ThrowAssert(num_nodes == nodesPerElement);
 
     for (int ni = 0; ni < num_nodes; ++ni) {
       stk::mesh::Entity node = elem_node_rels[ni];
@@ -130,5 +130,5 @@ OversetManager::overset_orphan_node_field_update(
   }
 }
 
-} // namespace nalu
+} // namespace kynema_ugf
 } // namespace sierra
